@@ -1,6 +1,16 @@
-# EXPERIMENTAL FORK
+# EXPERIMENTAL FORK FOR THE NINTENDO SWITCH
 
-FIRST BUILD 
+NO OPENGL, NO CURL, NO EFSW, BUT IT GENERATES A LIB:
+
+```bash
+haxelib run lime rebuild switch -nocffi -D static_link
+```
+
+![](./switchlimelibcapture.png)
+
+Based on the commit ``68107ee`` (From  Sep 18, 2025)
+
+====
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.md) [![Haxelib Version](https://img.shields.io/github/tag/openfl/lime.svg?style=flat&label=haxelib)](http://lib.haxe.org/p/lime) [![Build Status](https://img.shields.io/github/actions/workflow/status/openfl/lime/main.yml?branch=develop)](https://github.com/openfl/lime/actions) [![Community](https://img.shields.io/discourse/posts?color=24afc4&server=https%3A%2F%2Fcommunity.openfl.org&label=community)](https://community.openfl.org/c/lime/19) [![Discord Server](https://img.shields.io/discord/415681294446493696.svg?color=7289da)](https://discordapp.com/invite/tDgq8EE)
 
