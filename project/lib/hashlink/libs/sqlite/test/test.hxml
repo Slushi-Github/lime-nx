@@ -1,0 +1,9 @@
+-cp src
+-main Main
+-lib hx3compat
+
+--each
+-hl bin/_main.c
+
+--next
+-hl bin/test.b

@@ -1,0 +1,15 @@
+{
+	"name": "lime",
+	"url": "https://github.com/openfl/lime",
+	"license": "MIT",
+	"tags": [],
+	"description": "A foundational Haxe framework for cross-platform development",
+	"version": "8.2.2",
+	"releasenote": "Fixed JS debug builds, install/launch on iOS, and other various bug fixes",
+	"contributors": [
+		"singmajesty",
+		"bowlerhat",
+		"Dimensionscape"
+	],
+	"classPath": "src"
+}
