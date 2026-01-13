@@ -13,21 +13,16 @@
 	<set name="LIME_CURL" value="1" unless="winrt || switch || nx || HX_NX" />
 	<!-- Excluye LIME_EFSW para Switch -->
 	<set name="LIME_EFSW" value="1" if="windows || mac || linux" unless="winrt || switch || nx || HX_NX" />
-	<!-- Excluye LIME_JPEG para Switch -->
-	<set name="LIME_JPEG" value="1" unless="switch || nx || HX_NX" />
+	<set name="LIME_JPEG" value="1" />
 	<!-- <set name="LIME_FAUDIO" value="1" /> -->
-	<!-- Excluye LIME_FREETYPE para Switch -->
-	<set name="LIME_FREETYPE" value="1" unless="switch || nx || HX_NX" />
-	<!-- Excluye LIME_HARFBUZZ para Switch -->
-	<set name="LIME_HARFBUZZ" value="1" unless="winrt || switch || nx || HX_NX" />
+	<set name="LIME_FREETYPE" value="1" />
+	<set name="LIME_HARFBUZZ" value="1" unless="winrt" />
 	<!-- <set name="LIME_HASHLINK" value="1" if="windows || mac || linux" /> -->
 	<set name="LIME_HASHLINK" value="1" if="hashlink" />
-	<!-- Excluye LIME_LZMA para Switch -->
-	<set name="LIME_LZMA" value="1" unless="switch || nx || HX_NX" />
+	<set name="LIME_LZMA" value="1" />
 	<set name="LIME_MBEDTLS" value="1" unless="emscripten || winrt" />
 	<!-- <set name="LIME_NEKO" value="1" if="linux" /> -->
-	<!-- Excluye LIME_OGG para Switch -->
-	<set name="LIME_OGG" value="1" unless="switch || nx || HX_NX" />
+	<set name="LIME_OGG" value="1" />
 	<set name="LIME_OPENALSOFT" value="1" if="windows || linux || mac || android" unless="static_link" />
 	<set name="LIME_OPENAL" value="1" if="iphone || webassembly || tvos" />
 	<!-- LIME_MOJOAL se activa para nx, lo cual es correcto para Switch -->
@@ -35,11 +30,10 @@
 	<unset name="LIME_OPENALSOFT" if="LIME_MOJOAL" />
 	<set name="LIME_OPENAL" value="1" if="LIME_OPENALSOFT" />
 	<set name="LIME_OPENAL" value="1" if="LIME_MOJOAL" />
-	<!-- Habilita LIME_OPENGL para Switch -->
-	<set name="LIME_OPENGL" value="1" />
+	<!-- Excluye LIME_OPENGL para Switch -->
+	<set name="LIME_OPENGL" value="1" unless="switch || nx || HX_NX" />
 	<set name="LIME_PIXMAN" value="1" />
-	<!-- Excluye LIME_PNG para Switch -->
-	<set name="LIME_PNG" value="1" unless="switch || nx || HX_NX" />
+	<set name="LIME_PNG" value="1" />
 	<!-- Define LIME_SDL como 1, pero exclúyelo de la compilación interna para Switch -->
 	<set name="LIME_SDL" value="1" unless="switch || nx || HX_NX" />
 	<!-- <set name="LIME_SDL_ANGLE" value="1" if="windows" unless="static_link" /> -->
@@ -47,12 +41,10 @@
 	<set name="LIME_SDL_ANGLE" value="1" if="windows angle" unless="static_link" />
 	<set name="LIME_SDL_ANGLE" value="1" if="winrt" />
 	<set name="LIME_TINYFILEDIALOGS" value="1" if="windows || mac || linux" unless="winrt || emscripten || switch || nx || HX_NX"/>
-	<!-- Excluye LIME_VORBIS para Switch -->
-	<set name="LIME_VORBIS" value="1" unless="switch || nx || HX_NX" />
-	<!-- Excluye LIME_ZLIB para Switch -->
-	<set name="LIME_ZLIB" value="1" unless="switch || nx || HX_NX" />
+	<set name="LIME_VORBIS" value="1" />
 	<!-- <set name="LIME_VPX" value="1" />
 	<set name="LIME_WEBM" value="1" /> -->
+	<set name="LIME_ZLIB" value="1" />
 
 	<set name="OUTPUT_DIR" value="../ndll" unless="OUTPUT_DIR" />
 	<set name="NATIVE_TOOLKIT_PATH" value="lib" unless="NATIVE_TOOLKIT_PATH" />
@@ -122,8 +114,7 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_FREETYPE, excluida para Switch -->
-		<section if="LIME_FREETYPE" unless="switch || nx || HX_NX">
+		<section if="LIME_FREETYPE">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/freetype/include" />
 			<compilerflag value="-DLIME_FREETYPE" />
@@ -136,8 +127,7 @@
 
 			<file name="src/text/Font.cpp" />
 
-			<!-- Sección condicional para LIME_HARFBUZZ, excluida para Switch -->
-			<section if="LIME_HARFBUZZ" unless="switch || nx || HX_NX">
+			<section if="LIME_HARFBUZZ">
 
 				<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/harfbuzz/src" />
 				<compilerflag value="-DLIME_HARFBUZZ" />
@@ -146,35 +136,6 @@
 
 			</section>
 
-		</section>
-
-		<!-- Sección específica para Switch: FreeType y HarfBuzz -->
-		<section if="switch || nx || HX_NX">
-			<!-- Incluimos los encabezados de DevkitPro para FreeType y HarfBuzz -->
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/freetype2" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/harfbuzz" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/ogg" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/vorbis" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/libpng16" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/zlib" />
-			<!-- Aseguramos que lime reconozca que FreeType y HarfBuzz están disponibles -->
-			<compilerflag value="-DLIME_FREETYPE" />
-			<compilerflag value="-DLIME_HARFBUZZ" />
-			<compilerflag value="-DLIME_JPEG" />
-			<compilerflag value="-DLIME_OGG" />
-			<compilerflag value="-DLIME_PNG" />
-			<compilerflag value="-DLIME_VORBIS" />
-			<compilerflag value="-DLIME_ZLIB" />
-			<compilerflag value="-DLIME_LZMA" />
-			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
-			<!-- Aseguramos que lime reconozca que OpenGL está disponible -->
-			<compilerflag value="-DLIME_OPENGL" />
-			<!-- Incluimos los archivos específicos de FreeType y HarfBuzz para Switch -->
-			<file name="src/text/Font.cpp" />
-			<file name="src/text/harfbuzz/HarfbuzzBindings.cpp" />
 		</section>
 
 		<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/hashlink/src" />
@@ -191,19 +152,18 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_JPEG, excluida para Switch -->
-		<section if="LIME_JPEG" unless="switch || nx || HX_NX">
+		<section if="LIME_JPEG">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/custom/jpeg/" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/jpeg/" />
+			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/zlib/" />
 			<compilerflag value="-DLIME_JPEG" />
 
 			<file name="src/graphics/format/JPEG.cpp" />
 
 		</section>
 
-		<!-- Sección condicional para LIME_LZMA, excluida para Switch -->
-		<section if="LIME_LZMA" unless="switch || nx || HX_NX">
+		<section if="LIME_LZMA">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/lzma/src" />
 			<compilerflag value="-DLIME_LZMA" />
@@ -221,8 +181,7 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_OGG, excluida para Switch -->
-		<section if="LIME_OGG" unless="switch || nx || HX_NX">
+		<section if="LIME_OGG">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/custom/ogg/include/" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/ogg/include/" />
@@ -247,16 +206,17 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_OPENGL (ahora incluida para Switch) -->
-		<section if="LIME_OPENGL">
+		<!-- Sección condicional para LIME_OPENGL, excluida para Switch -->
+		<section if="LIME_OPENGL" unless="switch || nx || HX_NX">
+
 			<compilerflag value="-DLIME_OPENGL" />
-			<!-- Quitar la condición unless="switch ..." -->
-			<!-- <compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" /> -->
+			<compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" />
+
 			<file name="src/graphics/opengl/OpenGLBindings.cpp" />
+
 		</section>
 
-		<!-- Sección condicional para LIME_PNG, excluida para Switch -->
-		<section if="LIME_PNG" unless="switch || nx || HX_NX">
+		<section if="LIME_PNG">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/custom/png/" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/png/" />
@@ -332,12 +292,8 @@
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/AL" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glad" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glm" />
-			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
-			<!-- Aseguramos que lime reconozca que SDL y OpenGL están disponibles -->
+			<!-- Aseguramos que lime reconozca que SDL está disponible -->
 			<compilerflag value="-DLIME_SDL" />
-			<compilerflag value="-DLIME_OPENGL" />
 			<compilerflag value="-DHAVE_LIBC" />
 			<!-- Incluimos los archivos específicos de backend de SDL para Switch -->
 			<file name="src/backend/sdl/SDLApplication.cpp" />
@@ -358,8 +314,7 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_VORBIS, excluida para Switch -->
-		<section if="LIME_VORBIS" unless="switch || nx || HX_NX">
+		<section if="LIME_VORBIS">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/ogg/include/" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/vorbis/include/" />
@@ -370,8 +325,7 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_ZLIB, excluida para Switch -->
-		<section if="LIME_ZLIB" unless="switch || nx || HX_NX">
+		<section if="LIME_ZLIB">
 
 			<compilerflag value="-DSTATIC_LINK" if="emscripten || ios || tvos" />
 			<compilerflag value="-DLIME_ZLIB" />
@@ -425,7 +379,7 @@
 	</files>
 
 	<!-- Run setup now so the submodule projects can determine whether clang or GCC will be used. -->
-	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930       ever gets resolved, use that instead. -->
+	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930     ever gets resolved, use that instead. -->
 	<setup name="androidNdk" if="android" />
 
 	<include name="lib/cairo-files.xml" />
@@ -434,33 +388,25 @@
 	<!-- Incluye efsw-files.xml solo si LIME_EFSW está activo y no es Switch -->
 	<include name="lib/efsw-files.xml" if="LIME_EFSW" unless="switch || nx || HX_NX" />
 	<include name="lib/faudio-files.xml" if="LIME_FAUDIO" />
-	<!-- Excluir freetype-files.xml para Switch -->
-	<include name="lib/freetype-files.xml" if="LIME_FREETYPE" unless="switch || nx || HX_NX" />
-	<!-- Excluir harfbuzz-files.xml para Switch -->
-	<include name="lib/harfbuzz-files.xml" if="LIME_HARFBUZZ" unless="switch || nx || HX_NX" />
-	<!-- Excluir jpeg-files.xml para Switch -->
-	<include name="lib/jpeg-files.xml" if="LIME_JPEG" unless="switch || nx || HX_NX" />
-	<!-- Excluir lzma-files.xml para Switch -->
-	<include name="lib/lzma-files.xml" if="LIME_LZMA" unless="switch || nx || HX_NX" />
+	<include name="lib/freetype-files.xml" />
+	<include name="lib/harfbuzz-files.xml" />
+	<include name="lib/jpeg-files.xml" />
+	<include name="lib/lzma-files.xml" />
 	<include name="lib/mbedtls-files.xml" />
 	<include name="lib/mojoal-files.xml" />
 	<include name="lib/neko-files.xml" />
-	<!-- Excluir ogg-files.xml para Switch -->
-	<include name="lib/ogg-files.xml" if="LIME_OGG" unless="switch || nx || HX_NX" />
+	<include name="lib/ogg-files.xml" />
 	<include name="lib/openal-files.xml" />
 	<!-- Incluye pixman-files.xml solo si LIME_PIXMAN está activo y no es Switch -->
 	<include name="lib/pixman-files.xml" if="LIME_PIXMAN" unless="switch || nx || HX_NX" />
-	<!-- Excluir png-files.xml para Switch -->
-	<include name="lib/png-files.xml" if="LIME_PNG" unless="switch || nx || HX_NX" />
+	<include name="lib/png-files.xml" />
 	<!-- Excluir sdl-files.xml para Switch -->
 	<include name="lib/sdl-files.xml" if="LIME_SDL" unless="switch || nx || HX_NX" />
 	<include name="lib/tinyfiledialogs-files.xml" />
-	<!-- Excluir vorbis-files.xml para Switch -->
-	<include name="lib/vorbis-files.xml" if="LIME_VORBIS" unless="switch || nx || HX_NX" />
+	<include name="lib/vorbis-files.xml" />
 	<include name="lib/vpx-files.xml" />
 	<include name="lib/webm-files.xml" />
-	<!-- Excluir zlib-files.xml para Switch -->
-	<include name="lib/zlib-files.xml" if="LIME_ZLIB" unless="switch || nx || HX_NX" />
+	<include name="lib/zlib-files.xml" />
 
 	<set name="DEBUGEXTRA" value="-debug" if="fulldebug" />
 	<set name="LIBSUFFIX" value="${HX_TARGET_SUFFIX}" if="HX_TARGET_SUFFIX" />
@@ -479,30 +425,25 @@
 		<!-- Incluye archivos nativos de efsw solo si LIME_EFSW está activo y no es Switch -->
 		<files id="native-toolkit-efsw" if="LIME_EFSW" unless="switch || nx || HX_NX" />
 		<files id="native-toolkit-faudio" if="LIME_FAUDIO" />
-		<!-- Incluye archivos nativos de freetype solo si LIME_FREETYPE está activo y no es Switch -->
-		<files id="native-toolkit-freetype" if="LIME_FREETYPE" unless="switch || nx || HX_NX" />
-		<!-- Incluye archivos nativos de harfbuzz solo si LIME_HARFBUZZ está activo y no es Switch -->
-		<files id="native-toolkit-harfbuzz" if="LIME_HARFBUZZ" unless="switch || nx || HX_NX" />
-		<!-- Incluye archivos nativos de jpeg solo si LIME_JPEG está activo y no es Switch -->
-		<files id="native-toolkit-jpeg" if="LIME_JPEG" unless="switch || nx || HX_NX" />
-		<!-- Incluye archivos nativos de lzma solo si LIME_LZMA está activo y no es Switch -->
-		<files id="native-toolkit-lzma" if="LIME_LZMA" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-freetype" if="LIME_FREETYPE" />
+		<files id="native-toolkit-harfbuzz" if="LIME_HARFBUZZ" />
+		<files id="native-toolkit-jpeg" if="LIME_JPEG" />
+		<files id="native-toolkit-lzma" if="LIME_LZMA" />
 		<files id="native-toolkit-mbedtls" if="LIME_MBEDTLS" unless="static_link" />
 		<files id="native-toolkit-mojoal" if="LIME_MOJOAL" />
 		<files id="native-toolkit-neko" if="LIME_NEKO" />
-		<!-- Incluye archivos nativos de ogg solo si LIME_OGG está activo y no es Switch -->
-		<files id="native-toolkit-ogg" if="LIME_OGG" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-ogg" if="LIME_OGG" />
 		<files id="native-toolkit-openal" if="LIME_OPENALSOFT" />
 		<!-- Incluye archivos nativos de pixman solo si LIME_PIXMAN está activo y no es Switch -->
 		<files id="native-toolkit-pixman" if="LIME_PIXMAN" unless="switch || nx || HX_NX" />
-		<files id="native-toolkit-png" if="LIME_PNG" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-png" if="LIME_PNG" />
 		<!-- Incluye archivos nativos de sdl solo si LIME_SDL está activo y no es Switch -->
 		<files id="native-toolkit-sdl" if="LIME_SDL" unless="switch || nx || HX_NX" />
 		<files id="native-toolkit-tinyfiledialogs" if="LIME_TINYFILEDIALOGS" />
-		<files id="native-toolkit-vorbis" if="LIME_VORBIS" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-vorbis" if="LIME_VORBIS" />
 		<files id="native-toolkit-vpx" if="LIME_VPX" />
 		<files id="native-toolkit-webm" if="LIME_WEBM" />
-		<files id="native-toolkit-zlib" if="LIME_ZLIB" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-zlib" if="LIME_ZLIB" />
 
 		<section unless="static_link">
 
@@ -633,7 +574,6 @@
 				<lib name="-lglapi" />
 				<lib name="-ldrm_nouveau" />
 				<lib name="-lpthread" />
-				<!-- Bibliotecas de gráficos, audio, compresión, etc. -->
 				<lib name="-lpng" />
 				<lib name="-ljpeg" />
 				<lib name="-lwebp" />
@@ -641,13 +581,6 @@
 				<lib name="-lm" />
 				<lib name="-lz" />
 				<lib name="-lbz2" />
-				<!-- Bibliotecas de texto (FreeType, HarfBuzz) -->
-				<lib name="-lfreetype" />
-				<lib name="-lharfbuzz" />
-				<!-- Bibliotecas de compresión (LZMA) -->
-				<lib name="-llzma" />
-				<!-- Bibliotecas de OpenGL de escritorio -->
-				<lib name="-lGL" />
 			</section>
 
 			<section if="rpi">

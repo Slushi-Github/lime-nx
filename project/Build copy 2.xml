@@ -35,8 +35,8 @@
 	<unset name="LIME_OPENALSOFT" if="LIME_MOJOAL" />
 	<set name="LIME_OPENAL" value="1" if="LIME_OPENALSOFT" />
 	<set name="LIME_OPENAL" value="1" if="LIME_MOJOAL" />
-	<!-- Habilita LIME_OPENGL para Switch -->
-	<set name="LIME_OPENGL" value="1" />
+	<!-- Excluye LIME_OPENGL para Switch -->
+	<set name="LIME_OPENGL" value="1" unless="switch || nx || HX_NX" />
 	<set name="LIME_PIXMAN" value="1" />
 	<!-- Excluye LIME_PNG para Switch -->
 	<set name="LIME_PNG" value="1" unless="switch || nx || HX_NX" />
@@ -167,11 +167,6 @@
 			<compilerflag value="-DLIME_VORBIS" />
 			<compilerflag value="-DLIME_ZLIB" />
 			<compilerflag value="-DLIME_LZMA" />
-			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
-			<!-- Aseguramos que lime reconozca que OpenGL está disponible -->
-			<compilerflag value="-DLIME_OPENGL" />
 			<!-- Incluimos los archivos específicos de FreeType y HarfBuzz para Switch -->
 			<file name="src/text/Font.cpp" />
 			<file name="src/text/harfbuzz/HarfbuzzBindings.cpp" />
@@ -247,12 +242,14 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_OPENGL (ahora incluida para Switch) -->
-		<section if="LIME_OPENGL">
+		<!-- Sección condicional para LIME_OPENGL, excluida para Switch -->
+		<section if="LIME_OPENGL" unless="switch || nx || HX_NX">
+
 			<compilerflag value="-DLIME_OPENGL" />
-			<!-- Quitar la condición unless="switch ..." -->
-			<!-- <compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" /> -->
+			<compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" />
+
 			<file name="src/graphics/opengl/OpenGLBindings.cpp" />
+
 		</section>
 
 		<!-- Sección condicional para LIME_PNG, excluida para Switch -->
@@ -332,12 +329,8 @@
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/AL" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glad" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glm" />
-			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
-			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
-			<!-- Aseguramos que lime reconozca que SDL y OpenGL están disponibles -->
+			<!-- Aseguramos que lime reconozca que SDL está disponible -->
 			<compilerflag value="-DLIME_SDL" />
-			<compilerflag value="-DLIME_OPENGL" />
 			<compilerflag value="-DHAVE_LIBC" />
 			<!-- Incluimos los archivos específicos de backend de SDL para Switch -->
 			<file name="src/backend/sdl/SDLApplication.cpp" />
@@ -495,13 +488,16 @@
 		<files id="native-toolkit-openal" if="LIME_OPENALSOFT" />
 		<!-- Incluye archivos nativos de pixman solo si LIME_PIXMAN está activo y no es Switch -->
 		<files id="native-toolkit-pixman" if="LIME_PIXMAN" unless="switch || nx || HX_NX" />
+		<!-- Incluye archivos nativos de png solo si LIME_PNG está activo y no es Switch -->
 		<files id="native-toolkit-png" if="LIME_PNG" unless="switch || nx || HX_NX" />
 		<!-- Incluye archivos nativos de sdl solo si LIME_SDL está activo y no es Switch -->
 		<files id="native-toolkit-sdl" if="LIME_SDL" unless="switch || nx || HX_NX" />
 		<files id="native-toolkit-tinyfiledialogs" if="LIME_TINYFILEDIALOGS" />
+		<!-- Incluye archivos nativos de vorbis solo si LIME_VORBIS está activo y no es Switch -->
 		<files id="native-toolkit-vorbis" if="LIME_VORBIS" unless="switch || nx || HX_NX" />
 		<files id="native-toolkit-vpx" if="LIME_VPX" />
 		<files id="native-toolkit-webm" if="LIME_WEBM" />
+		<!-- Incluye archivos nativos de zlib solo si LIME_ZLIB está activo y no es Switch -->
 		<files id="native-toolkit-zlib" if="LIME_ZLIB" unless="switch || nx || HX_NX" />
 
 		<section unless="static_link">
@@ -646,8 +642,6 @@
 				<lib name="-lharfbuzz" />
 				<!-- Bibliotecas de compresión (LZMA) -->
 				<lib name="-llzma" />
-				<!-- Bibliotecas de OpenGL de escritorio -->
-				<lib name="-lGL" />
 			</section>
 
 			<section if="rpi">

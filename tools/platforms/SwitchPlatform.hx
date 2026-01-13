@@ -36,9 +36,9 @@ class SwitchPlatform extends PlatformTarget
 	{
 		super(command, _project, targetFlags);
 
-		Sys.println("Switch Platform!!!!");
-		Sys.println("Switch Platform!!!!");
-		Sys.println("Switch Platform!!!!");
+		// Sys.println("Switch Platform!!!!");
+		// Sys.println("Switch Platform!!!!");
+		// Sys.println("Switch Platform!!!!");
 
 		var defaults = new HXProject();
 
