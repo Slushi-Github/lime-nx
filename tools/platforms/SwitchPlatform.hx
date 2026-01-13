@@ -130,89 +130,83 @@ class SwitchPlatform extends PlatformTarget
 	}
 
 	public override function build():Void
+{
+	var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
+
+	System.mkdir(targetDirectory);
+
+	// Para Switch siempre usamos compilación estática con CPP
+	if (targetType == "cpp")
 	{
-		var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
+		var haxeArgs = [hxml];
+		var flags = [];
 
-		System.mkdir(targetDirectory);
+		// Definiciones específicas de Switch
+		haxeArgs.push("-D");
+		haxeArgs.push("HXCPP_ARM64");
+		haxeArgs.push("-D");
+		haxeArgs.push("nx");
+		flags.push("-DHXCPP_ARM64");
+		flags.push("-Dnx=1");
+		flags.push("-DHX_NX=1");
+		flags.push("-D__SWITCH__");
 
-		if (!project.targetFlags.exists("static") || targetType != "cpp")
+		// Configurar herramientas de compilación cruzada
+		var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
+		if (hxcpp_xlinux64_cxx == null)
 		{
-			var targetSuffix = (targetType == "hl") ? ".hdll" : null;
-
-			for (ndll in project.ndlls)
-			{
-				
-				ProjectHelper.copyLibrary(project, ndll, "switch", "",
-					(ndll.haxelib != null
-						&& (ndll.haxelib.name == "hxcpp" || ndll.haxelib.name == "hxlibc")) ? ".dll" : ".ndll", applicationDirectory,
-					project.debug, targetSuffix);
-				
-			}
+			hxcpp_xlinux64_cxx = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-g++';
 		}
+		var hxcpp_xlinux64_strip = project.defines.get("HXCPP_XLINUX64_STRIP");
+		if (hxcpp_xlinux64_strip == null)
+		{
+			hxcpp_xlinux64_strip = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-strip';
+		}
+		var hxcpp_xlinux64_ranlib = project.defines.get("HXCPP_XLINUX64_RANLIB");
+		if (hxcpp_xlinux64_ranlib == null)
+		{
+			hxcpp_xlinux64_ranlib = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-ranlib';
+		}
+		var hxcpp_xlinux64_ar = project.defines.get("HXCPP_XLINUX64_AR");
+		if (hxcpp_xlinux64_ar == null)
+		{
+			hxcpp_xlinux64_ar = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-ar';
+		}
+		
+		flags.push('-DHXCPP_XLINUX64_CXX=$hxcpp_xlinux64_cxx');
+		flags.push('-DHXCPP_XLINUX64_STRIP=$hxcpp_xlinux64_strip');
+		flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
+		flags.push('-DHXCPP_XLINUX64_AR=$hxcpp_xlinux64_ar');
 
+		// Verificar si se requiere static_link
+		if (project.targetFlags.exists("static"))
+		{
+			// Sys.println("Building with static linking...");
+			System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
+
+			if (noOutput) return;
+
+			CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
+			var staticLib = targetDirectory + "/obj/libApplicationMain.a";
+			Log.info("Static library created: " + staticLib);
+		}
 		else
 		{
-			var haxeArgs = [hxml];
-			var flags = [];
+			Sys.println("Building without static linking...");
+			System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
 
-			
-			haxeArgs.push("-D");
-			haxeArgs.push("HXCPP_ARM64");
-			haxeArgs.push("-D");
-			haxeArgs.push("nx");
-			flags.push("-DHXCPP_ARM64");
-			flags.push("-Dnx=1");
-			flags.push("-DHX_NX=1");
-			flags.push("-D__SWITCH__");
+			if (noOutput) return;
 
-			var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
-			if (hxcpp_xlinux64_cxx == null)
-			{
-				hxcpp_xlinux64_cxx = '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-g++';
-			}
-			var hxcpp_xlinux64_strip = project.defines.get("HXCPP_XLINUX64_STRIP");
-			if (hxcpp_xlinux64_strip == null)
-			{
-				hxcpp_xlinux64_strip = '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-strip';
-			}
-			var hxcpp_xlinux64_ranlib = project.defines.get("HXCPP_XLINUX64_RANLIB");
-			if (hxcpp_xlinux64_ranlib == null)
-			{
-				hxcpp_xlinux64_ranlib = '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-ranlib';
-			}
-			var hxcpp_xlinux64_ar = project.defines.get("HXCPP_XLINUX64_AR");
-			if (hxcpp_xlinux64_ar == null)
-			{
-				hxcpp_xlinux64_ar = '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-ar';
-			}
-			flags.push('-DHXCPP_XLINUX64_CXX=$hxcpp_xlinux64_cxx');
-			flags.push('-DHXCPP_XLINUX64_STRIP=$hxcpp_xlinux64_strip');
-			flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
-			flags.push('-DHXCPP_XLINUX64_AR=$hxcpp_xlinux64_ar');
-
-			if (!project.targetFlags.exists("static"))
-			{
-				System.runCommand("", "haxe", haxeArgs);
-
-				if (noOutput) return;
-
-				CPPHelper.compile(project, targetDirectory + "/obj", flags);
-
-				System.copyFile(targetDirectory + "/obj/ApplicationMain" + (project.debug ? "-debug" : ""), executablePath);
-			}
-			else
-			{
-				System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
-
-				if (noOutput) return;
-
-				CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
-				CPPHelper.compile(project, targetDirectory + "/obj", flags, "BuildMain.xml");
-
-				System.copyFile(targetDirectory + "/obj/Main" + (project.debug ? "-debug" : ""), executablePath);
-			}
+			CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
+			var staticLib = targetDirectory + "/obj/libApplicationMain.a";
+			Log.info("Static library created: " + staticLib);
 		}
 	}
+	else
+	{
+		Log.error("Only C++ target is supported for Switch platform");
+	}
+}
 
 	public override function clean():Void
 	{
