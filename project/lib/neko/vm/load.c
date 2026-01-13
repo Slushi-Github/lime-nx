@@ -349,7 +349,7 @@ static value loader_loadprim( value prim, value nargs ) {
 		void *ptr = load_primitive(val_string(prim),val_int(nargs),val_field(o,id_path),(liblist**)(void*)&val_data(libs));
 		vfunction *f;
 		if( ptr == NULL ) {
-			buffer b = alloc_buffer("Primitive not found : ");
+			buffer b = alloc_buffer("Primitive not found: ");
 			val_buffer(b,prim);
 			buffer_append(b,"(");
 			val_buffer(b,nargs);

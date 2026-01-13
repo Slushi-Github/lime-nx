@@ -135,13 +135,11 @@ class SwitchPlatform extends PlatformTarget
 
 	System.mkdir(targetDirectory);
 
-	// Para Switch siempre usamos compilación estática con CPP
 	if (targetType == "cpp")
 	{
 		var haxeArgs = [hxml];
 		var flags = [];
 
-		// Definiciones específicas de Switch
 		haxeArgs.push("-D");
 		haxeArgs.push("HXCPP_ARM64");
 		haxeArgs.push("-D");
@@ -150,6 +148,7 @@ class SwitchPlatform extends PlatformTarget
 		flags.push("-Dnx=1");
 		flags.push("-DHX_NX=1");
 		flags.push("-D__SWITCH__");
+		flags.push("-D__NX__");
 
 		// Configurar herramientas de compilación cruzada
 		var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
@@ -178,29 +177,14 @@ class SwitchPlatform extends PlatformTarget
 		flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
 		flags.push('-DHXCPP_XLINUX64_AR=$hxcpp_xlinux64_ar');
 
-		// Verificar si se requiere static_link
-		if (project.targetFlags.exists("static"))
-		{
-			// Sys.println("Building with static linking...");
-			System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
+		System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
 
-			if (noOutput) return;
+		if (noOutput) return;
 
-			CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
-			var staticLib = targetDirectory + "/obj/libApplicationMain.a";
-			Log.info("Static library created: " + staticLib);
-		}
-		else
-		{
-			Sys.println("Building without static linking...");
-			System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
-
-			if (noOutput) return;
-
-			CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
-			var staticLib = targetDirectory + "/obj/libApplicationMain.a";
-			Log.info("Static library created: " + staticLib);
-		}
+		CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
+		var staticLib = targetDirectory + "/obj/libApplicationMain.a";
+		Log.info("Static library created: " + staticLib);
+		
 	}
 	else
 	{
