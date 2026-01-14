@@ -144,13 +144,15 @@ class SwitchPlatform extends PlatformTarget
 		haxeArgs.push("HXCPP_ARM64");
 		haxeArgs.push("-D");
 		haxeArgs.push("nx");
+		haxeArgs.push("-D");
+		haxeArgs.push("HX_NX");
+
 		flags.push("-DHXCPP_ARM64");
 		flags.push("-Dnx=1");
 		flags.push("-DHX_NX=1");
 		flags.push("-D__SWITCH__");
 		flags.push("-D__NX__");
 
-		// Configurar herramientas de compilación cruzada
 		var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
 		if (hxcpp_xlinux64_cxx == null)
 		{

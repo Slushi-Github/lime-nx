@@ -90,6 +90,52 @@
 
 		</section>
 
+		<section if="switch">
+			<lib name="-lnx" />
+			<lib name="-lopenal" />
+
+			<!-- Aquí incluimos las bibliotecas de DevkitPro -->
+			<!-- Bibliotecas SDL -->
+			<lib name="-lSDL2_image" />
+			<lib name="-lSDL2_gfx" />
+			<lib name="-lSDL2_net" />
+			<lib name="-lSDL2_mixer" />
+			<lib name="-lopusfile" />
+			<lib name="-lopus" />
+			<lib name="-lmpg123" />
+			<lib name="-lvorbisidec" />
+			<lib name="-lmodplug" />
+			<lib name="-lvorbisfile" />
+			<lib name="-lvorbis" />
+			<lib name="-logg" />
+			<lib name="-lSDL2" />
+			<lib name="-lSDL2main" />
+			<lib name="-lglad" />
+			<lib name="-lEGL" />
+			<lib name="-lglapi" />
+			<lib name="-ldrm_nouveau" />
+			<lib name="-lpthread" />
+			<!-- Bibliotecas de gráficos, audio, compresión, etc. -->
+			<lib name="-lpng" />
+			<lib name="-ljpeg" />
+			<lib name="-lwebp" />
+			<lib name="-lstdc++" />
+			<lib name="-lm" />
+			<lib name="-lz" />
+			<lib name="-lbz2" />
+			<!-- Bibliotecas de texto (FreeType, HarfBuzz) -->
+			<lib name="-lfreetype" />
+			<lib name="-lharfbuzz" />
+			<!-- Bibliotecas de compresión (LZMA) -->
+			<lib name="-llzma" />
+			<!-- Bibliotecas de OpenSSL (MBEDTLS) -->
+			<lib name="-lmbedcrypto" />
+			<lib name="-lmbedtls" />
+			<lib name="-lmbedx509" />
+			<!-- Bibliotecas de OpenGL de escritorio -->
+			<lib name="-lGL" />
+		</section>
+
 		<lib name="libApplicationMain${DBG}${LIBEXT}" />
 
 	</target>

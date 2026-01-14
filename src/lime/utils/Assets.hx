@@ -441,13 +441,14 @@ class Assets
 				}
 				else
 				{
+					Sys.println("Loaded library \"" + id + "\"");
 					libraries.set(id, library);
 					library.onChange.add(onChange.dispatch);
 					promise.completeWith(library.load());
 				}
 			}).onError(function(_)
 			{
-					promise.error("There is no asset library with an ID of \"" + id + "\"");
+					promise.error("There is no asset library with an ID of \"" + id + "\" (on " + bundlePaths.get(id) + ")");
 			});
 		}
 		else
@@ -487,13 +488,14 @@ class Assets
 				}
 				else
 				{
+					Sys.println("Loaded library \"" + id + "\"");
 					libraries.set(id, library);
 					library.onChange.add(onChange.dispatch);
 					promise.completeWith(library.load());
 				}
 			}).onError(function(_)
 			{
-					promise.error("There is no asset library with an ID of \"" + id + "\"");
+					promise.error("There is no asset library with an ID of \"" + id + "\" (on " + path + ")");
 			});
 		}
 		#end

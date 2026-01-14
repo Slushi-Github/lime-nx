@@ -10,10 +10,10 @@
 	<define name="native" if="cpp || neko || nodejs || cs || java || hl" />
 	<define name="howlerjs" if="html5" />
 
-	<define name="lime-cairo" if="native" unless="nx || HX_nx || nx"/>
+	<define name="lime-cairo" if="native" unless="nx || HX_NX || switch"/>
 	<define name="lime-canvas" if="html5" />
 	<define name="lime-cffi" if="native" />
-	<define name="lime-curl" unless="lime-console || nx || emscripten || flash || html5" />
+	<define name="lime-curl" unless="lime-console || switch || nx || HX_NX || emscripten || flash || html5" />
 	<define name="lime-dom" if="html5" />
 	<define name="lime-harfbuzz" if="native" />
 	<define name="lime-howlerjs" if="html5" />
@@ -48,12 +48,12 @@
 	<!-- <target name="switch" handler="lime-switch" />
 	<haxelib name="lime-switch" if="switch" /> -->
 
-	<section if="nx">
+	<!-- <section if="nx">
 		<set name="HXCPP_TOOLCHAIN_linux" value="1" />
 		<set name="nx" value="1" />
-		<set name="DEVKITPRO" value="D:/devkitPro" /> <!-- IMPORTANT: Adjust this path to your DevKitPro installation -->
-		<set name="cpp" value="1" /> <!-- Ensure cpp target is active -->
-	</section>
+		<set name="DEVKITPRO" value="D:/devkitPro" />
+		<set name="cpp" value="1" />
+	</section> -->
 
 	<target name="wiiu" handler="lime-wiiu" />
 	<haxelib name="lime-wiiu" if="wiiu" />

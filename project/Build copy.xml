@@ -13,15 +13,20 @@
 	<set name="LIME_CURL" value="1" unless="winrt || switch || nx || HX_NX" />
 	<!-- Excluye LIME_EFSW para Switch -->
 	<set name="LIME_EFSW" value="1" if="windows || mac || linux" unless="winrt || switch || nx || HX_NX" />
+	<!-- Habilita LIME_JPEG para Switch -->
 	<set name="LIME_JPEG" value="1" />
 	<!-- <set name="LIME_FAUDIO" value="1" /> -->
+	<!-- Habilita LIME_FREETYPE para Switch -->
 	<set name="LIME_FREETYPE" value="1" />
+	<!-- Habilita LIME_HARFBUZZ para Switch -->
 	<set name="LIME_HARFBUZZ" value="1" unless="winrt" />
 	<!-- <set name="LIME_HASHLINK" value="1" if="windows || mac || linux" /> -->
 	<set name="LIME_HASHLINK" value="1" if="hashlink" />
+	<!-- Habilita LIME_LZMA para Switch -->
 	<set name="LIME_LZMA" value="1" />
 	<set name="LIME_MBEDTLS" value="1" unless="emscripten || winrt" />
 	<!-- <set name="LIME_NEKO" value="1" if="linux" /> -->
+	<!-- Habilita LIME_OGG para Switch -->
 	<set name="LIME_OGG" value="1" />
 	<set name="LIME_OPENALSOFT" value="1" if="windows || linux || mac || android" unless="static_link" />
 	<set name="LIME_OPENAL" value="1" if="iphone || webassembly || tvos" />
@@ -30,9 +35,10 @@
 	<unset name="LIME_OPENALSOFT" if="LIME_MOJOAL" />
 	<set name="LIME_OPENAL" value="1" if="LIME_OPENALSOFT" />
 	<set name="LIME_OPENAL" value="1" if="LIME_MOJOAL" />
-	<!-- Excluye LIME_OPENGL para Switch -->
-	<set name="LIME_OPENGL" value="1" unless="switch || nx || HX_NX" />
+	<!-- Habilita LIME_OPENGL para Switch -->
+	<set name="LIME_OPENGL" value="1" />
 	<set name="LIME_PIXMAN" value="1" />
+	<!-- Habilita LIME_PNG para Switch -->
 	<set name="LIME_PNG" value="1" />
 	<!-- Define LIME_SDL como 1, pero exclúyelo de la compilación interna para Switch -->
 	<set name="LIME_SDL" value="1" unless="switch || nx || HX_NX" />
@@ -41,10 +47,12 @@
 	<set name="LIME_SDL_ANGLE" value="1" if="windows angle" unless="static_link" />
 	<set name="LIME_SDL_ANGLE" value="1" if="winrt" />
 	<set name="LIME_TINYFILEDIALOGS" value="1" if="windows || mac || linux" unless="winrt || emscripten || switch || nx || HX_NX"/>
+	<!-- Habilita LIME_VORBIS para Switch -->
 	<set name="LIME_VORBIS" value="1" />
+	<!-- Habilita LIME_ZLIB para Switch -->
+	<set name="LIME_ZLIB" value="1" />
 	<!-- <set name="LIME_VPX" value="1" />
 	<set name="LIME_WEBM" value="1" /> -->
-	<set name="LIME_ZLIB" value="1" />
 
 	<set name="OUTPUT_DIR" value="../ndll" unless="OUTPUT_DIR" />
 	<set name="NATIVE_TOOLKIT_PATH" value="lib" unless="NATIVE_TOOLKIT_PATH" />
@@ -138,6 +146,35 @@
 
 		</section>
 
+		<!-- Sección específica para Switch: FreeType y HarfBuzz -->
+		<section if="switch || nx || HX_NX">
+			<!-- Incluimos los encabezados de DevkitPro para FreeType y HarfBuzz -->
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/freetype2" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/harfbuzz" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/ogg" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/vorbis" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/libpng16" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/zlib" />
+			<!-- Aseguramos que lime reconozca que FreeType y HarfBuzz están disponibles -->
+			<compilerflag value="-DLIME_FREETYPE" />
+			<compilerflag value="-DLIME_HARFBUZZ" />
+			<compilerflag value="-DLIME_JPEG" />
+			<compilerflag value="-DLIME_OGG" />
+			<compilerflag value="-DLIME_PNG" />
+			<compilerflag value="-DLIME_VORBIS" />
+			<compilerflag value="-DLIME_ZLIB" />
+			<compilerflag value="-DLIME_LZMA" />
+			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
+			<!-- Aseguramos que lime reconozca que OpenGL está disponible -->
+			<compilerflag value="-DLIME_OPENGL" />
+			<!-- Incluimos los archivos específicos de FreeType y HarfBuzz para Switch -->
+			<file name="src/text/Font.cpp" />
+			<file name="src/text/harfbuzz/HarfbuzzBindings.cpp" />
+		</section>
+
 		<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/hashlink/src" />
 
 		<section if="LIME_HASHLINK">
@@ -156,7 +193,6 @@
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/custom/jpeg/" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/jpeg/" />
-			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/zlib/" />
 			<compilerflag value="-DLIME_JPEG" />
 
 			<file name="src/graphics/format/JPEG.cpp" />
@@ -206,14 +242,12 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_OPENGL, excluida para Switch -->
-		<section if="LIME_OPENGL" unless="switch || nx || HX_NX">
-
+		<!-- Sección condicional para LIME_OPENGL (ahora incluida para Switch) -->
+		<section if="LIME_OPENGL">
 			<compilerflag value="-DLIME_OPENGL" />
-			<compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" />
-
+			<!-- Quitar la condición unless="switch ..." -->
+			<!-- <compilerflag value="-I${DEVELOPER_DIR}/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS${TVOS_VER}.sdk/" if="tvos" /> -->
 			<file name="src/graphics/opengl/OpenGLBindings.cpp" />
-
 		</section>
 
 		<section if="LIME_PNG">
@@ -292,8 +326,12 @@
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/AL" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glad" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/glm" />
-			<!-- Aseguramos que lime reconozca que SDL está disponible -->
+			<!-- Incluimos los encabezados de DevkitPro para OpenGL de escritorio -->
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/GL" />
+			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/KHR" />
+			<!-- Aseguramos que lime reconozca que SDL y OpenGL están disponibles -->
 			<compilerflag value="-DLIME_SDL" />
+			<compilerflag value="-DLIME_OPENGL" />
 			<compilerflag value="-DHAVE_LIBC" />
 			<!-- Incluimos los archivos específicos de backend de SDL para Switch -->
 			<file name="src/backend/sdl/SDLApplication.cpp" />
@@ -379,7 +417,7 @@
 	</files>
 
 	<!-- Run setup now so the submodule projects can determine whether clang or GCC will be used. -->
-	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930     ever gets resolved, use that instead. -->
+	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930         ever gets resolved, use that instead. -->
 	<setup name="androidNdk" if="android" />
 
 	<include name="lib/cairo-files.xml" />
@@ -406,6 +444,7 @@
 	<include name="lib/vorbis-files.xml" />
 	<include name="lib/vpx-files.xml" />
 	<include name="lib/webm-files.xml" />
+	<!-- Incluir zlib-files.xml -->
 	<include name="lib/zlib-files.xml" />
 
 	<set name="DEBUGEXTRA" value="-debug" if="fulldebug" />
@@ -574,6 +613,7 @@
 				<lib name="-lglapi" />
 				<lib name="-ldrm_nouveau" />
 				<lib name="-lpthread" />
+				<!-- Bibliotecas de gráficos, audio, compresión, etc. -->
 				<lib name="-lpng" />
 				<lib name="-ljpeg" />
 				<lib name="-lwebp" />
@@ -581,6 +621,17 @@
 				<lib name="-lm" />
 				<lib name="-lz" />
 				<lib name="-lbz2" />
+				<!-- Bibliotecas de texto (FreeType, HarfBuzz) -->
+				<lib name="-lfreetype" />
+				<lib name="-lharfbuzz" />
+				<!-- Bibliotecas de compresión (LZMA) -->
+				<lib name="-llzma" />
+				<!-- Bibliotecas de OpenSSL (MBEDTLS) -->
+				<lib name="-lmbedcrypto" />
+				<lib name="-lmbedtls" />
+				<lib name="-lmbedx509" />
+				<!-- Bibliotecas de OpenGL de escritorio -->
+				<lib name="-lGL" />
 			</section>
 
 			<section if="rpi">

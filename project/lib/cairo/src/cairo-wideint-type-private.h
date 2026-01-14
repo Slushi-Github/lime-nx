@@ -82,8 +82,10 @@
 # define UINT32_MAX     (4294967295U)
 #endif
 
+#if !defined(__NX__)
 #if HAVE_BYTESWAP_H
 # include <byteswap.h>
+#endif
 #endif
 #ifndef bswap_16
 # define bswap_16(p) \
