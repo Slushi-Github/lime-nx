@@ -20,365 +20,420 @@ import lime.tools.Orientation;
 import lime.tools.Platform;
 import lime.tools.PlatformTarget;
 import lime.tools.ProjectHelper;
+import lime.tools.haxenxcompiler.SwitchLinker;
+import lime.tools.Icon;
+import lime.tools.IconHelper;
+import lime.graphics.Image;
+import lime.graphics.ImageFileFormat;
 import sys.io.File;
 import sys.io.Process;
 import sys.FileSystem;
+import haxe.Resource;
 
 class SwitchPlatform extends PlatformTarget
 {
-	private var applicationDirectory:String;
-	private var executablePath:String;
-	private var is64:Bool;
-	private var isRaspberryPi:Bool;
-	private var targetType:String;
+    private var applicationDirectory:String;
+    private var executablePath:String;
+    private var is64:Bool;
+    private var targetType:String;
 
-	public function new(command:String, _project:HXProject, targetFlags:Map<String, String>)
-	{
-		super(command, _project, targetFlags);
+    public function new(command:String, _project:HXProject, targetFlags:Map<String, String>)
+    {
+        super(command, _project, targetFlags);
 
-		// Sys.println("Switch Platform!!!!");
-		// Sys.println("Switch Platform!!!!");
-		// Sys.println("Switch Platform!!!!");
+        var defaults = new HXProject();
 
-		var defaults = new HXProject();
+        defaults.meta =
+            {
+                title: "MyApplication",
+                description: "",
+                packageName: "com.example.myapp",
+                version: "1.0.0",
+                company: "",
+                companyUrl: "",
+                buildNumber: null,
+                companyId: ""
+            };
 
-		defaults.meta =
-			{
-				title: "MyApplication",
-				description: "",
-				packageName: "com.example.myapp",
-				version: "1.0.0",
-				company: "",
-				companyUrl: "",
-				buildNumber: null,
-				companyId: ""
-			};
+        defaults.app =
+            {
+                main: "Main",
+                file: "MyApplication",
+                path: "export",
+                preloader: "",
+                swfVersion: 17,
+                url: "",
+                init: null
+            };
 
-		defaults.app =
-			{
-				main: "Main",
-				file: "MyApplication",
-				path: "bin",
-				preloader: "",
-				swfVersion: 17,
-				url: "",
-				init: null
-			};
+        defaults.window =
+            {
+                width: 1280,
+                height: 720,
+                parameters: "{}",
+                background: 0xFFFFFF,
+                fps: 60,
+                hardware: true,
+                display: 0,
+                resizable: true,
+                borderless: false,
+                orientation: Orientation.AUTO,
+                vsync: false,
+                fullscreen: false,
+                allowHighDPI: true,
+                alwaysOnTop: false,
+                antialiasing: 0,
+                allowShaders: true,
+                requireShaders: false,
+                depthBuffer: true,
+                stencilBuffer: true,
+                colorDepth: 32,
+                maximized: false,
+                minimized: false,
+                hidden: false,
+                title: ""
+            };
 
-		defaults.window =
-			{
-				width: 800,
-				height: 600,
-				parameters: "{}",
-				background: 0xFFFFFF,
-				fps: 30,
-				hardware: true,
-				display: 0,
-				resizable: true,
-				borderless: false,
-				orientation: Orientation.AUTO,
-				vsync: false,
-				fullscreen: false,
-				allowHighDPI: true,
-				alwaysOnTop: false,
-				antialiasing: 0,
-				allowShaders: true,
-				requireShaders: false,
-				depthBuffer: true,
-				stencilBuffer: true,
-				colorDepth: 32,
-				maximized: false,
-				minimized: false,
-				hidden: false,
-				title: ""
-			};
+        defaults.architectures = [ARM64];
+        defaults.window.allowHighDPI = false;
 
-		
-		defaults.architectures = [ARM64];
+        for (i in 1...project.windows.length)
+        {
+            defaults.windows.push(defaults.window);
+        }
 
-		defaults.window.allowHighDPI = false;
+        defaults.merge(project);
+        project = defaults;
 
-		for (i in 1...project.windows.length)
-		{
-			defaults.windows.push(defaults.window);
-		}
+        for (excludeArchitecture in project.excludeArchitectures)
+        {
+            project.architectures.remove(excludeArchitecture);
+        }
 
-		defaults.merge(project);
-		project = defaults;
+        is64 = true;
+        targetType = "cpp";
 
-		for (excludeArchitecture in project.excludeArchitectures)
-		{
-			project.architectures.remove(excludeArchitecture);
-		}
+        var defaultTargetDirectory = "switch";
+        targetDirectory = Path.combine(project.app.path, project.config.getString("switch.output-directory", defaultTargetDirectory));
+        targetDirectory = StringTools.replace(targetDirectory, "arch64", is64 ? "64" : "");
+        applicationDirectory = targetDirectory + "/bin/";
+        executablePath = Path.combine(applicationDirectory, project.app.file);
+    }
 
-		
-		is64 = true;
-		
+    private function getLimePath():String
+    {
+        return Haxelib.getPath(new Haxelib("lime"));
+    }
 
-		targetType = "cpp";
+    public override function build():Void
+    {
+        var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
 
-		var defaultTargetDirectory = switch (targetType)
-		{
-			case "cpp": "switch";
-			case "hl": project.targetFlags.exists("hlc") ? "hlc" : targetType;
-			default: targetType;
-		}
-		targetDirectory = Path.combine(project.app.path, project.config.getString("switch.output-directory", defaultTargetDirectory));
-		targetDirectory = StringTools.replace(targetDirectory, "arch64", is64 ? "64" : "");
-		applicationDirectory = targetDirectory + "/bin/";
-		executablePath = Path.combine(applicationDirectory, project.app.file);
-	}
+        System.mkdir(targetDirectory);
 
-	public override function build():Void
-{
-	var hxml = targetDirectory + "/haxe/" + buildType + ".hxml";
+        if (targetType == "cpp")
+        {
+            var haxeArgs = [hxml];
+            var flags = [];
 
-	System.mkdir(targetDirectory);
+            haxeArgs.push("-D");
+            haxeArgs.push("HXCPP_ARM64");
+            haxeArgs.push("-D");
+            haxeArgs.push("nx");
+            haxeArgs.push("-D");
+            haxeArgs.push("HX_NX");
+            haxeArgs.push("-D");
+            haxeArgs.push("static_link");
 
-	if (targetType == "cpp")
-	{
-		var haxeArgs = [hxml];
-		var flags = [];
+            flags.push("-DHXCPP_ARM64");
+            flags.push("-Dnx=1");
+            flags.push("-DHX_NX=1");
+            flags.push("-D__SWITCH__");
+            flags.push("-D__NX__");
 
-		haxeArgs.push("-D");
-		haxeArgs.push("HXCPP_ARM64");
-		haxeArgs.push("-D");
-		haxeArgs.push("nx");
-		haxeArgs.push("-D");
-		haxeArgs.push("HX_NX");
+            var dkp = Sys.getEnv("DEVKITPRO");
+            if (dkp == null || dkp == "") {
+                Log.error("Environment variable DEVKITPRO is not defined.");
+                return;
+            }
 
-		flags.push("-DHXCPP_ARM64");
-		flags.push("-Dnx=1");
-		flags.push("-DHX_NX=1");
-		flags.push("-D__SWITCH__");
-		flags.push("-D__NX__");
+            var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
+            if (hxcpp_xlinux64_cxx == null) hxcpp_xlinux64_cxx = '$dkp/devkitA64/bin/aarch64-none-elf-g++';
+            
+            var hxcpp_xlinux64_strip = project.defines.get("HXCPP_XLINUX64_STRIP");
+            if (hxcpp_xlinux64_strip == null) hxcpp_xlinux64_strip = '$dkp/devkitA64/bin/aarch64-none-elf-strip';
+            
+            var hxcpp_xlinux64_ranlib = project.defines.get("HXCPP_XLINUX64_RANLIB");
+            if (hxcpp_xlinux64_ranlib == null) hxcpp_xlinux64_ranlib = '$dkp/devkitA64/bin/aarch64-none-elf-ranlib';
+            
+            var hxcpp_xlinux64_ar = project.defines.get("HXCPP_XLINUX64_AR");
+            if (hxcpp_xlinux64_ar == null) hxcpp_xlinux64_ar = '$dkp/devkitA64/bin/aarch64-none-elf-ar';
+            
+            flags.push('-DHXCPP_XLINUX64_CXX=$hxcpp_xlinux64_cxx');
+            flags.push('-DHXCPP_XLINUX64_STRIP=$hxcpp_xlinux64_strip');
+            flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
+            flags.push('-DHXCPP_XLINUX64_AR=$hxcpp_xlinux64_ar');
 
-		var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
-		if (hxcpp_xlinux64_cxx == null)
-		{
-			hxcpp_xlinux64_cxx = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-g++';
-		}
-		var hxcpp_xlinux64_strip = project.defines.get("HXCPP_XLINUX64_STRIP");
-		if (hxcpp_xlinux64_strip == null)
-		{
-			hxcpp_xlinux64_strip = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-strip';
-		}
-		var hxcpp_xlinux64_ranlib = project.defines.get("HXCPP_XLINUX64_RANLIB");
-		if (hxcpp_xlinux64_ranlib == null)
-		{
-			hxcpp_xlinux64_ranlib = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-ranlib';
-		}
-		var hxcpp_xlinux64_ar = project.defines.get("HXCPP_XLINUX64_AR");
-		if (hxcpp_xlinux64_ar == null)
-		{
-			hxcpp_xlinux64_ar = '${Sys.getEnv("DEVKITPRO")}/devkitA64/bin/aarch64-none-elf-ar';
-		}
-		
-		flags.push('-DHXCPP_XLINUX64_CXX=$hxcpp_xlinux64_cxx');
-		flags.push('-DHXCPP_XLINUX64_STRIP=$hxcpp_xlinux64_strip');
-		flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
-		flags.push('-DHXCPP_XLINUX64_AR=$hxcpp_xlinux64_ar');
+            System.runCommand("", "haxe", haxeArgs);
 
-		System.runCommand("", "haxe", haxeArgs.concat(["-D", "static_link"]));
+            if (noOutput) return;
 
-		if (noOutput) return;
+            CPPHelper.compile(project, targetDirectory + "/obj", flags);
+            
+            var libName = project.debug ? "libApplicationMain-debug.a" : "libApplicationMain.a";
+            var staticLib = targetDirectory + "/obj/" + libName;
+            Log.info("Static library created: " + staticLib);
+            
+            var limePath = getLimePath();
+            var path = Path.combine(limePath, "templates/switch/MakeFileNRO");
+            
+            if (!FileSystem.exists(path)) {
+                Log.error("Could not find Makefile template at: " + path);
+                return;
+            }
 
-		CPPHelper.compile(project, targetDirectory + "/obj", flags.concat(["-Dstatic_link"]));
-		var staticLib = targetDirectory + "/obj/libApplicationMain.a";
-		Log.info("Static library created: " + staticLib);
-		
-	}
-	else
-	{
-		Log.error("Only C++ target is supported for Switch platform");
-	}
-}
+            var makefileTemplate = File.getContent(path);
 
-	public override function clean():Void
-	{
-		if (FileSystem.exists(targetDirectory))
-		{
-			System.removeDirectory(targetDirectory);
-		}
-	}
+            SwitchLinker.finalBuild({
+                switchExportPath: targetDirectory,
+                projectName: project.app.file,
+                projectTitle: project.meta.title,
+                projectAuthor: project.meta.company,
+                projectVersion: project.meta.version,
+                mainLibPath: staticLib,
+                romfsPath: Path.combine(applicationDirectory, "SWITCH_ASSETS/romfs"),
+                outputDir: "bin",
+                limePath: limePath,
+                makeFileTemplate: makefileTemplate,
+                maxJobs: 4
+            });
+        }
+    }
 
-	public override function deploy():Void
-	{
-		DeploymentHelper.deploy(project, targetFlags, targetDirectory, "switch");
-	}
+    public override function clean():Void
+    {
+        if (FileSystem.exists(targetDirectory))
+        {
+            System.removeDirectory(targetDirectory);
+        }
+    }
 
-	public override function display():Void
-	{
-		if (project.targetFlags.exists("output-file"))
-		{
-			Sys.println(executablePath);
-		}
-		else
-		{
-			Sys.println(getDisplayHXML().toString());
-		}
-	}
+    public override function deploy():Void
+    {
+        DeploymentHelper.deploy(project, targetFlags, targetDirectory, "Nintendo Switch");
+    }
 
-	private function generateContext():Dynamic
-	{
-		// var project = project.clone ();
+    public override function display():Void
+    {
+        if (project.targetFlags.exists("output-file"))
+        {
+            Sys.println(executablePath);
+        }
+        else
+        {
+            Sys.println(getDisplayHXML().toString());
+        }
+    }
 
-		var context = project.templateContext;
+    private function generateContext():Dynamic
+    {
+        var context = project.templateContext;
+        context.CPP_DIR = targetDirectory + "/obj/";
+        context.BUILD_DIR = project.app.path + "/switch";
+        return context;
+    }
 
-		context.CPP_DIR = targetDirectory + "/obj/";
+    private function getDisplayHXML():HXML
+    {
+        var path = targetDirectory + "/haxe/" + buildType + ".hxml";
 
-		return context;
-	}
+        if (FileSystem.exists(path))
+        {
+            return File.getContent(path);
+        }
+        else
+        {
+            var context = project.templateContext;
+            var hxml = HXML.fromString(context.HAXE_FLAGS);
+            hxml.addClassName(context.APP_MAIN);
+            hxml.cpp = "_";
+            hxml.noOutput = true;
+            return hxml;
+        }
+    }
 
-	private function getDisplayHXML():HXML
-	{
-		var path = targetDirectory + "/haxe/" + buildType + ".hxml";
+    public override function rebuild():Void
+    {
+        var dkp = Sys.getEnv("DEVKITPRO");
+        var commands = [];
 
-		// try to use the existing .hxml file. however, if the project file was
-		// modified more recently than the .hxml, then the .hxml cannot be
-		// considered valid anymore. it may cause errors in editors like vscode.
-		if (FileSystem.exists(path)
-			&& (project.projectFilePath == null || !FileSystem.exists(project.projectFilePath)
-				|| (FileSystem.stat(path).mtime.getTime() > FileSystem.stat(project.projectFilePath).mtime.getTime())))
-		{
-			return File.getContent(path);
-		}
-		else
-		{
-			var context = project.templateContext;
-			var hxml = HXML.fromString(context.HAXE_FLAGS);
-			hxml.addClassName(context.APP_MAIN);
-			
-			hxml.cpp = "_";
+        commands.push([
+            "-Dnx=1",
+            "-DHX_NX=1",
+            "-Dstatic",
+            "-Dstatic_link",
+            "-DBINDIR=Switch",
+            "-DHXCPP_ARM64",
+            "-DDEVKITPRO=" + dkp,
+            "-DCXX=" + dkp + "/devkitA64/bin/aarch64-none-elf-g++",
+            "-DHXCPP_STRIP=" + dkp + "/devkitA64/bin/aarch64-none-elf-strip",
+            "-DHXCPP_AR=" + dkp + "/devkitA64/bin/aarch64-none-elf-ar",
+            "-DHXCPP_RANLIB=" + dkp + "/devkitA64/bin/aarch64-none-elf-ranlib"
+        ]);
 
-			hxml.noOutput = true;
-			return hxml;
-		}
-	}
+        CPPHelper.rebuild(project, commands);
+    }
 
-	public override function rebuild():Void
-	{
-		var commands = [];
+    public override function run():Void
+    {
+        var nroPath = Path.combine(applicationDirectory, project.app.file + ".nro");
+        
+        var consoleIP = project.config.getString("switch.ip");
+        if (targetFlags.exists("ip")) consoleIP = targetFlags.get("ip");
 
-		commands.push([
-			"-Dnx=1",
-			"-DHX_NX=1",
-			"-Dstatic",
-			// "-Dtoolchain=linux",
-			"-DBINDIR=Switch",
-			"-DHXCPP_ARM64",
-			"-DDEVKITPRO=" + '${Sys.getEnv("DEVKITPRO")}',
-			"-DCXX=" + '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-g++',
-			"-DHXCPP_STRIP=" + '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-strip',
-			"-DHXCPP_AR=" + '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-ar',
-			"-DHXCPP_RANLIB=" + '${Sys.getEnv("DEVKITPRO")}/devkitA64/aarch64-none-elf-ranlib'
-		]);
+        if (consoleIP == null || consoleIP == "") {
+            Log.info("-------------------------------------------------------");
+            Log.info("To use the run command, add <config switch.ip=\"your.ip\" /> to project.xml");
+            Log.info("Or use: lime run switch --ip=192.168.x.x");
+            Log.info("Path: " + nroPath);
+            Log.info("-------------------------------------------------------");
+            return;
+        }
 
-		// Sys.println(commands.toString());
+        if (!FileSystem.exists(nroPath)) {
+            Log.error("NRO file not found at: " + nroPath);
+            return;
+        }
 
-		// Sys.println(getDisplayHXML().toString());
+        var stat = FileSystem.stat(nroPath);
+        var fileSizeMB:Float = Math.round((stat.size / 1024.0 / 1024.0) * 100) / 100;
+        
+        Log.info("Sending: [" + project.app.file + ".nro] (" + fileSizeMB + " MB) to " + consoleIP);
 
-		CPPHelper.rebuild(project, commands);
-	}
+        var dkp = Sys.getEnv("DEVKITPRO");
+        if (dkp == null || dkp == "") {
+            Log.error("DEVKITPRO environment variable not found");
+            return;
+        }
 
-	public override function run():Void
-	{
-		Sys.println("Use NXLink to run the program.");
-	}
+        var nxlinkProgram = Path.combine(dkp, "tools/bin/nxlink");
+        if (System.hostPlatform == WINDOWS) nxlinkProgram += ".exe";
 
-	public override function update():Void
-	{
-		AssetHelper.processLibraries(project, targetDirectory);
+        if (!FileSystem.exists(nxlinkProgram)) {
+            Log.error("nxlink program not found at: " + nxlinkProgram);
+            return;
+        }
 
-		// project = project.clone ();
-		// initialize (project);
+        var arguments = ["-a", consoleIP, nroPath];
+        arguments.push("-s");
 
-		for (asset in project.assets)
-		{
-			if (asset.embed && asset.sourcePath == "")
-			{
-				var path = Path.combine(targetDirectory + "/obj/tmp", asset.targetPath);
-				System.mkdir(Path.directory(path));
-				AssetHelper.copyAsset(asset, path);
-				asset.sourcePath = path;
-			}
-		}
+        var exitCode = System.runCommand("", nxlinkProgram, arguments);        
+        if (exitCode != 0) {
+            Log.error("nxlink: Transfer failed with code " + exitCode);
+        }
+    }
 
-		if (project.targetFlags.exists("xml"))
-		{
-			project.haxeflags.push("-xml " + targetDirectory + "/types.xml");
-		}
+    public override function update():Void
+    {
+        AssetHelper.processLibraries(project, targetDirectory);
 
-		var context = generateContext();
-		context.OUTPUT_DIR = targetDirectory;
+        var context = generateContext();
+        context.OUTPUT_DIR = targetDirectory;
 
-		if (targetType == "cpp" && project.targetFlags.exists("static"))
-		{
-			for (i in 0...project.ndlls.length)
-			{
-				var ndll = project.ndlls[i];
+        System.mkdir(targetDirectory);
+        System.mkdir(targetDirectory + "/obj");
+        System.mkdir(targetDirectory + "/haxe");
+        System.mkdir(applicationDirectory);
+        
+        var limePath = getLimePath();
 
-				if (ndll.path == null || ndll.path == "")
-				{
-					context.ndlls[i].path = NDLL.getLibraryPath(ndll, "Linux" + (( System.hostArchitecture == ARMV7 || System.hostArchitecture == ARM64) ? "Arm" : "") + (is64 ? "64" : ""), "lib", ".a", project.debug);
-				}
-			}
-		}
+        var limeLibDest = Path.combine(targetDirectory, "obj/LIME_LIB/lib");
+        System.mkdir(limeLibDest);
 
-		System.mkdir(targetDirectory);
-		System.mkdir(targetDirectory + "/obj");
-		System.mkdir(targetDirectory + "/haxe");
-		System.mkdir(applicationDirectory);
+        var limeSource = Path.combine(limePath, "ndll/Switch/liblime.a");
+        if (FileSystem.exists(limeSource)) {
+            File.copy(limeSource, Path.combine(limeLibDest, "liblime.a"));
+        }
 
-		// SWFHelper.generateSWFClasses (project, targetDirectory + "/haxe");
+        var romfsDirectory = Path.combine(applicationDirectory, "SWITCH_ASSETS/romfs");
+        System.mkdir(romfsDirectory);
 
-		ProjectHelper.recursiveSmartCopyTemplate(project, "haxe", targetDirectory + "/haxe", context);
-		ProjectHelper.recursiveSmartCopyTemplate(project, targetType + "/hxml", targetDirectory + "/haxe", context);
+        var icons = project.icons;
+        
+        if (icons.length == 0) {
+            var defaultIconPath = System.findTemplate(project.templatePaths, "default/icon.svg");
+            if (defaultIconPath != null) {
+                icons = [new Icon(defaultIconPath)];
+            }
+        }
+        
+        if (icons.length > 0) {
+            var switchAssetsDir = Path.combine(applicationDirectory, "SWITCH_ASSETS");
+            System.mkdir(switchAssetsDir);
 
-		if (targetType == "cpp" && project.targetFlags.exists("static"))
-		{
-			ProjectHelper.recursiveSmartCopyTemplate(project, "cpp/static", targetDirectory + "/obj", context);
-		}
+            var iconPngPath = Path.combine(switchAssetsDir, "icon_temp.png");
+            var iconJpgPath = Path.combine(switchAssetsDir, "icon.jpg");
+            
+            if (IconHelper.createIcon(icons, 512, 512, iconPngPath)) {
+                try {
+                    var image = Image.fromFile(iconPngPath);
+                    
+                    if (image != null) {
+                        var jpegBytes = image.encode(ImageFileFormat.JPEG, 100);
+                        
+                        if (jpegBytes != null) {
+                            File.saveBytes(iconJpgPath, jpegBytes);
+                            Log.info("Switch icon created at: " + iconJpgPath);
+                            context.HAS_ICON = true;
+                        } else {
+                            Log.error("Could not encode image to JPEG format");
+                        }
+                    } else {
+                        Log.error("Could not load PNG image for conversion");
+                    }
+                } catch (e:Dynamic) {
+                    Log.error("Error converting icon to JPG: " + e);
+                }
+                
+                if (FileSystem.exists(iconPngPath)) {
+                    FileSystem.deleteFile(iconPngPath);
+                }
+            } else {
+                Log.error("Could not create Switch icon");
+            }
+        }
 
-		// context.HAS_ICON = IconHelper.createIcon (project.icons, 256, 256, Path.combine (applicationDirectory, "icon.png"));
-		for (asset in project.assets)
-		{
-			var path = Path.combine(applicationDirectory, asset.targetPath);
+        ProjectHelper.recursiveSmartCopyTemplate(project, "haxe", targetDirectory + "/haxe", context);
+        ProjectHelper.recursiveSmartCopyTemplate(project, targetType + "/hxml", targetDirectory + "/haxe", context);
 
-			if (asset.embed != true)
-			{
-				if (asset.type != AssetType.TEMPLATE)
-				{
-					System.mkdir(Path.directory(path));
-					AssetHelper.copyAssetIfNewer(asset, path);
-				}
-				else
-				{
-					System.mkdir(Path.directory(path));
-					AssetHelper.copyAsset(asset, path, context);
-				}
-			}
-		}
-	}
+        if (targetType == "cpp")
+        {
+            ProjectHelper.recursiveSmartCopyTemplate(project, "cpp/static", targetDirectory + "/obj", context);
+        }
 
-	public override function watch():Void
-	{
-		var hxml = getDisplayHXML();
-		var dirs = hxml.getClassPaths(true);
+        for (asset in project.assets)
+        {
+            var path = Path.combine(romfsDirectory, asset.targetPath);
+            if (asset.embed != true)
+            {
+                System.mkdir(Path.directory(path));
+                if (asset.type != AssetType.TEMPLATE)
+                    AssetHelper.copyAssetIfNewer(asset, path);
+                else
+                    AssetHelper.copyAsset(asset, path, context);
+            }
+        }
+    }
 
-		var outputPath = Path.combine(Sys.getCwd(), project.app.path);
-		dirs = dirs.filter(function(dir)
-		{
-			return (!Path.startsWith(dir, outputPath));
-		});
+    public override function watch():Void
+    {
+        var hxml = getDisplayHXML();
+        var dirs = hxml.getClassPaths(true);
+        var command = ProjectHelper.getCurrentCommand();
+        System.watch(command, dirs);
+    }
 
-		var command = ProjectHelper.getCurrentCommand();
-		System.watch(command, dirs);
-	}
-
-	@ignore public override function install():Void {}
-
-	@ignore public override function trace():Void {}
-
-	@ignore public override function uninstall():Void {}
+    @ignore public override function install():Void {}
+    @ignore public override function trace():Void {}
+    @ignore public override function uninstall():Void {}
 }
