@@ -21,7 +21,7 @@ OpenFL Samples -> HelloTriangle:
 
 HaxeFlixel 6.1.2 running [Mode](https://haxeflixel.com/demos/Mode) on the Nintendo Switch:
 
-<video controls src="./switchExamples/HaxeFixel_MODE_Game_test.mp4" title="Title"></video>
+[See the video on YouTube](https://youtu.be/8hwZIDWoHnI)
 
 This fork is based on the commit ``68107ee`` (From  Sep 18, 2025) of the original [Lime](https://github.com/openfl/lime)
 
