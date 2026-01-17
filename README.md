@@ -21,7 +21,7 @@ OpenFL Samples -> HelloTriangle:
 
 HaxeFlixel 6.1.2 running [Mode](https://haxeflixel.com/demos/Mode) on the Nintendo Switch:
 
-[See the video on YouTube](https://youtu.be/8hwZIDWoHnI)
+[See the video on YouTube](https://youtu.be/8hwZIDWoHnI), or get the build file [here](https://github.com/Slushi-Github/lime-nx/releases/tag/HaxeFIxelMode)
 
 This fork is based on the commit ``68107ee`` (From  Sep 18, 2025) of the original [Lime](https://github.com/openfl/lime)
 
@@ -80,6 +80,12 @@ haxelib install format
 haxelib install hxp
 ```
 
+And my fork of hxcpp:
+
+```bash
+haxelib git hxcpp https://github.com/Slushi-Github/hxcpp-nx.git
+```
+
 And and generate your Lime library:
 
 ```bash
@@ -106,6 +112,24 @@ And now you can compile your project!:
 
 ```bash
 haxelib run lime build switch
+```
+
+For use the run command, you need to add this to your `project.xml`:
+
+```xml
+<config:switch ip="192.168.x.x" if="switch"/>
+```
+
+or use:
+
+```bash
+haxelib run lime run switch --ip=192.168.x.x
+```
+
+For add more libs (which must be installed in DevKitPro) to the MakeFile (the one responsible for generating the final executable) you need to add this to your `project.xml`:
+
+```xml
+<config:switch libs="yourLib1, yourLib2" if="switch"/>
 ```
 
 ----
