@@ -30,6 +30,8 @@ import sys.io.Process;
 import sys.FileSystem;
 import haxe.Resource;
 
+using StringTools;
+
 class SwitchPlatform extends PlatformTarget
 {
     private var applicationDirectory:String;
@@ -194,6 +196,11 @@ class SwitchPlatform extends PlatformTarget
 
             var makefileTemplate = File.getContent(path);
 
+            var additionalLibs = [];
+            var libsStr = project.config.getString("switch.libs");
+            if (libsStr == null || libsStr == "") libsStr = "";
+            additionalLibs = libsStr.split(",").map(s -> s.trim());
+
             SwitchLinker.finalBuild({
                 switchExportPath: targetDirectory,
                 projectName: project.app.file,
@@ -205,7 +212,8 @@ class SwitchPlatform extends PlatformTarget
                 outputDir: "bin",
                 limePath: limePath,
                 makeFileTemplate: makefileTemplate,
-                maxJobs: 4
+                maxJobs: 4,
+                additionalLibs: additionalLibs
             });
         }
     }
@@ -293,7 +301,7 @@ class SwitchPlatform extends PlatformTarget
 
         if (consoleIP == null || consoleIP == "") {
             Log.info("-------------------------------------------------------");
-            Log.info("To use the run command, add <config switch.ip=\"your.ip\" /> to project.xml");
+            Log.info("To use the run command, add <config:switch ip=\"your.ip\" /> to project.xml");
             Log.info("Or use: lime run switch --ip=192.168.x.x");
             Log.info("Path: " + nroPath);
             Log.info("-------------------------------------------------------");

@@ -23,6 +23,7 @@ typedef SwitchMakeFileArgs = {
     var limePath:String;
     var makeFileTemplate:String;
     var maxJobs:Int;
+    @:optional var additionalLibs:Array<String>;
 }
 
 /**
@@ -85,8 +86,20 @@ class SwitchLinker {
         makeFile = makeFile.replace("[SWITCH_ASSETS_DIR]", assetsPath);
         makeFile = makeFile.replace("[LIME_APPLICATION_DIR]", Path.combine(assetsPath, "romfs"));
         
+        // NUEVO: Agregar librerías adicionales
+        var additionalLibsStr = "";
+        if (args.additionalLibs != null && args.additionalLibs.length > 0) {
+            additionalLibsStr = " " + args.additionalLibs.map(lib -> "-l" + lib).join(" ");
+        }
+        makeFile = makeFile.replace("[ADDITIONAL_LIBS]", additionalLibsStr);
+        
         var makefilePath = Path.combine(exportPath, "obj/Makefile");
         File.saveContent(makefilePath, makeFile);
+        
+        Log.info("Makefile created at: " + makefilePath);
+        if (args.additionalLibs != null && args.additionalLibs.length > 0) {
+            Log.info("Additional libraries: " + args.additionalLibs.join(", "));
+        }
     }
     
 	/**

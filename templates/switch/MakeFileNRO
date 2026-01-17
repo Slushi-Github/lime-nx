@@ -42,12 +42,15 @@ CXXFLAGS	:= $(CFLAGS) -fexceptions
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
+# Librerías base
 LIBS    := -Wl,--start-group -llime $(HAXE_LIBMAIN) -Wl,--end-group \
            -lSDL2_image -lSDL2_gfx -lSDL2_net -lSDL2_mixer \
            -lopusfile -lopus -lmpg123 -lvorbisidec -lmodplug \
            -lvorbisfile -lvorbis -logg -lopenal -lSDL2 -lSDL2main \
            -lglad -lEGL -lglapi -ldrm_nouveau -lharfbuzz -lfreetype \
            -lpthread -lpng -ljpeg -lwebp -lstdc++ -lm -lz -lbz2 -lnx
+
+LIBS += [ADDITIONAL_LIBS]
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

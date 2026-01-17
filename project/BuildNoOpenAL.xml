@@ -29,11 +29,11 @@
 	<!-- <set name="LIME_NEKO" value="1" if="linux" /> -->
 	<!-- Habilita LIME_OGG para Switch -->
 	<set name="LIME_OGG" value="1" />
-	<!-- Habilita LIME_OPENALSOFT para Switch -->
+	<!-- Excluye LIME_OPENALSOFT para Switch -->
 	<set name="LIME_OPENALSOFT" value="1" if="windows || linux || mac || android || switch || nx || HX_NX" unless="static_link"/>
 	<set name="LIME_OPENAL" value="1" if="iphone || webassembly || tvos" />
-	<!-- Excluye LIME_MOJOAL para Switch -->
-	<set name="LIME_MOJOAL" value="1" if="nx || static_link || winrt || mojoal" unless="LIME_OPENAL || switch || nx || HX_NX" />
+	<!-- LIME_MOJOAL se activa para nx, lo cual es correcto para Switch -->
+	<set name="LIME_MOJOAL" value="1" if="`winrt || mojoal" unless="LIME_OPENAL" />
 	<unset name="LIME_OPENALSOFT" if="LIME_MOJOAL" />
 	<set name="LIME_OPENAL" value="1" if="LIME_OPENALSOFT" />
 	<set name="LIME_OPENAL" value="1" if="LIME_MOJOAL" />
@@ -240,8 +240,8 @@
 
 		</section>
 
-		<!-- Sección condicional para LIME_OPENAL (ahora incluida para Switch), excluyendo la parte específica de MojoAL -->
-		<section if="LIME_OPENAL" unless="switch || nx || HX_NX">
+		<!-- Sección condicional para LIME_OPENAL, excluida para Switch -->
+		<section if="LIME_OPENAL">
 
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/openal/include/" unless="LIME_MOJOAL || emscripten" />
 			<compilerflag value="-I${NATIVE_TOOLKIT_PATH}/mojoal/" if="LIME_MOJOAL" />
@@ -255,7 +255,6 @@
 
 		</section>
 
-		<!-- Sección específica para Switch OPENAL -->
 		<section if="switch || nx || HX_NX">
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include" />
 			<compilerflag value="-I${DEVKITPRO}/portlibs/switch/include/AL" />
@@ -445,7 +444,7 @@
 	</files>
 
 	<!-- Run setup now so the submodule projects can determine whether clang or GCC will be used. -->
-	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930                 ever gets resolved, use that instead. -->
+	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930             ever gets resolved, use that instead. -->
 	<setup name="androidNdk" if="android" />
 
 	<include name="lib/cairo-files.xml" />
@@ -459,12 +458,11 @@
 	<include name="lib/jpeg-files.xml" />
 	<include name="lib/lzma-files.xml" />
 	<include name="lib/mbedtls-files.xml" />
-	<!-- Excluir mojoal-files.xml para Switch -->
-	<include name="lib/mojoal-files.xml" if="LIME_MOJOAL" unless="switch || nx || HX_NX" />
+	<include name="lib/mojoal-files.xml" />
 	<include name="lib/neko-files.xml" />
 	<include name="lib/ogg-files.xml" />
 	<!-- Incluye openal-files.xml solo si LIME_OPENAL está activo y no es Switch -->
-	<include name="lib/openal-files.xml" if="LIME_OPENAL" unless="switch || nx || HX_NX"/>
+	<include name="lib/openal-files.xml" if="LIME_OPENAL"/>
 	<!-- Incluye pixman-files.xml solo si LIME_PIXMAN está activo (ahora incluido para Switch) -->
 	<include name="lib/pixman-files.xml" if="LIME_PIXMAN" />
 	<include name="lib/png-files.xml" />
@@ -499,12 +497,11 @@
 		<files id="native-toolkit-jpeg" if="LIME_JPEG" />
 		<files id="native-toolkit-lzma" if="LIME_LZMA" />
 		<files id="native-toolkit-mbedtls" if="LIME_MBEDTLS" unless="static_link" />
-		<!-- Incluye archivos nativos de mojoal solo si LIME_MOJOAL está activo y no es Switch -->
-		<files id="native-toolkit-mojoal" if="LIME_MOJOAL" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-mojoal" if="LIME_MOJOAL" />
 		<files id="native-toolkit-neko" if="LIME_NEKO" />
 		<files id="native-toolkit-ogg" if="LIME_OGG" />
 		<!-- Incluye archivos nativos de openal solo si LIME_OPENALSOFT está activo y no es Switch -->
-		<files id="native-toolkit-openal" if="LIME_OPENALSOFT" unless="switch || nx || HX_NX" />
+		<files id="native-toolkit-openal" if="LIME_OPENALSOFT" />
 		<!-- Incluye archivos nativos de pixman solo si LIME_PIXMAN está activo (ahora incluido para Switch) -->
 		<files id="native-toolkit-pixman" if="LIME_PIXMAN" />
 		<files id="native-toolkit-png" if="LIME_PNG" />
@@ -623,7 +620,6 @@
 			<section if="switch">
 				<lib name="-L../ndll/Switch" />
 				<lib name="-lnx" />
-				<!-- Biblioteca OpenAL Soft de DevkitPro -->
 				<lib name="-lopenal" />
 
 				<!-- Aquí incluimos las bibliotecas de DevkitPro -->

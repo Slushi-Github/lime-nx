@@ -596,7 +596,7 @@ class Assets
 		}
 		else
 		{
-			return "There is no asset library named \"" + name + "\"";
+			return "There is no asset library named \"" + name + "\" (on [" + bundlePaths.get(name) + "])";
 		}
 	}
 
