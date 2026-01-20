@@ -21,25 +21,35 @@ extern "C" int ::nameSafe::_register_prims ();
 
 #if defined(__SWITCH__)
 static int s_nxlinkSocket = -1;
+static bool s_socketInitialized = true;
 
-static void initNXLink()
-{
-	if (R_FAILED(socketInitializeDefault()))
+/**
+ * Initialize the nxlink socket, for remote printing and debugging
+ */
+static void initNXLink() {
+	if (!s_socketInitialized) {
+		printf("[Main.cpp - initNXLink()] Socket not initialized\n");
 		return;
+	}
 
 	s_nxlinkSocket = nxlinkStdio();
 	if (s_nxlinkSocket >= 0)
-		printf("Connected to nxlink!\n");
-	else
-		socketExit();
+		printf("[Main.cpp - initNXLink()] Connected to nxlink!\n");
+	else {
+		printf("[Main.cpp - initNXLink()] Failed to connect to nxlink...\n");
+		s_nxlinkSocket = -1;
+	}
 }
 
+/**
+ * Deinitialize the nxlink socket
+ * This is called when the program exits, if not we can crash on exit
+ */
 static void deInitNXLink()
 {
-	if (s_nxlinkSocket >= 0)
+	if (s_socketInitialized && s_nxlinkSocket >= 0)
 	{
 		close(s_nxlinkSocket);
-		socketExit();
 		s_nxlinkSocket = -1;
 	}
 }
@@ -51,13 +61,23 @@ int __stdcall WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 extern "C" int main(int argc, char *argv[]) {
 #endif
 #if defined(__SWITCH__)
+	// We need to initialize the socket even if we're not going to use it with nxlink
+	// Haxe needs to be able to handle their own sockets, if we don't do this it will crash
+	Result result = socketInitializeDefault();
+	if (R_FAILED(result))
+	{
+		printf("[Main.cpp - socketInitializeDefault()] ERROR: Failed to initialize default socket: %08X\n", result);
+		s_socketInitialized = false;
+	}
+
 	initNXLink();
+
 	Result rc = romfsInit();
 	if (R_FAILED(rc))
-		printf("[Main.cpp] ERROR: romfsInit: %08X\n", rc);
+		printf("[Main.cpp - romfsInit()] ERROR: romfsInit: %08X\n", rc);
 	else
 	{
-		printf("RomFS Init Successful!\n");
+		printf("[Main.cpp - romfsInit()] RomFS Init Successful!\n");
 	}
 #endif
 
@@ -73,10 +93,11 @@ extern "C" int main(int argc, char *argv[]) {
  	err = hxRunLibrary ();
 	
 	if (err) {
-		printf("Error: %s\n", err);
+		printf("[Main.cpp - hxRunLibrary()] ERROR: %s\n", err);
 #if defined(__SWITCH__)
 		deInitNXLink();
 		romfsExit();
+		socketExit();
 #endif
 		return -1;
 	}
@@ -84,6 +105,7 @@ extern "C" int main(int argc, char *argv[]) {
 #if defined(__SWITCH__)
 	deInitNXLink();
 	romfsExit();
+	socketExit();
 #endif
 
 	return 0;
