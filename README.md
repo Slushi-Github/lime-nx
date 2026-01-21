@@ -136,6 +136,58 @@ For add more libs (which must be installed in DevKitPro) to the MakeFile (the on
 <config:switch libs="yourLib1, yourLib2" if="switch"/>
 ```
 
+## Use with the Lime VSCode extension
+
+Just add the following to your VSCode settings JSON file or the `settings.json` file in your project folder:
+
+```json
+"lime.targets": [
+    {
+        "name": "switch",
+        "label": "Switch",
+        "enabled": true
+    }
+],
+"lime.targetConfigurations": [
+    {
+        "label": "Switch",
+        "target": "switch",
+        "args": [
+            "-DHX_NX"
+        ],
+        "enabled": true
+    },
+    {
+        "label": "Switch / Release",
+        "target": "switch",
+        "args": [
+            "-DHX_NX"
+        ],
+        "enabled": true
+    },
+    {
+        "label": "Switch / Debug",
+        "target": "switch",
+        "args": [
+            "-debug",
+            "-DHX_NX"
+        ],
+        "enabled": true
+    },
+    {
+        "label": "Switch / Final",
+        "target": "switch",
+        "args": [
+            "-final",
+            "-DHX_NX"
+        ],
+        "enabled": true
+    }
+]
+```
+
+Then the defines for the Switch target will be valid in all projects.
+
 ----
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.md) [![Haxelib Version](https://img.shields.io/github/tag/openfl/lime.svg?style=flat&label=haxelib)](http://lib.haxe.org/p/lime) [![Build Status](https://img.shields.io/github/actions/workflow/status/openfl/lime/main.yml?branch=develop)](https://github.com/openfl/lime/actions) [![Community](https://img.shields.io/discourse/posts?color=24afc4&server=https%3A%2F%2Fcommunity.openfl.org&label=community)](https://community.openfl.org/c/lime/19) [![Discord Server](https://img.shields.io/discord/415681294446493696.svg?color=7289da)](https://discordapp.com/invite/tDgq8EE)
