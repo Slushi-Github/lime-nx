@@ -29,7 +29,7 @@ typedef SwitchMakeFileArgs = {
 /**
  * Linker for the Switch, for generating the executables for the console
  * 
- * Based on:
+ * Based on HaxeNXCompiler:
  * https://github.com/Slushi-Github/HaxeNXCompiler/blob/main/source/compilers/nx/NXLinker.hx
  * 
  * @author Slushi
@@ -86,19 +86,24 @@ class SwitchLinker {
         makeFile = makeFile.replace("[SWITCH_ASSETS_DIR]", assetsPath);
         makeFile = makeFile.replace("[LIME_APPLICATION_DIR]", Path.combine(assetsPath, "romfs"));
         
-        // NUEVO: Agregar librerías adicionales
         var additionalLibsStr = "";
         if (args.additionalLibs != null && args.additionalLibs.length > 0) {
-            additionalLibsStr = " " + args.additionalLibs.map(lib -> "-l" + lib).join(" ");
+            var validLibs = args.additionalLibs.filter(lib -> lib != null && lib != "");
+            if (validLibs.length > 0) {
+                additionalLibsStr = " " + validLibs.map(lib -> "-l" + lib).join(" ");
+            }
         }
         makeFile = makeFile.replace("[ADDITIONAL_LIBS]", additionalLibsStr);
-        
+
         var makefilePath = Path.combine(exportPath, "obj/Makefile");
         File.saveContent(makefilePath, makeFile);
-        
+
         Log.info("Makefile created at: " + makefilePath);
         if (args.additionalLibs != null && args.additionalLibs.length > 0) {
-            Log.info("Additional libraries: " + args.additionalLibs.join(", "));
+            var validLibs = args.additionalLibs.filter(lib -> lib != null && lib != "");
+            if (validLibs.length > 0) {
+                Log.info("Additional libraries: " + validLibs.join(", "));
+            }
         }
     }
     

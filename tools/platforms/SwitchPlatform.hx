@@ -300,12 +300,7 @@ class SwitchPlatform extends PlatformTarget
         if (targetFlags.exists("ip")) consoleIP = targetFlags.get("ip");
 
         if (consoleIP == null || consoleIP == "") {
-            Log.info("-------------------------------------------------------");
-            Log.info("To use the run command, add <config:switch ip=\"your.ip\" /> to project.xml");
-            Log.info("Or use: lime run switch --ip=192.168.x.x");
-            Log.info("Path: " + nroPath);
-            Log.info("-------------------------------------------------------");
-            return;
+            Log.warn("Console IP not found, letting nxlink decide");
         }
 
         if (!FileSystem.exists(nroPath)) {
@@ -315,8 +310,9 @@ class SwitchPlatform extends PlatformTarget
 
         var stat = FileSystem.stat(nroPath);
         var fileSizeMB:Float = Math.round((stat.size / 1024.0 / 1024.0) * 100) / 100;
-        
-        Log.info("Sending: [" + project.app.file + ".nro] (" + fileSizeMB + " MB) to " + consoleIP);
+        final finalIP:String = consoleIP == null || consoleIP == "" ? "to console" : consoleIP;
+
+        Log.info("Sending: [" + project.app.file + ".nro] (" + fileSizeMB + " MB) to " + finalIP);
 
         var dkp = Sys.getEnv("DEVKITPRO");
         if (dkp == null || dkp == "") {
@@ -328,12 +324,18 @@ class SwitchPlatform extends PlatformTarget
         if (System.hostPlatform == WINDOWS) nxlinkProgram += ".exe";
 
         if (!FileSystem.exists(nxlinkProgram)) {
-            Log.error("nxlink program not found at: " + nxlinkProgram);
+            Log.error("nxlink program not found at: " + nxlinkProgram + " (Maybe switch-tools on DevkitPro is not installed?)");
             return;
         }
 
         var arguments = ["-a", consoleIP, nroPath];
-        arguments.push("-s");
+
+        // No set IP if empty, Let Nxlink find the console
+        if (consoleIP == null || consoleIP == "") {
+            arguments = ["-s", nroPath];
+        }
+        else
+            arguments.push("-s");
 
         var exitCode = System.runCommand("", nxlinkProgram, arguments);        
         if (exitCode != 0) {
@@ -367,14 +369,53 @@ class SwitchPlatform extends PlatformTarget
         System.mkdir(romfsDirectory);
 
         var icons = project.icons;
-        
+
         if (icons.length == 0) {
             var defaultIconPath = System.findTemplate(project.templatePaths, "default/icon.svg");
             if (defaultIconPath != null) {
-                icons = [new Icon(defaultIconPath)];
+                Log.info("Using default icon for Switch: " + defaultIconPath);
+                
+                var switchAssetsDir = Path.combine(applicationDirectory, "SWITCH_ASSETS");
+                System.mkdir(switchAssetsDir);
+                
+                var iconPngPath = Path.combine(switchAssetsDir, "icon_temp.png");
+                var iconJpgPath = Path.combine(switchAssetsDir, "icon.jpg");
+                
+                if (IconHelper.createIcon([new Icon(defaultIconPath)], 256, 256, iconPngPath)) {
+                    try {
+                        var image = Image.fromFile(iconPngPath);
+                        
+                        if (image != null) {
+                            if (image.width != 256 || image.height != 256) {
+                                Log.info("Resizing default icon to 256x256...");
+                                image.resize(256, 256);
+                            }
+                            
+                            var jpegBytes = image.encode(ImageFileFormat.JPEG, 100);
+                            
+                            if (jpegBytes != null) {
+                                File.saveBytes(iconJpgPath, jpegBytes);
+                                Log.info("Switch icon created from default at: " + iconJpgPath + " (256x256)");
+                                context.HAS_ICON = true;
+                            } else {
+                                Log.warn("Could not encode default icon to JPEG format");
+                            }
+                        } else {
+                            Log.warn("Could not load default icon PNG for conversion");
+                        }
+                    } catch (e:Dynamic) {
+                        Log.warn("Error converting default icon to JPG: " + e);
+                    }
+                    
+                    if (FileSystem.exists(iconPngPath)) {
+                        FileSystem.deleteFile(iconPngPath);
+                    }
+                } else {
+                    Log.warn("Could not create Switch icon from default");
+                }
             }
         }
-        
+
         if (icons.length > 0) {
             var switchAssetsDir = Path.combine(applicationDirectory, "SWITCH_ASSETS");
             System.mkdir(switchAssetsDir);
@@ -382,16 +423,21 @@ class SwitchPlatform extends PlatformTarget
             var iconPngPath = Path.combine(switchAssetsDir, "icon_temp.png");
             var iconJpgPath = Path.combine(switchAssetsDir, "icon.jpg");
             
-            if (IconHelper.createIcon(icons, 512, 512, iconPngPath)) {
+            if (IconHelper.createIcon(icons, 256, 256, iconPngPath)) {
                 try {
                     var image = Image.fromFile(iconPngPath);
                     
                     if (image != null) {
+                        if (image.width != 256 || image.height != 256) {
+                            Log.info("Resizing icon to 256x256...");
+                            image.resize(256, 256);
+                        }
+                        
                         var jpegBytes = image.encode(ImageFileFormat.JPEG, 100);
                         
                         if (jpegBytes != null) {
                             File.saveBytes(iconJpgPath, jpegBytes);
-                            Log.info("Switch icon created at: " + iconJpgPath);
+                            Log.info("Switch icon created at: " + iconJpgPath + " (256x256)");
                             context.HAS_ICON = true;
                         } else {
                             Log.error("Could not encode image to JPEG format");
