@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -35,7 +33,6 @@
 #include "tool_cb_hdr.h"
 #include "tool_cb_wrt.h"
 #include "tool_operate.h"
-#include "tool_libinfo.h"
 
 #include "memdebug.h" /* keep this as LAST include */
 
@@ -75,16 +72,24 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
   const char *str = ptr;
   const size_t cb = size * nmemb;
   const char *end = (char *)ptr + cb;
-  const char *scheme = NULL;
+  long protocol = 0;
+
+  /*
+   * Once that libcurl has called back tool_header_cb() the returned value
+   * is checked against the amount that was intended to be written, if
+   * it does not match then it fails with CURLE_WRITE_ERROR. So at this
+   * point returning a value different from sz*nmemb indicates failure.
+   */
+  size_t failure = (size && nmemb) ? 0 : 1;
 
   if(!per->config)
-    return CURL_WRITEFUNC_ERROR;
+    return failure;
 
 #ifdef DEBUGBUILD
   if(size * nmemb > (size_t)CURL_MAX_HTTP_HEADER) {
     warnf(per->config->global, "Header data exceeds single call write "
           "limit!\n");
-    return CURL_WRITEFUNC_ERROR;
+    return failure;
   }
 #endif
 
@@ -109,7 +114,7 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
       const char *etag_h = &str[5];
       const char *eot = end - 1;
       if(*eot == '\n') {
-        while(ISBLANK(*etag_h) && (etag_h < eot))
+        while(ISSPACE(*etag_h) && (etag_h < eot))
           etag_h++;
         while(ISSPACE(*eot))
           eot--;
@@ -132,11 +137,10 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
    * Content-Disposition header specifying a filename property.
    */
 
-  curl_easy_getinfo(per->curl, CURLINFO_SCHEME, &scheme);
-  scheme = proto_token(scheme);
+  curl_easy_getinfo(per->curl, CURLINFO_PROTOCOL, &protocol);
   if(hdrcbdata->honor_cd_filename &&
      (cb > 20) && checkprefix("Content-disposition:", str) &&
-     (scheme == proto_http || scheme == proto_https)) {
+     (protocol & (CURLPROTO_HTTPS|CURLPROTO_HTTP))) {
     const char *p = str + 20;
 
     /* look for the 'filename=' parameter
@@ -167,7 +171,7 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
         if(outs->stream) {
           /* indication of problem, get out! */
           free(filename);
-          return CURL_WRITEFUNC_ERROR;
+          return failure;
         }
 
         outs->is_cd_filename = TRUE;
@@ -177,12 +181,12 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
         outs->alloc_filename = TRUE;
         hdrcbdata->honor_cd_filename = FALSE; /* done now! */
         if(!tool_create_output_file(outs, per->config))
-          return CURL_WRITEFUNC_ERROR;
+          return failure;
       }
       break;
     }
     if(!outs->stream && !tool_create_output_file(outs, per->config))
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
   }
   if(hdrcbdata->config->writeout) {
     char *value = memchr(ptr, ':', cb);
@@ -196,13 +200,13 @@ size_t tool_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
       per->was_last_header_empty = TRUE;
   }
   if(hdrcbdata->config->show_headers &&
-    (scheme == proto_http || scheme == proto_https ||
-     scheme == proto_rtsp || scheme == proto_file)) {
+    (protocol &
+     (CURLPROTO_HTTP|CURLPROTO_HTTPS|CURLPROTO_RTSP|CURLPROTO_FILE))) {
     /* bold headers only for selected protocols */
     char *value = NULL;
 
     if(!outs->stream && !tool_create_output_file(outs, per->config))
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
 
     if(hdrcbdata->global->isatty && hdrcbdata->global->styled_output)
       value = memchr(ptr, ':', cb);

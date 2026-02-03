@@ -1,26 +1,18 @@
-/* SPDX-License-Identifier: Zlib
-Copyright (c) 2014 - 2024 Guillaume Vareille http://ysengrin.com
-	 ________________________________________________________________
-	|                                                                |
-	| 100% compatible C C++  ->  You can rename this .c file as .cpp |
-	|________________________________________________________________|
-
-********* TINY FILE DIALOGS OFFICIAL WEBSITE IS ON SOURCEFORGE *********
-  _________
- /         \ hello_wchar_t.c v3.19.2 [Jul 24, 2025]
+/*_________
+ /         \ hello_wchar_t.c v3.8.8 [Apr 22, 2021] zlib licence
  |tiny file| Hello WCHAR_T windows only file created [November 9, 2014]
- | dialogs |
+ | dialogs | Copyright (c) 2014 - 2021 Guillaume Vareille http://ysengrin.com
  \____  ___/ http://tinyfiledialogs.sourceforge.net
-	  \|     git clone http://git.code.sf.net/p/tinyfiledialogs/code tinyfd
-			  ____________________________________________
-			 |                                            |
-			 |   email: tinyfiledialogs at ysengrin.com   |
-			 |____________________________________________|
-	  ________________________________________________________________
-	 |                                                                |
-	 | this file is for windows only it uses wchar_t UTF-16 functions |
-	 |________________________________________________________________|
-
+      \|     git clone http://git.code.sf.net/p/tinyfiledialogs/code tinyfd
+              ____________________________________________
+             |                                            |
+             |   email: tinyfiledialogs at ysengrin.com   |
+             |____________________________________________|
+              _______________________________
+             |                               |
+             | this file is for windows only |
+             |_______________________________|
+	  
 If you like tinyfiledialogs, please upvote my stackoverflow answer
 https://stackoverflow.com/a/47651444
 
@@ -38,21 +30,12 @@ appreciated but is not required.
 2. Altered source versions must be plainly marked as such, and must not be
 misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
-
-  See compilation instructions at the end of this file
-
-     __________________________________________
-    |  ______________________________________  |
-    | |                                      | |
-    | | DO NOT USE USER INPUT IN THE DIALOGS | |
-    | |______________________________________| |
-    |__________________________________________|
 */
+
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
 #include "tinyfiledialogs.h"
 
 #ifdef _MSC_VER
@@ -61,19 +44,17 @@ misrepresented as being the original software.
 
 int main(void) /* WINDOWS ONLY */
 {
-	wchar_t * lPassword;
-	wchar_t * lTheSaveFileName;
-	wchar_t * lTheOpenFileName;
-	wchar_t * lTheSelectFolderName;
-	wchar_t * lTheHexColor;
-	wchar_t * lWillBeGraphicMode;
+	wchar_t const * lPassword;
+	wchar_t const * lTheSaveFileName;
+	wchar_t const * lTheOpenFileName;
+	wchar_t const * lTheSelectFolderName;
+	wchar_t const * lTheHexColor;
+	wchar_t const * lWillBeGraphicMode;
 	unsigned char lRgbColor[3];
 	FILE * lIn;
 	wchar_t lWcharBuff[1024];
 	wchar_t lBuffer[1024];
 	wchar_t const * lFilterPatterns[2] = { L"*.txt", L"*.text" };
-
-	tinyfd_beep();
 
 	lWillBeGraphicMode = tinyfd_inputBoxW(L"tinyfd_query", NULL, NULL);
 
@@ -211,6 +192,8 @@ int main(void) /* WINDOWS ONLY */
 		lTheHexColor, L"ok", L"info", 1);
 
 	tinyfd_messageBoxW(L"your password was", lPassword, L"ok", L"info", 1);
+
+	tinyfd_beep();
 
 	return 0;
 }

@@ -1,7 +1,7 @@
 Entropia File System Watcher ![efsw](https://web.ensoft.dev/efsw/efsw-logo.svg)
 ============================
 
-[![build status](https://img.shields.io/github/actions/workflow/status/SpartanJ/efsw/main.yml?branch=master)](https://github.com/SpartanJ/efsw/actions?query=workflow%3Abuild)
+[![build status](https://img.shields.io/github/workflow/status/SpartanJ/efsw/build)](https://github.com/SpartanJ/efsw/actions?query=workflow%3Abuild)
 
 **efsw** is a C++ cross-platform file system watcher and notifier.
 
@@ -34,41 +34,37 @@ This should never happen, except for the Kqueue implementation; see `Platform li
 
 ```c++
 // Inherits from the abstract listener class, and implements the the file action handler
-class UpdateListener : public efsw::FileWatchListener {
-  public:
-    void handleFileAction( efsw::WatchID watchid, const std::string& dir,
-                           const std::string& filename, efsw::Action action,
-                           std::string oldFilename ) override {
-        switch ( action ) {
-            case efsw::Actions::Add:
-                std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Added"
-                          << std::endl;
-                break;
-            case efsw::Actions::Delete:
-                std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Delete"
-                          << std::endl;
-                break;
-            case efsw::Actions::Modified:
-                std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Modified"
-                          << std::endl;
-                break;
-            case efsw::Actions::Moved:
-                std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Moved from ("
-                          << oldFilename << ")" << std::endl;
-                break;
-            default:
-                std::cout << "Should never happen!" << std::endl;
-        }
-    }
+class UpdateListener : public efsw::FileWatchListener
+{
+public:
+	void handleFileAction( efsw::WatchID watchid, const std::string& dir, const std::string& filename, efsw::Action action, std::string oldFilename ) override
+	{
+		switch( action )
+		{
+		case efsw::Actions::Add:
+			std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Added" << std::endl;
+			break;
+		case efsw::Actions::Delete:
+			std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Delete" << std::endl;
+			break;
+		case efsw::Actions::Modified:
+			std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Modified" << std::endl;
+			break;
+		case efsw::Actions::Moved:
+				std::cout << "DIR (" << dir << ") FILE (" << filename << ") has event Moved from (" << oldFilename << ")" << std::endl;
+			break;
+		default:
+			std::cout << "Should never happen!" << std::endl;
+		}
+	}
 };
 
 // Create the file system watcher instance
-// efsw::FileWatcher allow a first boolean parameter that indicates if it should start with the
-// generic file watcher instead of the platform specific backend
-efsw::FileWatcher* fileWatcher = new efsw::FileWatcher();
+// efsw::FileWatcher allow a first boolean parameter that indicates if it should start with the generic file watcher instead of the platform specific backend
+efsw::FileWatcher * fileWatcher = new efsw::FileWatcher();
 
 // Create the instance of your efsw::FileWatcherListener implementation
-UpdateListener* listener = new UpdateListener();
+UpdateListener * listener = new UpdateListener();
 
 // Add a folder to watch, and get the efsw::WatchID
 // It will watch the /tmp folder recursively ( the third parameter indicates that is recursive )
@@ -78,16 +74,11 @@ efsw::WatchID watchID = fileWatcher->addWatch( "/tmp", listener, true );
 // Adds another directory to watch. This time as non-recursive.
 efsw::WatchID watchID2 = fileWatcher->addWatch( "/usr", listener, false );
 
-// For Windows, adds another watch, specifying to use a bigger buffer, to not miss events
-// (do not use for network locations, see efsw.hpp for details).
-efsw::WatchID watchID3 = fileWatcher->addWatch( "c:\\temp", listener, true, { (BufferSize, 128*1024) } );
-
 // Start watching asynchronously the directories
 fileWatcher->watch();
 
 // Remove the second watcher added
-// You can also call removeWatch by passing the watch path ( it must end with an slash or backslash
-// in windows, since that's how internally it's saved )
+// You can also call removeWatch by passing the watch path ( it must end with an slash or backslash in windows, since that's how internally it's saved )
 fileWatcher->removeWatch( watchID2 );
 ```
 
@@ -97,19 +88,19 @@ None :)
 
 **Compiling**
 ------------
-To generate project files you will need to [download and install](https://premake.github.io/download) [Premake](https://premake.github.io/docs/What-Is-Premake)
+To generate project files you will need to [download and install](http://industriousone.com/premake/download) [Premake](http://industriousone.com/what-premake)
 
 Then you can generate the project for your platform by just going to the project directory where the premake4.lua file is located and executing:
 
-`premake5 gmake2` to generate project Makefiles, then `cd make/*YOURPLATFORM*/`, and finally `make` or `make config=release_x86_64` ( it will generate the static lib, the shared lib and the test application ).
+`premake4 gmake` to generate project Makefiles, then `cd make/*YOURPLATFORM*/`, and finally `make` or `make config=release` ( it will generate the static lib, the shared lib and the test application ).
+
+or 
+
+`premake4 vs2010` to generate Visual Studio 2010 project.
 
 or
 
-`premake5 vs2022` to generate Visual Studio 2022 project.
-
-or
-
-`premake5 xcode4` to generate Xcode 4 project.
+`premake4 xcode4` to generate Xcode 4 project.
 
 There is also a cmake file that I don't officially support but it works just fine, provided by [Mohammed Nafees](https://github.com/mnafees) and improved by [Eugene Shalygin](https://github.com/zeule).
 

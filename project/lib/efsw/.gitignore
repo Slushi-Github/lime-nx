@@ -1,5 +1,4 @@
 bin/
-build/
 obj/
 make/
 lib/
@@ -9,13 +8,3 @@ CMakeFiles/
 /cmake_install.cmake
 /Makefile
 *.DS_Store
-.qtc_clangd
-.cmake
-.vscode/
-*.so
-*.a
-*.dylib
-*.lib
-/.cache
-/efsw-test
-/efsw-test-stdc

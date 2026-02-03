@@ -35,18 +35,11 @@
  *
  * Priority queue implemented as a binary heap. Supports extract minimum
  * and insert operations.
- *
- * The priority queue is implemented as a binary heap, which is a complete
- * binary tree. The root of the tree is the minimum element. The heap
- * property is that the priority of a node is less than or equal to the
- * priority of its children. The heap is stored in an array, with the
- * children of node i stored at indices 2i + 1 and 2i + 2.
  */
-template <typename K>
 struct hb_priority_queue_t
 {
  private:
-  typedef hb_pair_t<K, unsigned> item_t;
+  typedef hb_pair_t<int64_t, unsigned> item_t;
   hb_vector_t<item_t> heap;
 
  public:
@@ -55,22 +48,13 @@ struct hb_priority_queue_t
 
   bool in_error () const { return heap.in_error (); }
 
-  bool alloc (unsigned size)
-  { return heap.alloc (size); }
-
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
-  void insert (K priority, unsigned value)
+  void insert (int64_t priority, unsigned value)
   {
     heap.push (item_t (priority, value));
     if (unlikely (heap.in_error ())) return;
     bubble_up (heap.length - 1);
   }
 
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   item_t pop_minimum ()
   {
     assert (!is_empty ());
@@ -78,7 +62,7 @@ struct hb_priority_queue_t
     item_t result = heap.arrayZ[0];
 
     heap.arrayZ[0] = heap.arrayZ[heap.length - 1];
-    heap.resize (heap.length - 1);
+    heap.shrink (heap.length - 1);
 
     if (!is_empty ())
       bubble_down (0);
@@ -116,10 +100,8 @@ struct hb_priority_queue_t
     return 2 * index + 2;
   }
 
-  HB_ALWAYS_INLINE
   void bubble_down (unsigned index)
   {
-    repeat:
     assert (index < heap.length);
 
     unsigned left = left_child (index);
@@ -135,21 +117,19 @@ struct hb_priority_queue_t
         && (!has_right || heap.arrayZ[index].first <= heap.arrayZ[right].first))
       return;
 
-    unsigned child;
     if (!has_right || heap.arrayZ[left].first < heap.arrayZ[right].first)
-      child = left;
-    else
-      child = right;
+    {
+      swap (index, left);
+      bubble_down (left);
+      return;
+    }
 
-    swap (index, child);
-    index = child;
-    goto repeat;
+    swap (index, right);
+    bubble_down (right);
   }
 
-  HB_ALWAYS_INLINE
   void bubble_up (unsigned index)
   {
-    repeat:
     assert (index < heap.length);
 
     if (index == 0) return;
@@ -159,11 +139,10 @@ struct hb_priority_queue_t
       return;
 
     swap (index, parent_index);
-    index = parent_index;
-    goto repeat;
+    bubble_up (parent_index);
   }
 
-  void swap (unsigned a, unsigned b) noexcept
+  void swap (unsigned a, unsigned b)
   {
     assert (a < heap.length);
     assert (b < heap.length);

@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  * RFC1870 SMTP Service Extension for Message Size
  * RFC2195 CRAM-MD5 authentication
  * RFC2831 DIGEST-MD5 authentication
@@ -60,6 +58,11 @@
 #include <inet.h>
 #endif
 
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
+
 #include <curl/curl.h>
 #include "urldata.h"
 #include "sendf.h"
@@ -74,7 +77,6 @@
 #include "strtoofft.h"
 #include "strcase.h"
 #include "vtls/vtls.h"
-#include "cfilters.h"
 #include "connect.h"
 #include "select.h"
 #include "multiif.h"
@@ -83,7 +85,6 @@
 #include "bufref.h"
 #include "curl_sasl.h"
 #include "warnless.h"
-#include "idn.h"
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
@@ -106,7 +107,7 @@ static CURLcode smtp_setup_connection(struct Curl_easy *data,
 static CURLcode smtp_parse_url_options(struct connectdata *conn);
 static CURLcode smtp_parse_url_path(struct Curl_easy *data);
 static CURLcode smtp_parse_custom_request(struct Curl_easy *data);
-static CURLcode smtp_parse_address(const char *fqma,
+static CURLcode smtp_parse_address(struct Curl_easy *data, const char *fqma,
                                    char **address, struct hostname *host);
 static CURLcode smtp_perform_auth(struct Curl_easy *data, const char *mech,
                                   const struct bufref *initresp);
@@ -397,15 +398,10 @@ static CURLcode smtp_perform_upgrade_tls(struct Curl_easy *data)
   /* Start the SSL connection */
   struct connectdata *conn = data->conn;
   struct smtp_conn *smtpc = &conn->proto.smtpc;
-  CURLcode result;
+  CURLcode result = Curl_ssl_connect_nonblocking(data, conn, FALSE,
+                                                 FIRSTSOCKET,
+                                                 &smtpc->ssldone);
 
-  if(!Curl_conn_is_ssl(data, FIRSTSOCKET)) {
-    result = Curl_ssl_cfilter_add(data, conn, FIRSTSOCKET);
-    if(result)
-      goto out;
-  }
-
-  result = Curl_conn_connect(data, FIRSTSOCKET, FALSE, &smtpc->ssldone);
   if(!result) {
     if(smtpc->state != SMTP_UPGRADETLS)
       state(data, SMTP_UPGRADETLS);
@@ -415,7 +411,7 @@ static CURLcode smtp_perform_upgrade_tls(struct Curl_easy *data)
       result = smtp_perform_ehlo(data);
     }
   }
-out:
+
   return result;
 }
 
@@ -542,7 +538,7 @@ static CURLcode smtp_perform_command(struct Curl_easy *data)
 
       /* Parse the mailbox to verify into the local address and host name
          parts, converting the host name to an IDN A-label if necessary */
-      result = smtp_parse_address(smtp->rcpt->data,
+      result = smtp_parse_address(data, smtp->rcpt->data,
                                   &address, &host);
       if(result)
         return result;
@@ -616,7 +612,7 @@ static CURLcode smtp_perform_mail(struct Curl_easy *data)
 
     /* Parse the FROM mailbox into the local address and host name parts,
        converting the host name to an IDN A-label if necessary */
-    result = smtp_parse_address(data->set.str[STRING_MAIL_FROM],
+    result = smtp_parse_address(data, data->set.str[STRING_MAIL_FROM],
                                 &address, &host);
     if(result)
       return result;
@@ -654,7 +650,7 @@ static CURLcode smtp_perform_mail(struct Curl_easy *data)
 
       /* Parse the AUTH mailbox into the local address and host name parts,
          converting the host name to an IDN A-label if necessary */
-      result = smtp_parse_address(data->set.str[STRING_MAIL_AUTH],
+      result = smtp_parse_address(data, data->set.str[STRING_MAIL_AUTH],
                                   &address, &host);
       if(result) {
         free(from);
@@ -698,7 +694,7 @@ static CURLcode smtp_perform_mail(struct Curl_easy *data)
 
     /* Add external headers and mime version. */
     curl_mime_headers(&data->set.mimepost, data->set.headers, 0);
-    result = Curl_mime_prepare_headers(data, &data->set.mimepost, NULL,
+    result = Curl_mime_prepare_headers(&data->set.mimepost, NULL,
                                        NULL, MIMESTRATEGY_MAIL);
 
     if(!result)
@@ -791,7 +787,7 @@ static CURLcode smtp_perform_rcpt_to(struct Curl_easy *data)
 
   /* Parse the recipient mailbox into the local address and host name parts,
      converting the host name to an IDN A-label if necessary */
-  result = smtp_parse_address(smtp->rcpt->data,
+  result = smtp_parse_address(data, smtp->rcpt->data,
                               &address, &host);
   if(result)
     return result;
@@ -890,8 +886,7 @@ static CURLcode smtp_state_ehlo_resp(struct Curl_easy *data,
   (void)instate; /* no use for this yet */
 
   if(smtpcode/100 != 2 && smtpcode != 1) {
-    if(data->set.use_ssl <= CURLUSESSL_TRY
-       || Curl_conn_is_ssl(data, FIRSTSOCKET))
+    if(data->set.use_ssl <= CURLUSESSL_TRY || conn->ssl[FIRSTSOCKET].use)
       result = smtp_perform_helo(data, conn);
     else {
       failf(data, "Remote access denied: %d", smtpcode);
@@ -956,7 +951,7 @@ static CURLcode smtp_state_ehlo_resp(struct Curl_easy *data,
     }
 
     if(smtpcode != 1) {
-      if(data->set.use_ssl && !Curl_conn_is_ssl(data, FIRSTSOCKET)) {
+      if(data->set.use_ssl && !conn->ssl[FIRSTSOCKET].use) {
         /* We don't have a SSL/TLS connection yet, but SSL is requested */
         if(smtpc->tls_supported)
           /* Switch to TLS connection now */
@@ -1046,7 +1041,7 @@ static CURLcode smtp_state_command_resp(struct Curl_easy *data, int smtpcode,
   }
   else {
     /* Temporarily add the LF character back and send as body to the client */
-    if(!data->req.no_body) {
+    if(!data->set.opt_no_body) {
       line[len] = '\n';
       result = Curl_client_write(data, CLIENTWRITE_BODY, line, len + 1);
       line[len] = '\0';
@@ -1288,7 +1283,8 @@ static CURLcode smtp_multi_statemach(struct Curl_easy *data, bool *done)
   struct smtp_conn *smtpc = &conn->proto.smtpc;
 
   if((conn->handler->flags & PROTOPT_SSL) && !smtpc->ssldone) {
-    result = Curl_conn_connect(data, FIRSTSOCKET, FALSE, &smtpc->ssldone);
+    result = Curl_ssl_connect_nonblocking(data, conn, FALSE,
+                                          FIRSTSOCKET, &smtpc->ssldone);
     if(result || !smtpc->ssldone)
       return result;
   }
@@ -1481,11 +1477,12 @@ static CURLcode smtp_perform(struct Curl_easy *data, bool *connected,
 {
   /* This is SMTP and no proxy */
   CURLcode result = CURLE_OK;
+  struct connectdata *conn = data->conn;
   struct SMTP *smtp = data->req.p.smtp;
 
   DEBUGF(infof(data, "DO phase starts"));
 
-  if(data->req.no_body) {
+  if(data->set.opt_no_body) {
     /* Requested no body means no transfer */
     smtp->transfer = PPTRANSFER_INFO;
   }
@@ -1520,7 +1517,7 @@ static CURLcode smtp_perform(struct Curl_easy *data, bool *connected,
   /* Run the state-machine */
   result = smtp_multi_statemach(data, dophase_done);
 
-  *connected = Curl_conn_is_connected(data->conn, FIRSTSOCKET);
+  *connected = conn->bits.tcpconnect[FIRSTSOCKET];
 
   if(*dophase_done)
     DEBUGF(infof(data, "DO phase is complete"));
@@ -1783,8 +1780,8 @@ static CURLcode smtp_parse_custom_request(struct Curl_easy *data)
  * calling function deems it to be) then the input will simply be returned in
  * the address part with the host name being NULL.
  */
-static CURLcode smtp_parse_address(const char *fqma, char **address,
-                                   struct hostname *host)
+static CURLcode smtp_parse_address(struct Curl_easy *data, const char *fqma,
+                                   char **address, struct hostname *host)
 {
   CURLcode result = CURLE_OK;
   size_t length;
@@ -1808,7 +1805,7 @@ static CURLcode smtp_parse_address(const char *fqma, char **address,
     host->name = host->name + 1;
 
     /* Attempt to convert the host name to IDN ACE */
-    (void) Curl_idnconvert_hostname(host);
+    (void) Curl_idnconvert_hostname(data, host);
 
     /* If Curl_idnconvert_hostname() fails then we shall attempt to continue
        and send the host name using UTF-8 rather than as 7-bit ACE (which is
@@ -1821,9 +1818,7 @@ static CURLcode smtp_parse_address(const char *fqma, char **address,
   return result;
 }
 
-CURLcode Curl_smtp_escape_eob(struct Curl_easy *data,
-                              const ssize_t nread,
-                              const ssize_t offset)
+CURLcode Curl_smtp_escape_eob(struct Curl_easy *data, const ssize_t nread)
 {
   /* When sending a SMTP payload we must detect CRLF. sequences making sure
      they are sent as CRLF.. instead, as a . on the beginning of a line will
@@ -1857,9 +1852,7 @@ CURLcode Curl_smtp_escape_eob(struct Curl_easy *data,
 
   /* This loop can be improved by some kind of Boyer-Moore style of
      approach but that is saved for later... */
-  if(offset)
-    memcpy(scratch, data->req.upload_fromhere, offset);
-  for(i = offset, si = offset; i < nread; i++) {
+  for(i = 0, si = 0; i < nread; i++) {
     if(SMTP_EOB[smtp->eob] == data->req.upload_fromhere[i]) {
       smtp->eob++;
 

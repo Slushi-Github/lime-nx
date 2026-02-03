@@ -188,9 +188,6 @@ _cairo_arc_in_direction (cairo_t	  *cr,
     if (cairo_status (cr))
         return;
 
-    if (! ISFINITE (angle_max) || ! ISFINITE (angle_min))
-        return;
-
     assert (angle_max >= angle_min);
 
     if (angle_max - angle_min > 2 * M_PI * MAX_FULL_CIRCLES) {

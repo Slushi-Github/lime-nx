@@ -1,10 +1,8 @@
-# Copyright (C) 2000 - 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
-#
-# SPDX-License-Identifier: curl
-
 name: macOS
 
 on:
+  # Trigger the workflow on push or pull requests, but only for the
+  # master branch
   push:
     branches:
     - master
@@ -12,12 +10,6 @@ on:
   pull_request:
     branches:
     - master
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
-
-permissions: {}
 
 jobs:
   autotools:
@@ -95,13 +87,10 @@ jobs:
     - run: python3 -m pip install impacket
       name: 'pip3 install'
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
 
-    - run: autoreconf -fi
-      name: 'autoreconf'
-
-    - run: ./configure --enable-warnings --enable-werror ${{ matrix.build.configure }}  --enable-websockets
-      name: 'configure'
+    - run: autoreconf -fi && ./configure --enable-warnings --enable-werror --enable-headers-api ${{ matrix.build.configure }}
+      name: 'configure and build'
       env:
         # -Wvla is caused by brotli
         CFLAGS: "-Wno-vla -mmacosx-version-min=${{ matrix.build.macosx-version-min }}"
@@ -109,14 +98,8 @@ jobs:
     - run: make V=1
       name: 'make'
 
-    - run: make V=1 examples
-      name: 'make examples'
-
-    - run: make V=1 -C tests
-      name: 'make tests'
-
     - run: make V=1 test-ci
-      name: 'run tests'
+      name: 'test'
       env:
         TFLAGS: "${{ matrix.build.tflags }} ~1452"
 
@@ -131,8 +114,8 @@ jobs:
         - CC: clang
           CXX: clang++
           CFLAGS: "-mmacosx-version-min=10.15 -Wno-deprecated-declarations"
-        - CC: gcc-11
-          CXX: g++-11
+        - CC: gcc-9
+          CXX: g++-9
           CFLAGS: "-mmacosx-version-min=10.15 -Wno-error=undef -Wno-error=conversion"
         build:
         - name: OpenSSL
@@ -154,9 +137,9 @@ jobs:
     - run: python3 -m pip install impacket
       name: 'pip3 install'
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
 
-    - run: cmake -S. -Bbuild -DCURL_WERROR=ON -DPICKY_COMPILER=ON ${{ matrix.build.generate }}
+    - run: cmake -H. -Bbuild -DCURL_WERROR=ON -DPICKY_COMPILER=ON ${{ matrix.build.generate }}
       name: 'cmake generate'
 
     - run: cmake --build build

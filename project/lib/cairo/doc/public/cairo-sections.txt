@@ -30,10 +30,6 @@ cairo_win32_scaled_font_get_device_to_logical
 <FILE>cairo-dwrite-fonts</FILE>
 CAIRO_HAS_DWRITE_FONT
 cairo_dwrite_font_face_create_for_dwrite_fontface
-cairo_dwrite_font_face_get_rendering_params
-cairo_dwrite_font_face_set_rendering_params
-cairo_dwrite_font_face_get_measuring_mode
-cairo_dwrite_font_face_set_measuring_mode
 </SECTION>
 
 <SECTION>
@@ -61,8 +57,6 @@ cairo_user_font_face_set_unicode_to_glyph_func
 cairo_user_font_face_get_unicode_to_glyph_func
 cairo_user_font_face_set_text_to_glyphs_func
 cairo_user_font_face_get_text_to_glyphs_func
-cairo_user_scaled_font_get_foreground_marker
-cairo_user_scaled_font_get_foreground_source
 </SECTION>
 
 <SECTION>
@@ -163,18 +157,14 @@ to_win32_surface
 <SECTION>
 <FILE>cairo-quartz</FILE>
 CAIRO_HAS_QUARTZ_SURFACE
-CAIRO_HAS_QUARTZ_IMAGE_SURFACE
 cairo_quartz_surface_create
 cairo_quartz_surface_create_for_cg_context
 cairo_quartz_surface_get_cg_context
-cairo_quartz_image_surface_create
-cairo_quartz_image_surface_get_image
 </SECTION>
 
 <SECTION>
 <FILE>cairo-xlib</FILE>
 CAIRO_HAS_XLIB_SURFACE
-CAIRO_HAS_XLIB_XCB_FUNCTIONS
 cairo_xlib_surface_create
 cairo_xlib_surface_create_for_bitmap
 cairo_xlib_surface_set_size
@@ -409,9 +399,6 @@ cairo_pattern_get_type
 cairo_pattern_get_reference_count
 cairo_pattern_set_user_data
 cairo_pattern_get_user_data
-cairo_dither_t
-cairo_pattern_set_dither
-cairo_pattern_get_dither
 </SECTION>
 
 <SECTION>
@@ -438,8 +425,6 @@ cairo_raster_source_finish_func_t
 <FILE>cairo-tag</FILE>
 CAIRO_TAG_DEST
 CAIRO_TAG_LINK
-CAIRO_TAG_CONTENT
-CAIRO_TAG_CONTENT_REF
 cairo_tag_begin
 cairo_tag_end
 </SECTION>
@@ -528,14 +513,6 @@ cairo_font_options_set_hint_metrics
 cairo_font_options_get_hint_metrics
 cairo_font_options_get_variations
 cairo_font_options_set_variations
-cairo_color_mode_t
-cairo_font_options_set_color_mode
-cairo_font_options_get_color_mode
-CAIRO_COLOR_PALETTE_DEFAULT
-cairo_font_options_set_color_palette
-cairo_font_options_get_color_palette
-cairo_font_options_set_custom_palette_color
-cairo_font_options_get_custom_palette_color
 </SECTION>
 
 <SECTION>
@@ -693,8 +670,6 @@ cairo_show_page
 cairo_get_reference_count
 cairo_set_user_data
 cairo_get_user_data
-cairo_set_hairline
-cairo_get_hairline
 <SUBSECTION Private>
 cairo_public
 CAIRO_BEGIN_DECLS
@@ -764,7 +739,6 @@ cairo_get_status_string
 cairo_status_string
 CAIRO_FONT_TYPE_ATSUI
 cairo_atsui_font_face_create_for_atsu_font_id
-CAIRO_HAS_GOBJECT_FUNCTIONS
 </SECTION>
 
 <SECTION>
@@ -779,13 +753,4 @@ cairo_script_set_mode
 cairo_script_surface_create
 cairo_script_surface_create_for_target
 cairo_script_write_comment
-</SECTION>
-
-<SECTION>
-<FILE>cairo-tee</FILE>
-CAIRO_HAS_TEE_SURFACE
-cairo_tee_surface_create
-cairo_tee_surface_add
-cairo_tee_surface_index
-cairo_tee_surface_remove
 </SECTION>

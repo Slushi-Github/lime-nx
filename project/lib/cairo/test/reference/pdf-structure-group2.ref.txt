@@ -1,4 +1,0 @@
-H (block)
-  "Heading"
-P (block)
-  "Para1"

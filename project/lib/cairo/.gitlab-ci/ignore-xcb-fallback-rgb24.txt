@@ -9,6 +9,7 @@ bug-431
 clip-device-offset
 clip-fill-rule-pixel-aligned
 clip-text
+clip-unbounded
 coverage-intersecting-triangles
 culled-glyphs
 dash-zero-length

@@ -33,6 +33,15 @@
  * Contributor(s):
  */
 
+#define WIN32_LEAN_AND_MEAN
+/* We require Windows 2000 features such as GetGlyphIndices */
+#if !defined(WINVER) || (WINVER < 0x0500)
+# define WINVER 0x0500
+#endif
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
+# define _WIN32_WINNT 0x0500
+#endif
+
 #include "cairoint.h"
 
 #include "cairo-win32-private.h"
@@ -71,6 +80,7 @@
  *
  * Note: Win32 GDI fonts do not support color fonts. Use DWrite fonts
  * if color font support is required.
+
  **/
 
 /**
@@ -333,7 +343,7 @@ _win32_scaled_font_create (LOGFONTW                   *logfont,
     if (hdc == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    f = _cairo_calloc (sizeof(cairo_win32_scaled_font_t));
+    f = _cairo_malloc (sizeof(cairo_win32_scaled_font_t));
     if (f == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -1105,12 +1115,6 @@ _cairo_win32_scaled_font_glyph_init (void		       *abstract_font,
 	    return status;
     }
 
-    if (info & CAIRO_SCALED_GLYPH_INFO_COLOR_SURFACE) {
-	scaled_glyph->color_glyph = FALSE;
-	scaled_glyph->color_glyph_set = TRUE;
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-    }
-
     if (info & CAIRO_SCALED_GLYPH_INFO_SURFACE) {
 	status = _cairo_win32_scaled_font_init_glyph_surface (scaled_font, scaled_glyph);
 	if (status)
@@ -1335,9 +1339,9 @@ _cairo_win32_scaled_font_load_type1_data (void	            *abstract_font,
 							 length);
 }
 
-cairo_surface_t *
-_cairo_compute_glyph_mask (cairo_surface_t *surface,
-			   int quality)
+static cairo_surface_t *
+_compute_mask (cairo_surface_t *surface,
+	       int quality)
 {
     cairo_image_surface_t *glyph;
     cairo_image_surface_t *mask;
@@ -1421,7 +1425,7 @@ _cairo_win32_scaled_font_init_glyph_surface (cairo_win32_scaled_font_t *scaled_f
     if (status)
 	goto FAIL;
 
-    image = _cairo_compute_glyph_mask (surface, scaled_font->quality);
+    image = _compute_mask (surface, scaled_font->quality);
     status = image->status;
     if (status)
 	goto FAIL;
@@ -1798,7 +1802,7 @@ _cairo_win32_font_face_scaled_font_create (void			*abstract_face,
     if (font_face->hfont) {
         /* Check whether it's OK to go ahead and use the font-face's HFONT. */
         if (_is_scale (ctm, 1.) &&
-            _is_scale (font_matrix, -font_face->logfont.lfHeight * WIN32_FONT_LOGICAL_SCALE)) {
+            _is_scale (font_matrix, -font_face->logfont.lfHeight)) {
             hfont = font_face->hfont;
         }
     }
@@ -1868,7 +1872,7 @@ cairo_win32_font_face_create_for_logfontw_hfont (LOGFONTW *logfont, HFONT font)
     }
 
     /* Otherwise create it and insert into hash table. */
-    font_face = _cairo_calloc (sizeof (cairo_win32_font_face_t));
+    font_face = _cairo_malloc (sizeof (cairo_win32_font_face_t));
     if (!font_face) {
         _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	goto FAIL;

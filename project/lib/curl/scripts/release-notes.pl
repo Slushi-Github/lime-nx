@@ -19,8 +19,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 
 ###############################################
@@ -123,7 +121,6 @@ for my $l (@gitlog) {
     elsif(($l =~ /^    (.*)/) && !$first) {
         # first line
         $short = $1;
-        $short =~ s/ ?\[(ci skip|skip ci)\]//g;
         $first = 1;
         push @line, $short;
     }

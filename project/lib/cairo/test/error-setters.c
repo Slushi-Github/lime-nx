@@ -29,6 +29,9 @@
 
 #include "cairo-test.h"
 
+#if CAIRO_HAS_GL_SURFACE
+#include <cairo-gl.h>
+#endif
 #if CAIRO_HAS_PDF_SURFACE
 #include <cairo-pdf.h>
 #endif
@@ -49,6 +52,11 @@ preamble (cairo_test_context_t *ctx)
 
     /* get the error surface */
     surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, INT_MAX, INT_MAX);
+
+#if CAIRO_HAS_GL_SURFACE
+    cairo_gl_surface_set_size (surface, 0, 0);
+    cairo_gl_surface_swapbuffers (surface);
+#endif
 
 #if CAIRO_HAS_PDF_SURFACE
     cairo_pdf_surface_restrict_to_version (surface, CAIRO_PDF_VERSION_1_4);

@@ -57,14 +57,10 @@ struct Coverage
   public:
   DEFINE_SIZE_UNION (2, format);
 
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     if (!u.format.sanitize (c)) return_trace (false);
-    hb_barrier ();
     switch (u.format)
     {
     case 1: return_trace (u.format1.sanitize (c));
@@ -117,33 +113,22 @@ struct Coverage
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (this))) return_trace (false);
 
-    unsigned count = hb_len (glyphs);
+    unsigned count = 0;
     unsigned num_ranges = 0;
     hb_codepoint_t last = (hb_codepoint_t) -2;
-    hb_codepoint_t max = 0;
-    bool unsorted = false;
     for (auto g: glyphs)
     {
-      if (last != (hb_codepoint_t) -2 && g < last)
-	unsorted = true;
       if (last + 1 != g)
-	num_ranges++;
+        num_ranges++;
       last = g;
-      if (g > max) max = g;
+      count++;
     }
-    u.format = !unsorted && count <= num_ranges * 3 ? 1 : 2;
+    u.format = count <= num_ranges * 3 ? 1 : 2;
 
 #ifndef HB_NO_BEYOND_64K
-    if (max > 0xFFFFu)
+    if (count && last > 0xFFFFu)
       u.format += 2;
-    if (unlikely (max > 0xFFFFFFu))
-#else
-    if (unlikely (max > 0xFFFFu))
 #endif
-    {
-      c->check_success (false, HB_SERIALIZE_ERROR_INT_OVERFLOW);
-      return_trace (false);
-    }
 
     switch (u.format)
     {
@@ -162,9 +147,8 @@ struct Coverage
     TRACE_SUBSET (this);
     auto it =
     + iter ()
-    | hb_take (c->plan->source->get_num_glyphs ())
+    | hb_filter (c->plan->glyph_map_gsub)
     | hb_map_retains_sorting (c->plan->glyph_map_gsub)
-    | hb_filter ([] (hb_codepoint_t glyph) { return glyph != HB_MAP_VALUE_INVALID; })
     ;
 
     // Cache the iterator result as it will be iterated multiple times

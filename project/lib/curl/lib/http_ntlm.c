@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -29,7 +27,7 @@
 /*
  * NTLM details:
  *
- * https://davenport.sourceforge.net/ntlm.html
+ * https://davenport.sourceforge.io/ntlm.html
  * https://www.innovation.ch/java/ntlm.html
  */
 
@@ -134,7 +132,7 @@ CURLcode Curl_output_ntlm(struct Curl_easy *data, bool proxy)
   struct bufref ntlmmsg;
 
   /* point to the address of the pointer that holds the string to send to the
-     server, which is for a plain host or for an HTTP proxy */
+     server, which is for a plain host or for a HTTP proxy */
   char **allocuserpwd;
 
   /* point to the username, password, service and host */

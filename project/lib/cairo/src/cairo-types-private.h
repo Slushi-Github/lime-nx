@@ -187,11 +187,6 @@ typedef enum _cairo_round_glyph_positions {
     CAIRO_ROUND_GLYPH_POS_OFF
 } cairo_round_glyph_positions_t;
 
-typedef struct {
-    unsigned int index;
-    double red, green, blue, alpha;
-} cairo_palette_color_t;
-
 struct _cairo_font_options {
     cairo_antialias_t antialias;
     cairo_subpixel_order_t subpixel_order;
@@ -200,10 +195,6 @@ struct _cairo_font_options {
     cairo_hint_metrics_t hint_metrics;
     cairo_round_glyph_positions_t round_glyph_positions;
     char *variations;
-    cairo_color_mode_t color_mode;
-    unsigned int palette_index;
-    cairo_palette_color_t *custom_palette;
-    unsigned int custom_palette_size;
 };
 
 struct _cairo_glyph_text_info {
@@ -437,17 +428,6 @@ typedef struct _cairo_unscaled_font {
     cairo_reference_count_t		 ref_count;
     const cairo_unscaled_font_backend_t	*backend;
 } cairo_unscaled_font_t;
-
-typedef enum _cairo_analysis_source {
-    CAIRO_ANALYSIS_SOURCE_PAINT,
-    CAIRO_ANALYSIS_SOURCE_MASK,
-    CAIRO_ANALYSIS_MASK_MASK,
-    CAIRO_ANALYSIS_SOURCE_FILL,
-    CAIRO_ANALYSIS_SOURCE_STROKE,
-    CAIRO_ANALYSIS_SOURCE_SHOW_GLYPHS,
-    CAIRO_ANALYSIS_SOURCE_NONE /* Used when analysis_source is not applicable. */
-} cairo_analysis_source_t;
-
 CAIRO_END_DECLS
 
 #endif /* CAIRO_TYPES_PRIVATE_H */

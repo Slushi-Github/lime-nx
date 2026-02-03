@@ -1,6 +1,4 @@
 #include <cassert>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <condition_variable>

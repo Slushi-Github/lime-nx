@@ -100,7 +100,6 @@
 	  ((((uint32_t)(p)))              >> 24));
 #endif
 
-
 #if !HAVE_UINT64_T
 
 typedef struct _cairo_uint64 {
@@ -153,6 +152,5 @@ typedef struct _cairo_quorem128 {
     cairo_int128_t	quo;
     cairo_int128_t	rem;
 } cairo_quorem128_t;
-
 
 #endif /* CAIRO_WIDEINT_H */

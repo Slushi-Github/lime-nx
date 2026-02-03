@@ -1,56 +1,82 @@
 #ifndef AL_FILTER_H
 #define AL_FILTER_H
 
+#include <array>
+#include <cstdint>
+#include <string_view>
+#include <utility>
+#include <variant>
+
 #include "AL/al.h"
 #include "AL/alc.h"
+#include "AL/efx.h"
 
-
-#define LOWPASSFREQREF  (5000.0f)
-#define HIGHPASSFREQREF  (250.0f)
-
+#include "almalloc.h"
+#include "alnumeric.h"
 
 struct ALfilter;
 
-struct ALfilterVtable {
-    void (*const setParami)(ALfilter *filter, ALCcontext *context, ALenum param, ALint val);
-    void (*const setParamiv)(ALfilter *filter, ALCcontext *context, ALenum param, const ALint *vals);
-    void (*const setParamf)(ALfilter *filter, ALCcontext *context, ALenum param, ALfloat val);
-    void (*const setParamfv)(ALfilter *filter, ALCcontext *context, ALenum param, const ALfloat *vals);
 
-    void (*const getParami)(ALfilter *filter, ALCcontext *context, ALenum param, ALint *val);
-    void (*const getParamiv)(ALfilter *filter, ALCcontext *context, ALenum param, ALint *vals);
-    void (*const getParamf)(ALfilter *filter, ALCcontext *context, ALenum param, ALfloat *val);
-    void (*const getParamfv)(ALfilter *filter, ALCcontext *context, ALenum param, ALfloat *vals);
+inline constexpr float LowPassFreqRef{5000.0f};
+inline constexpr float HighPassFreqRef{250.0f};
+
+template<typename T>
+struct FilterTable {
+    static void setParami(ALCcontext*, ALfilter*, ALenum, int);
+    static void setParamiv(ALCcontext*, ALfilter*, ALenum, const int*);
+    static void setParamf(ALCcontext*, ALfilter*, ALenum, float);
+    static void setParamfv(ALCcontext*, ALfilter*, ALenum, const float*);
+
+    static void getParami(ALCcontext*, const ALfilter*, ALenum, int*);
+    static void getParamiv(ALCcontext*, const ALfilter*, ALenum, int*);
+    static void getParamf(ALCcontext*, const ALfilter*, ALenum, float*);
+    static void getParamfv(ALCcontext*, const ALfilter*, ALenum, float*);
+
+private:
+    FilterTable() = default;
+    friend T;
 };
 
-#define DEFINE_ALFILTER_VTABLE(T)                                  \
-const ALfilterVtable T##_vtable = {                                \
-    T##_setParami, T##_setParamiv, T##_setParamf, T##_setParamfv,  \
-    T##_getParami, T##_getParamiv, T##_getParamf, T##_getParamfv,  \
-}
+struct NullFilterTable : public FilterTable<NullFilterTable> { };
+struct LowpassFilterTable : public FilterTable<LowpassFilterTable> { };
+struct HighpassFilterTable : public FilterTable<HighpassFilterTable> { };
+struct BandpassFilterTable : public FilterTable<BandpassFilterTable> { };
+
 
 struct ALfilter {
-    // Filter type (AL_FILTER_NULL, ...)
-    ALenum type;
+    ALenum type{AL_FILTER_NULL};
 
-    ALfloat Gain;
-    ALfloat GainHF;
-    ALfloat HFReference;
-    ALfloat GainLF;
-    ALfloat LFReference;
+    float Gain{1.0f};
+    float GainHF{1.0f};
+    float HFReference{LowPassFreqRef};
+    float GainLF{1.0f};
+    float LFReference{HighPassFreqRef};
 
-    const ALfilterVtable *vtab;
+    using TableTypes = std::variant<NullFilterTable,LowpassFilterTable,HighpassFilterTable,
+        BandpassFilterTable>;
+    TableTypes mTypeVariant;
 
     /* Self ID */
-    ALuint id;
+    ALuint id{0};
+
+    static void SetName(ALCcontext *context, ALuint id, std::string_view name);
+
+    DISABLE_ALLOC
 };
-#define ALfilter_setParami(o, c, p, v)   ((o)->vtab->setParami(o, c, p, v))
-#define ALfilter_setParamf(o, c, p, v)   ((o)->vtab->setParamf(o, c, p, v))
-#define ALfilter_setParamiv(o, c, p, v)  ((o)->vtab->setParamiv(o, c, p, v))
-#define ALfilter_setParamfv(o, c, p, v)  ((o)->vtab->setParamfv(o, c, p, v))
-#define ALfilter_getParami(o, c, p, v)   ((o)->vtab->getParami(o, c, p, v))
-#define ALfilter_getParamf(o, c, p, v)   ((o)->vtab->getParamf(o, c, p, v))
-#define ALfilter_getParamiv(o, c, p, v)  ((o)->vtab->getParamiv(o, c, p, v))
-#define ALfilter_getParamfv(o, c, p, v)  ((o)->vtab->getParamfv(o, c, p, v))
+
+struct FilterSubList {
+    uint64_t FreeMask{~0_u64};
+    gsl::owner<std::array<ALfilter,64>*> Filters{nullptr};
+
+    FilterSubList() noexcept = default;
+    FilterSubList(const FilterSubList&) = delete;
+    FilterSubList(FilterSubList&& rhs) noexcept : FreeMask{rhs.FreeMask}, Filters{rhs.Filters}
+    { rhs.FreeMask = ~0_u64; rhs.Filters = nullptr; }
+    ~FilterSubList();
+
+    FilterSubList& operator=(const FilterSubList&) = delete;
+    FilterSubList& operator=(FilterSubList&& rhs) noexcept
+    { std::swap(FreeMask, rhs.FreeMask); std::swap(Filters, rhs.Filters); return *this; }
+};
 
 #endif

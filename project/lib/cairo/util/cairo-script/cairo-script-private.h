@@ -39,7 +39,6 @@
 
 #include "cairo-script-interpreter.h"
 
-#include <stddef.h>
 #include <setjmp.h>
 
 #ifdef _MSC_VER
@@ -98,6 +97,28 @@
 #endif
 
 
+#if __GNUC__ >= 3 && defined(__ELF__) && !defined(__sun)
+# define slim_hidden_proto(name)		slim_hidden_proto1(name, slim_hidden_int_name(name)) csi_private
+# define slim_hidden_proto_no_warn(name)	slim_hidden_proto1(name, slim_hidden_int_name(name)) csi_private_no_warn
+# define slim_hidden_def(name)			slim_hidden_def1(name, slim_hidden_int_name(name))
+# define slim_hidden_int_name(name) INT_##name
+# define slim_hidden_proto1(name, internal)				\
+  extern __typeof (name) name						\
+	__asm__ (slim_hidden_asmname (internal))
+# define slim_hidden_def1(name, internal)				\
+  extern __typeof (name) EXT_##name __asm__(slim_hidden_asmname(name))	\
+	__attribute__((__alias__(slim_hidden_asmname(internal))))
+# define slim_hidden_ulp		slim_hidden_ulp1(__USER_LABEL_PREFIX__)
+# define slim_hidden_ulp1(x)		slim_hidden_ulp2(x)
+# define slim_hidden_ulp2(x)		#x
+# define slim_hidden_asmname(name)	slim_hidden_asmname1(name)
+# define slim_hidden_asmname1(name)	slim_hidden_ulp #name
+#else
+# define slim_hidden_proto(name)		int _csi_dummy_prototype(void)
+# define slim_hidden_proto_no_warn(name)	int _csi_dummy_prototype(void)
+# define slim_hidden_def(name)			int _csi_dummy_prototype(void)
+#endif
+
 #if __GNUC__ >= 3
 #define csi_pure __attribute__((pure))
 #define csi_const __attribute__((const))
@@ -124,6 +145,10 @@
 #endif
 
 #ifdef __GNUC__
+#ifndef offsetof
+#define offsetof(type, member) \
+    ((char *) &((type *) 0)->member - (char *) 0)
+#endif
 #define csi_container_of(ptr, type, member) ({ \
     const typeof(((type *) 0)->member) *mptr__ = (ptr); \
     (type *) ((char *) mptr__ - offsetof (type, member)); \
@@ -133,6 +158,7 @@
     (type *)((char *) (ptr) - (char *) &((type *)0)->member)
 #endif
 
+/* slim_internal.h */
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)) && defined(__ELF__) && !defined(__sun)
 #define csi_private_no_warn	__attribute__((__visibility__("hidden")))
 #elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x550)
@@ -888,7 +914,7 @@ csi_number_get_value (const csi_object_t *obj)
     }
 }
 
-csi_private csi_status_t
+csi_status_t
 _csi_stack_push (csi_t *ctx, csi_stack_t *stack,
 		 const csi_object_t *obj);
 
@@ -962,5 +988,8 @@ _csi_push_ostack_real (csi_t *ctx, csi_real_t v)
     obj.datum.real = v;
     return _csi_stack_push (ctx, &ctx->ostack, &obj);
 }
+
+slim_hidden_proto_no_warn (cairo_script_interpreter_destroy);
+slim_hidden_proto_no_warn (cairo_script_interpreter_reference);
 
 #endif /* CAIRO_SCRIPT_PRIVATE_H */

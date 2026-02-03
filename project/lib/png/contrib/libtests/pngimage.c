@@ -1,3 +1,4 @@
+
 /* pngimage.c
  *
  * Copyright (c) 2021 Cosmin Truta
@@ -1018,12 +1019,7 @@ compare_read(struct display *dp, int applied_transforms)
    C(height);
    C(bit_depth);
    C(color_type);
-#  ifdef PNG_WRITE_INTERLACING_SUPPORTED
-      /* If write interlace has been disabled, the PNG file is still
-       * written correctly, but as a regular (not-interlaced) PNG.
-       */
-      C(interlace_method);
-#  endif
+   C(interlace_method);
    C(compression_method);
    C(filter_method);
 

@@ -17,7 +17,6 @@ layout-features.txt
 keep-all-layout-features.txt
 no-prune-unicode-ranges.txt
 glyph-names.txt
-retain-gids-glyph-names.txt
 
 SUBSETS:
 abc

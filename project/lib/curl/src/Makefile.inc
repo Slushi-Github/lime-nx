@@ -18,8 +18,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 # ./src/Makefile.inc
 # Using the backslash as line continuation character might be problematic with
@@ -36,6 +34,7 @@ CURLX_CFILES = \
   ../lib/timediff.c \
   ../lib/nonblock.c \
   ../lib/warnless.c \
+  ../lib/curl_ctype.c \
   ../lib/curl_multibyte.c \
   ../lib/version_win32.c \
   ../lib/dynbuf.c
@@ -79,6 +78,7 @@ CURL_CFILES = \
   tool_msgs.c \
   tool_operate.c \
   tool_operhlp.c \
+  tool_panykey.c \
   tool_paramhlp.c \
   tool_parsecfg.c \
   tool_progress.c \
@@ -119,6 +119,7 @@ CURL_HFILES = \
   tool_msgs.h \
   tool_operate.h \
   tool_operhlp.h \
+  tool_panykey.h \
   tool_paramhlp.h \
   tool_parsecfg.h \
   tool_progress.h \

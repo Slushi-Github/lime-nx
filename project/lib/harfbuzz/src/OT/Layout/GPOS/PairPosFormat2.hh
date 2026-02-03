@@ -8,7 +8,7 @@ namespace Layout {
 namespace GPOS_impl {
 
 template <typename Types>
-struct PairPosFormat2_4 : ValueBase
+struct PairPosFormat2_4
 {
   protected:
   HBUINT16      format;                 /* Format identifier--format = 2 */
@@ -49,14 +49,14 @@ struct PairPosFormat2_4 : ValueBase
 
     unsigned int len1 = valueFormat1.get_len ();
     unsigned int len2 = valueFormat2.get_len ();
-    unsigned int stride = HBUINT16::static_size * (len1 + len2);
+    unsigned int stride = len1 + len2;
+    unsigned int record_size = valueFormat1.get_size () + valueFormat2.get_size ();
     unsigned int count = (unsigned int) class1Count * (unsigned int) class2Count;
     return_trace (c->check_range ((const void *) values,
                                   count,
-                                  stride) &&
-		  (c->lazy_some_gpos ||
-		   (valueFormat1.sanitize_values_stride_unsafe (c, this, &values[0], count, stride) &&
-		    valueFormat2.sanitize_values_stride_unsafe (c, this, &values[len1], count, stride))));
+                                  record_size) &&
+                  valueFormat1.sanitize_values_stride_unsafe (c, this, &values[0], count, stride) &&
+                  valueFormat2.sanitize_values_stride_unsafe (c, this, &values[len1], count, stride));
   }
 
   bool intersects (const hb_set_t *glyphs) const
@@ -131,13 +131,17 @@ struct PairPosFormat2_4 : ValueBase
     if (likely (index == NOT_COVERED)) return_trace (false);
 
     hb_ot_apply_context_t::skipping_iterator_t &skippy_iter = c->iter_input;
-    skippy_iter.reset_fast (buffer->idx);
+    skippy_iter.reset (buffer->idx, 1);
     unsigned unsafe_to;
-    if (unlikely (!skippy_iter.next (&unsafe_to)))
+    if (!skippy_iter.next (&unsafe_to))
     {
       buffer->unsafe_to_concat (buffer->idx, unsafe_to);
       return_trace (false);
     }
+
+    unsigned int len1 = valueFormat1.get_len ();
+    unsigned int len2 = valueFormat2.get_len ();
+    unsigned int record_len = len1 + len2;
 
     unsigned int klass1 = (this+classDef1).get_class (buffer->cur().codepoint);
     unsigned int klass2 = (this+classDef2).get_class (buffer->info[skippy_iter.idx].codepoint);
@@ -147,24 +151,20 @@ struct PairPosFormat2_4 : ValueBase
       return_trace (false);
     }
 
-    unsigned int len1 = valueFormat1.get_len ();
-    unsigned int len2 = valueFormat2.get_len ();
-    unsigned int record_len = len1 + len2;
-
     const Value *v = &values[record_len * (klass1 * class2Count + klass2)];
 
     bool applied_first = false, applied_second = false;
 
 
     /* Isolate simple kerning and apply it half to each side.
-     * Results in better cursor positioning / underline drawing.
+     * Results in better cursor positinoing / underline drawing.
      *
      * Disabled, because causes issues... :-(
      * https://github.com/harfbuzz/harfbuzz/issues/3408
      * https://github.com/harfbuzz/harfbuzz/pull/3235#issuecomment-1029814978
      */
 #ifndef HB_SPLIT_KERN
-    if (false)
+    if (0)
 #endif
     {
       if (!len2)
@@ -220,25 +220,25 @@ struct PairPosFormat2_4 : ValueBase
     if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
     {
       c->buffer->message (c->font,
-			  "try kerning glyphs at %u,%u",
+			  "try kerning glyphs at %d,%d",
 			  c->buffer->idx, skippy_iter.idx);
     }
 
-    applied_first = len1 && valueFormat1.apply_value (c, this, v, buffer->cur_pos());
-    applied_second = len2 && valueFormat2.apply_value (c, this, v + len1, buffer->pos[skippy_iter.idx]);
+    applied_first = valueFormat1.apply_value (c, this, v, buffer->cur_pos());
+    applied_second = valueFormat2.apply_value (c, this, v + len1, buffer->pos[skippy_iter.idx]);
 
     if (applied_first || applied_second)
       if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
       {
 	c->buffer->message (c->font,
-			    "kerned glyphs at %u,%u",
+			    "kerned glyphs at %d,%d",
 			    c->buffer->idx, skippy_iter.idx);
       }
 
     if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
     {
       c->buffer->message (c->font,
-			  "tried kerning glyphs at %u,%u",
+			  "tried kerning glyphs at %d,%d",
 			  c->buffer->idx, skippy_iter.idx);
     }
 
@@ -281,52 +281,44 @@ struct PairPosFormat2_4 : ValueBase
     unsigned len2 = valueFormat2.get_len ();
 
     hb_pair_t<unsigned, unsigned> newFormats = hb_pair (valueFormat1, valueFormat2);
-
-    if (c->plan->normalized_coords)
-    {
-      /* in case of full instancing, all var device flags will be dropped so no
-       * need to strip hints here */
-      newFormats = compute_effective_value_formats (klass1_map, klass2_map, false, false, &c->plan->layout_variation_idx_delta_map);
-    }
-    /* do not strip hints for VF */
-    else if (c->plan->flags & HB_SUBSET_FLAGS_NO_HINTING)
-    {
-      hb_blob_t* blob = hb_face_reference_table (c->plan->source, HB_TAG ('f','v','a','r'));
-      bool has_fvar = (blob != hb_blob_get_empty ());
-      hb_blob_destroy (blob);
-
-      bool strip = !has_fvar;
-      /* special case: strip hints when a VF has no GDEF varstore after
-       * subsetting*/
-      if (has_fvar && !c->plan->has_gdef_varstore)
-        strip = true;
-      newFormats = compute_effective_value_formats (klass1_map, klass2_map, strip, true);
-    }
+    if (c->plan->flags & HB_SUBSET_FLAGS_NO_HINTING)
+      newFormats = compute_effective_value_formats (klass1_map, klass2_map);
 
     out->valueFormat1 = newFormats.first;
     out->valueFormat2 = newFormats.second;
 
-    unsigned total_len = len1 + len2;
-    hb_vector_t<unsigned> class2_idxs (+ hb_range ((unsigned) class2Count) | hb_filter (klass2_map));
+    if (c->plan->all_axes_pinned)
+    {
+      out->valueFormat1 = out->valueFormat1.drop_device_table_flags ();
+      out->valueFormat2 = out->valueFormat2.drop_device_table_flags ();
+    }
+
     for (unsigned class1_idx : + hb_range ((unsigned) class1Count) | hb_filter (klass1_map))
     {
-      for (unsigned class2_idx : class2_idxs)
+      for (unsigned class2_idx : + hb_range ((unsigned) class2Count) | hb_filter (klass2_map))
       {
-        unsigned idx = (class1_idx * (unsigned) class2Count + class2_idx) * total_len;
-        valueFormat1.copy_values (c->serializer, out->valueFormat1, this, &values[idx], &c->plan->layout_variation_idx_delta_map);
-        valueFormat2.copy_values (c->serializer, out->valueFormat2, this, &values[idx + len1], &c->plan->layout_variation_idx_delta_map);
+        unsigned idx = (class1_idx * (unsigned) class2Count + class2_idx) * (len1 + len2);
+        valueFormat1.copy_values (c->serializer, out->valueFormat1, this, &values[idx], c->plan->layout_variation_idx_delta_map);
+        valueFormat2.copy_values (c->serializer, out->valueFormat2, this, &values[idx + len1], c->plan->layout_variation_idx_delta_map);
       }
     }
 
-    bool ret = out->coverage.serialize_subset(c, coverage, this);
-    return_trace (out->class1Count && out->class2Count && ret);
+    const hb_set_t &glyphset = *c->plan->glyphset_gsub ();
+    const hb_map_t &glyph_map = *c->plan->glyph_map;
+
+    auto it =
+    + hb_iter (this+coverage)
+    | hb_filter (glyphset)
+    | hb_map_retains_sorting (glyph_map)
+    ;
+
+    out->coverage.serialize_serialize (c->serializer, it);
+    return_trace (out->class1Count && out->class2Count && bool (it));
   }
 
 
   hb_pair_t<unsigned, unsigned> compute_effective_value_formats (const hb_map_t& klass1_map,
-                                                                 const hb_map_t& klass2_map,
-                                                                 bool strip_hints, bool strip_empty,
-                                                                 const hb_hashmap_t<unsigned, hb_pair_t<unsigned, int>> *varidx_delta_map = nullptr) const
+                                                                 const hb_map_t& klass2_map) const
   {
     unsigned len1 = valueFormat1.get_len ();
     unsigned len2 = valueFormat2.get_len ();
@@ -340,8 +332,8 @@ struct PairPosFormat2_4 : ValueBase
       for (unsigned class2_idx : + hb_range ((unsigned) class2Count) | hb_filter (klass2_map))
       {
         unsigned idx = (class1_idx * (unsigned) class2Count + class2_idx) * record_size;
-        format1 = format1 | valueFormat1.get_effective_format (&values[idx], strip_hints, strip_empty, this, varidx_delta_map);
-        format2 = format2 | valueFormat2.get_effective_format (&values[idx + len1], strip_hints, strip_empty, this, varidx_delta_map);
+        format1 = format1 | valueFormat1.get_effective_format (&values[idx]);
+        format2 = format2 | valueFormat2.get_effective_format (&values[idx + len1]);
       }
 
       if (format1 == valueFormat1 && format2 == valueFormat2)

@@ -252,3 +252,4 @@ cairo_version_string (void)
 {
     return CAIRO_VERSION_STRING;
 }
+slim_hidden_def (cairo_version_string);

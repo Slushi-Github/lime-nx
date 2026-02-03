@@ -50,9 +50,9 @@ hars_petruska_f54_1_random (void)
 }
 
 static double
-random_offset (int range, int precise, int width)
+random_offset (int range, int precise)
 {
-    double x = hars_petruska_f54_1_random() / (double) UINT32_MAX * range / width;
+    double x = hars_petruska_f54_1_random() / (double) UINT32_MAX * range / WIDTH;
     if (precise)
 	x = floor (x * PRECISION) / PRECISION;
     return x;
@@ -69,9 +69,9 @@ rectangles (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 1.0 / (width * width));
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 1.0 / (WIDTH * WIDTH));
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -84,11 +84,11 @@ rectangles (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    for (y = 0; y < height; y++) {
-		double dx = random_offset (width - x, TRUE, width);
-		double dy = random_offset (width - x, TRUE, width);
-		cairo_rectangle (cr, x + dx, y + dy, x / (double) width, x / (double) width);
+	for (x = 0; x < WIDTH; x++) {
+	    for (y = 0; y < HEIGHT; y++) {
+		double dx = random_offset (WIDTH - x, TRUE);
+		double dy = random_offset (WIDTH - x, TRUE);
+		cairo_rectangle (cr, x + dx, y + dy, x / (double) WIDTH, x / (double) WIDTH);
 	    }
 	}
 	cairo_fill (cr);
@@ -102,16 +102,15 @@ static cairo_test_status_t
 rhombus (cairo_t *cr, int width, int height)
 {
     int x, y;
-    int internal_size = width / 2;
 
     cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (y = 0; y < internal_size; y++) {
-	for (x = 0; x < internal_size; x++) {
+    for (y = 0; y < WIDTH; y++) {
+	for (x = 0; x < WIDTH; x++) {
 	    cairo_set_source_rgba (cr, 1, 1, 1,
-				   x * y / (2. * internal_size * internal_size));
+				   x * y / (2. * WIDTH * WIDTH));
 	    cairo_rectangle (cr, 2*x, 2*y, 2, 2);
 	    cairo_fill (cr);
 	}
@@ -120,10 +119,10 @@ rhombus (cairo_t *cr, int width, int height)
     cairo_set_operator (cr, CAIRO_OPERATOR_OVER);
     cairo_set_source_rgb (cr, 1, 1, 1);
 
-    for (y = 0; y < internal_size; y++) {
-	double yf = y / (double) internal_size;
-	for (x = 0; x < internal_size; x++) {
-	    double xf = x / (double) internal_size;
+    for (y = 0; y < WIDTH; y++) {
+	double yf = y / (double) WIDTH;
+	for (x = 0; x < WIDTH; x++) {
+	    double xf = x / (double) WIDTH;
 
 	    cairo_move_to (cr,
 			   2*x + 1 - xf,
@@ -158,9 +157,9 @@ intersecting_quads (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.5 / (width * width));
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.5 / (WIDTH * WIDTH));
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -173,11 +172,11 @@ intersecting_quads (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    double step = x / (double) width;
-	    for (y = 0; y < height; y++) {
-		double dx = random_offset (width - x, TRUE, width);
-		double dy = random_offset (width - x, TRUE, width);
+	for (x = 0; x < WIDTH; x++) {
+	    double step = x / (double) WIDTH;
+	    for (y = 0; y < HEIGHT; y++) {
+		double dx = random_offset (WIDTH - x, TRUE);
+		double dy = random_offset (WIDTH - x, TRUE);
 		cairo_move_to (cr, x + dx, y + dy);
 		cairo_rel_line_to (cr, step, step);
 		cairo_rel_line_to (cr, 0, -step);
@@ -203,9 +202,9 @@ intersecting_triangles (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.75 / (width * width));
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.75 / (WIDTH * WIDTH));
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -218,11 +217,11 @@ intersecting_triangles (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    double step = x / (double) width;
-	    for (y = 0; y < height; y++) {
-		double dx = random_offset (width - x, TRUE, width);
-		double dy = random_offset (width - x, TRUE, width);
+	for (x = 0; x < WIDTH; x++) {
+	    double step = x / (double) WIDTH;
+	    for (y = 0; y < HEIGHT; y++) {
+		double dx = random_offset (WIDTH - x, TRUE);
+		double dy = random_offset (WIDTH - x, TRUE);
 
 		/* left */
 		cairo_move_to (cr, x + dx, y + dy);
@@ -255,9 +254,9 @@ triangles (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.5 / (width * width));
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * x * 0.5 / (WIDTH * WIDTH));
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -270,13 +269,13 @@ triangles (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    for (y = 0; y < height; y++) {
-		double dx = random_offset (width - x, TRUE, width);
-		double dy = random_offset (width - x, TRUE, width);
+	for (x = 0; x < WIDTH; x++) {
+	    for (y = 0; y < HEIGHT; y++) {
+		double dx = random_offset (WIDTH - x, TRUE);
+		double dy = random_offset (WIDTH - x, TRUE);
 		cairo_move_to (cr, x + dx, y + dy);
-		cairo_rel_line_to (cr, x / (double) width, 0);
-		cairo_rel_line_to (cr, 0, x / (double) width);
+		cairo_rel_line_to (cr, x / (double) WIDTH, 0);
+		cairo_rel_line_to (cr, 0, x / (double) WIDTH);
 		cairo_close_path (cr);
 	    }
 	}
@@ -345,9 +344,9 @@ column_triangles (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * 0.5 / width);
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * 0.5 / WIDTH);
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -360,11 +359,11 @@ column_triangles (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    double step = x / (double) (2 * width);
-	    for (y = 0; y < height; y++) {
+	for (x = 0; x < WIDTH; x++) {
+	    double step = x / (double) (2 * WIDTH);
+	    for (y = 0; y < HEIGHT; y++) {
 		for (i = 0; i < PRECISION; i++) {
-		    double dy = random_offset (width - x, FALSE, width);
+		    double dy = random_offset (WIDTH - x, FALSE);
 
 		    /*
 		     * We want to test some sharing of edges to further
@@ -376,7 +375,7 @@ column_triangles (cairo_t *cr, int width, int height)
 		     *  s ---  .      ---
 		     *  t  |   |\      |
 		     *  e  |   | \     |
-		     *  p ---  ....    |  2 * step = x / width
+		     *  p ---  ....    |  2 * step = x / WIDTH
 		     *          \ |    |
 		     *           \|    |
 		     *            .   ---
@@ -384,8 +383,8 @@ column_triangles (cairo_t *cr, int width, int height)
 		     *     1 / PRECISION
 		     *
 		     * Each column contains two triangles of width one quantum and
-		     * total height of (x / width), thus the total area covered by all
-		     * columns in each pixel is .5 * (x / width).
+		     * total height of (x / WIDTH), thus the total area covered by all
+		     * columns in each pixel is .5 * (x / WIDTH).
 		     */
 
 		    cairo_move_to (cr, x + i / (double) PRECISION, y + dy);
@@ -414,9 +413,9 @@ row_triangles (cairo_t *cr, int width, int height)
     cairo_paint (cr);
 
 #if GENERATE_REFERENCE
-    for (x = 0; x < width; x++) {
-	cairo_set_source_rgba (cr, 1, 1, 1, x * 0.5 / width);
-	cairo_rectangle (cr, x, 0, 1, height);
+    for (x = 0; x < WIDTH; x++) {
+	cairo_set_source_rgba (cr, 1, 1, 1, x * 0.5 / WIDTH);
+	cairo_rectangle (cr, x, 0, 1, HEIGHT);
 	cairo_fill (cr);
     }
 #else
@@ -429,11 +428,11 @@ row_triangles (cairo_t *cr, int width, int height)
 	case 2: cairo_set_source_rgb (cr, 0.0, 0.0, 1.0); break;
 	}
 
-	for (x = 0; x < width; x++) {
-	    double step = x / (double) (2 * width);
-	    for (y = 0; y < height; y++) {
+	for (x = 0; x < WIDTH; x++) {
+	    double step = x / (double) (2 * WIDTH);
+	    for (y = 0; y < HEIGHT; y++) {
 		for (i = 0; i < PRECISION; i++) {
-		    double dx = random_offset (width - x, FALSE, width);
+		    double dx = random_offset (WIDTH - x, FALSE);
 
 		    /* See column_triangles() for a transposed description
 		     * of this geometry.
@@ -491,8 +490,7 @@ CAIRO_TEST (coverage_column_triangles,
 	    "Check the fidelity of the rasterisation.",
 	    NULL, /* keywords */
 	    "target=raster", /* requirements */
-	    /* Smaller height since this test does not vary by y-coordinate */
-	    WIDTH, 4,
+	    WIDTH, HEIGHT,
 	    NULL, column_triangles)
 CAIRO_TEST (coverage_triangles,
 	    "Check the fidelity of the rasterisation.",

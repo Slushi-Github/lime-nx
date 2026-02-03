@@ -29,13 +29,16 @@
 
 #include "hb.hh"
 
-#include <cairo.h>
-
 #include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdio.h>
 #include <math.h>
+#include <fcntl.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h> /* for isatty() */
+#endif
 
 #if defined (_MSC_VER) && (_MSC_VER < 1800)
 static inline long int
@@ -47,6 +50,8 @@ lround (double x)
     return ceil (x - 0.5);
 }
 #endif
+
+#define ESC_E (char)27
 
 #define CELL_W 8
 #define CELL_H (2 * CELL_W)
@@ -374,9 +379,7 @@ static inline void
 ansi_print_image_rgb24 (const uint32_t *data,
 			unsigned int width,
 			unsigned int height,
-			unsigned int stride,
-		        cairo_write_func_t	write_func,
-		        void			*closure)
+			unsigned int stride)
 {
   image_t image (width, height, data, stride);
 
@@ -385,56 +388,37 @@ ansi_print_image_rgb24 (const uint32_t *data,
   image_t cell (CELL_W, CELL_H);
   biimage_t bi (CELL_W, CELL_H);
   unsigned int last_bg = -1, last_fg = -1;
-  for (unsigned int row = 0; row < rows; row++)
-  {
-    for (unsigned int col = 0; col < cols; col++)
-    {
+  for (unsigned int row = 0; row < rows; row++) {
+    for (unsigned int col = 0; col < cols; col++) {
       image.copy_sub_image (cell, col * CELL_W, row * CELL_H, CELL_W, CELL_H);
       bi.set (cell);
-      if (bi.unicolor)
-      {
-	if (last_bg != bi.bg)
-	{
-	  char buf[] = "\033[40m";
-	  buf[3] += bi.bg;
-	  write_func (closure, (unsigned char *) buf, 5);
+      if (bi.unicolor) {
+	if (last_bg != bi.bg) {
+	  printf ("%c[%dm", ESC_E, 40 + bi.bg);
 	  last_bg = bi.bg;
 	}
-	write_func (closure, (unsigned char *) " ", 1);
-      }
-      else
-      {
+	printf (" ");
+      } else {
 	/* Figure out the closest character to the biimage */
 	bool inverse = false;
 	const char *c = block_best (bi, &inverse);
-	if (inverse)
-	{
-	  if (last_bg != bi.fg || last_fg != bi.bg)
-	  {
-	    char buf[] = "\033[30;40m";
-	    buf[3] += bi.bg;
-	    buf[6] += bi.fg;
-	    write_func (closure, (unsigned char *) buf, 8);
+	if (inverse) {
+	  if (last_bg != bi.fg || last_fg != bi.bg) {
+	    printf ("%c[%d;%dm", ESC_E, 30 + bi.bg, 40 + bi.fg);
 	    last_bg = bi.fg;
 	    last_fg = bi.bg;
 	  }
-	}
-	else
-	{
-	  if (last_bg != bi.bg || last_fg != bi.fg)
-	  {
-	    char buf[] = "\033[40;30m";
-	    buf[3] += bi.bg;
-	    buf[6] += bi.fg;
-	    write_func (closure, (unsigned char *) buf, 8);
+	} else {
+	  if (last_bg != bi.bg || last_fg != bi.fg) {
+	    printf ("%c[%d;%dm", ESC_E, 40 + bi.bg, 30 + bi.fg);
 	    last_bg = bi.bg;
 	    last_fg = bi.fg;
 	  }
 	}
-	write_func (closure, (unsigned char *) c, strlen (c));
+	printf ("%s", c);
       }
     }
-    write_func (closure, (unsigned char *) "\033[0m\n", 5); /* Reset */
+    printf ("%c[0m\n", ESC_E); /* Reset */
     last_bg = last_fg = -1;
   }
 }

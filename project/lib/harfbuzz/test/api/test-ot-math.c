@@ -313,12 +313,12 @@ test_get_glyph_kerning (void)
   g_assert(hb_font_get_glyph_from_name (hb_font, "I", -1, &glyph));
 
   g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 7), ==, 62); // lower than min height
-  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 14), ==, 104); // equal to min height
+  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 14), ==, 62); // equal to min height
   g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 20), ==, 104);
-  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 23), ==, 146);
+  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 23), ==, 104);
   g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 31), ==, 146);
-  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 32), ==, 188);
-  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 86), ==, 440); // equal to max height
+  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 32), ==, 146);
+  g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 86), ==, 398); // equal to max height
   g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 91), ==, 440); // larger than max height
   g_assert_cmpint(hb_ot_math_get_glyph_kerning (hb_font, glyph, HB_OT_MATH_KERN_TOP_RIGHT, 96), ==, 440); // larger than max height
 
@@ -746,6 +746,7 @@ test_get_glyph_assembly (void)
   g_assert(!(parts[0].flags & HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER));
   g_assert(hb_font_get_glyph_from_name (hb_font, "vertical", -1, &glyph));
   g_assert_cmpint(parts[1].glyph, ==, glyph);
+  g_assert_cmpint(parts[1].glyph, ==, glyph);
   g_assert_cmpint(parts[1].start_connector_length, ==, 227);
   g_assert_cmpint(parts[1].end_connector_length, ==, 365);
   g_assert_cmpint(parts[1].full_advance, ==, 1000);
@@ -757,6 +758,8 @@ test_get_glyph_assembly (void)
   g_assert_cmpint(parts[2].full_advance, ==, 1000);
   g_assert(!(parts[2].flags & HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER));
   g_assert(hb_font_get_glyph_from_name (hb_font, "vertical", -1, &glyph));
+  g_assert_cmpint(parts[3].glyph, ==, glyph);
+  g_assert_cmpint(parts[3].glyph, ==, glyph);
   g_assert_cmpint(parts[3].glyph, ==, glyph);
   g_assert_cmpint(parts[3].start_connector_length, ==, 400);
   g_assert_cmpint(parts[3].end_connector_length, ==, 296);

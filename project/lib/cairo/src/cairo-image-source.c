@@ -1104,7 +1104,7 @@ attach_proxy (cairo_surface_t *source,
 {
     struct proxy *proxy;
 
-    proxy = _cairo_calloc (sizeof (*proxy));
+    proxy = _cairo_malloc (sizeof (*proxy));
     if (unlikely (proxy == NULL))
 	return _cairo_surface_create_in_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -1207,8 +1207,6 @@ _pixman_image_for_recording (cairo_image_surface_t *dst,
 	    clone = _cairo_image_surface_create_with_content (source->content,
 							      limit.width,
 							      limit.height);
-	if (dst->base.foreground_source)
-	    clone->foreground_source = cairo_pattern_reference (dst->base.foreground_source);
     }
 
     m = NULL;
@@ -1226,8 +1224,6 @@ _pixman_image_for_recording (cairo_image_surface_t *dst,
     /* Handle recursion by returning future reads from the current image */
     proxy = attach_proxy (source, clone);
     status = _cairo_recording_surface_replay_with_clip (source, m, clone, NULL);
-    if (clone->foreground_used)
-	dst->base.foreground_used = clone->foreground_used;
     detach_proxy (source, proxy);
     if (unlikely (status)) {
 	cairo_surface_destroy (clone);
@@ -1529,7 +1525,7 @@ _pixman_image_for_raster (cairo_image_surface_t *dst,
 	return NULL;
     }
 
-    cleanup = _cairo_calloc (sizeof (*cleanup));
+    cleanup = _cairo_malloc (sizeof (*cleanup));
     if (unlikely (cleanup == NULL)) {
 	pixman_image_unref (pixman_image);
 	_cairo_surface_release_source_image (surface, image, extra);
@@ -1625,7 +1621,7 @@ _cairo_image_source_create_for_pattern (cairo_surface_t *dst,
 
     TRACE ((stderr, "%s\n", __FUNCTION__));
 
-    source = _cairo_calloc (sizeof (cairo_image_source_t));
+    source = _cairo_malloc (sizeof (cairo_image_source_t));
     if (unlikely (source == NULL))
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 

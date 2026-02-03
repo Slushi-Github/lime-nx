@@ -1,5 +1,3 @@
-c: Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
-SPDX-License-Identifier: curl
 Long: remote-header-name
 Short: J
 Protocols: HTTP
@@ -8,7 +6,6 @@ Category: output
 Example: -OJ https://example.com/file
 Added: 7.20.0
 See-also: remote-name
-Multi: boolean
 ---
 This option tells the --remote-name option to use the server-specified
 Content-Disposition filename instead of extracting a filename from the URL. If

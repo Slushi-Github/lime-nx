@@ -1,3 +1,4 @@
+
 /* filter_sse2_intrinsics.c - SSE2 optimized filter functions
  *
  * Copyright (c) 2018 Cosmin Truta

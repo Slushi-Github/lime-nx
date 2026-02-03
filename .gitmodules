@@ -4,7 +4,7 @@
 	shallow = true
 [submodule "project/lib/sdl"]
 	path = project/lib/sdl
-	url = https://github.com/libsdl-org/SDL
+	url = https://github.com/FunkinCrew/SDL
 	shallow = true
 [submodule "project/lib/openal"]
 	path = project/lib/openal
@@ -46,6 +46,7 @@
 	path = project/lib/cairo
 	url = https://gitlab.freedesktop.org/cairo/cairo.git
 	shallow = true
+	depth = 1
 [submodule "project/lib/pixman"]
 	path = project/lib/pixman
 	url = https://gitlab.freedesktop.org/pixman/pixman.git

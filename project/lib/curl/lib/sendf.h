@@ -20,8 +20,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -61,10 +59,9 @@ CURLcode Curl_client_write(struct Curl_easy *data, int type, char *ptr,
 bool Curl_recv_has_postponed_data(struct connectdata *conn, int sockindex);
 
 /* internal read-function, does plain socket only */
-CURLcode Curl_read_plain(struct Curl_easy *data,
-                         curl_socket_t sockfd,
+CURLcode Curl_read_plain(curl_socket_t sockfd,
                          char *buf,
-                         size_t sizerequested,
+                         size_t bytesfromsocket,
                          ssize_t *n);
 
 ssize_t Curl_recv_plain(struct Curl_easy *data, int num, char *buf,
@@ -90,8 +87,8 @@ CURLcode Curl_write_plain(struct Curl_easy *data,
                           ssize_t *written);
 
 /* the function used to output verbose information */
-void Curl_debug(struct Curl_easy *data, curl_infotype type,
-                char *ptr, size_t size);
+int Curl_debug(struct Curl_easy *data, curl_infotype type,
+               char *ptr, size_t size);
 
 
 #endif /* HEADER_CURL_SENDF_H */

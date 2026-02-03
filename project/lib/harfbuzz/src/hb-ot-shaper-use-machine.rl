@@ -83,9 +83,6 @@ export J	= 50; # HIEROGLYPH_JOINER
 export SB	= 51; # HIEROGLYPH_SEGMENT_BEGIN
 export SE	= 52; # HIEROGLYPH_SEGMENT_END
 export HVM	= 53; # HALANT_OR_VOWEL_MODIFIER
-export HM	= 54; # HIEROGLYPH_MOD
-export HR	= 55; # HIEROGLYPH_MIRROR
-export RK	= 56; # REORDERING_KILLER
 
 export FAbv	= 24; # CONS_FINAL_ABOVE
 export FBlw	= 25; # CONS_FINAL_BELOW
@@ -113,7 +110,7 @@ export FMPst	= 47; # CONS_FINAL_MOD	UIPC = Not_Applicable
 
 h = H | HVM | IS | Sk;
 
-consonant_modifiers = CMAbv* CMBlw* ((h B | SUB) CMAbv* CMBlw*)*;
+consonant_modifiers = CMAbv* CMBlw* ((h B | SUB) CMAbv? CMBlw*)*;
 medial_consonants = MPre? MAbv? MBlw? MPst?;
 dependent_vowels = VPre* VAbv* VBlw* VPst* | H;
 vowel_modifiers = HVM? VMPre* VMAbv* VMBlw* VMPst*;
@@ -139,7 +136,7 @@ symbol_cluster_tail = SMAbv+ SMBlw* | SMBlw+;
 
 virama_terminated_cluster_tail =
 	consonant_modifiers
-	(IS | RK)
+	IS
 ;
 virama_terminated_cluster =
 	complex_syllable_start
@@ -165,8 +162,8 @@ broken_cluster =
 
 number_joiner_terminated_cluster = N number_joiner_terminated_cluster_tail;
 numeral_cluster = N numeral_cluster_tail?;
-symbol_cluster = (O | GB | SB) tail?;
-hieroglyph_cluster = SB* G HR? HM? SE* (J SB* (G HR? HM? SE*)?)*;
+symbol_cluster = (O | GB) tail?;
+hieroglyph_cluster = SB+ | SB* G SE* (J SE* (G SE*)?)*;
 other = any;
 
 main := |*
@@ -177,7 +174,6 @@ main := |*
 	numeral_cluster ZWNJ?			=> { found_syllable (use_numeral_cluster); };
 	symbol_cluster ZWNJ?			=> { found_syllable (use_symbol_cluster); };
 	hieroglyph_cluster ZWNJ?		=> { found_syllable (use_hieroglyph_cluster); };
-	FMPst					=> { found_syllable (use_non_cluster); };
 	broken_cluster ZWNJ?			=> { found_syllable (use_broken_cluster); buffer->scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
 	other					=> { found_syllable (use_non_cluster); };
 *|;
@@ -187,7 +183,7 @@ main := |*
 
 #define found_syllable(syllable_type) \
   HB_STMT_START { \
-    if (0) fprintf (stderr, "syllable %u..%u %s\n", (*ts).second.first, (*te).second.first, #syllable_type); \
+    if (0) fprintf (stderr, "syllable %d..%d %s\n", (*ts).second.first, (*te).second.first, #syllable_type); \
     for (unsigned i = (*ts).second.first; i < (*te).second.first; ++i) \
       info[i].syllable() = (syllable_serial << 4) | syllable_type; \
     syllable_serial++; \

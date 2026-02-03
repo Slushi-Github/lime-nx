@@ -1,42 +1,21 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
-project(efsw)
-
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_CXX_STANDARD 11)
-
-set(ESFW_MAIN_PROJECT OFF)
-
-if((CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR) AND(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME))
-	set(ESFW_MAIN_PROJECT ON)
-endif()
+project (efsw)
 
 include(GNUInstallDirs)
 
 find_package(Threads REQUIRED)
 
-option(VERBOSE "Build efsw with verbose mode.")
-option(BUILD_SHARED_LIBS "Build efsw as a shared library" ON)
-option(BUILD_STATIC_LIBS "Build efsw as a static library" ON)
-option(BUILD_TEST_APP "Build the test app" ${ESFW_MAIN_PROJECT})
-option(EFSW_INSTALL "Add efsw install targets" ${ESFW_MAIN_PROJECT})
+option (VERBOSE "Build efsw with verbose mode.")
+option (NO_ATOMICS "Build efsw with C++11")
+option (BUILD_SHARED_LIBS "Build efsw as a shared library" ON)
+option (BUILD_TEST_APP "Build the test app")
+option (EFSW_INSTALL "Add efsw install targets" ON)
 
 add_library(efsw)
 
-if(BUILD_STATIC_LIBS)
-	add_library(efsw-static STATIC)
-
-	target_include_directories(efsw-static
-		PRIVATE src/
-		PUBLIC
-		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-		$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-	)
-endif()
-
-set(EFSW_CPP_SOURCE
-	src/efsw/Debug.cpp
+target_sources(efsw PRIVATE
+src/efsw/Debug.cpp
 	src/efsw/DirectorySnapshot.cpp
 	src/efsw/DirectorySnapshotDiff.cpp
 	src/efsw/DirWatcherGeneric.cpp
@@ -58,31 +37,32 @@ set(EFSW_CPP_SOURCE
 target_include_directories(efsw
 	PRIVATE src/
 	PUBLIC
-	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+		$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-if(VERBOSE)
+if (VERBOSE)
 	target_compile_definitions(efsw PRIVATE EFSW_VERBOSE)
 endif()
-
-target_compile_features(efsw PRIVATE cxx_std_11)
-
-if(BUILD_SHARED_LIBS)
+if (NOT NO_ATOMICS)
+	target_compile_definitions(efsw PRIVATE EFSW_USE_CXX11)
+	target_compile_features(efsw PRIVATE cxx_std_11)
+endif()
+if (BUILD_SHARED_LIBS)
 	target_compile_definitions(efsw PRIVATE EFSW_DYNAMIC EFSW_EXPORTS)
 endif()
 
 # platforms
-if(WIN32)
-	list(APPEND EFSW_CPP_SOURCE
+if (WIN32)
+	target_sources(efsw PRIVATE
 		src/efsw/platform/win/FileSystemImpl.cpp
 		src/efsw/platform/win/MutexImpl.cpp
 		src/efsw/platform/win/SystemImpl.cpp
 		src/efsw/platform/win/ThreadImpl.cpp
 	)
-else()
-	list(APPEND EFSW_CPP_SOURCE
+else ()
+	target_sources(efsw PRIVATE
 		src/efsw/platform/posix/FileSystemImpl.cpp
 		src/efsw/platform/posix/MutexImpl.cpp
 		src/efsw/platform/posix/SystemImpl.cpp
@@ -91,58 +71,56 @@ else()
 endif()
 
 # watcher implementations
-if(APPLE)
-	list(APPEND EFSW_CPP_SOURCE
+
+if (APPLE)
+	target_sources(efsw PRIVATE
 		src/efsw/FileWatcherFSEvents.cpp
 		src/efsw/FileWatcherKqueue.cpp
 		src/efsw/WatcherFSEvents.cpp
 		src/efsw/WatcherKqueue.cpp
 	)
-elseif(WIN32)
-	list(APPEND EFSW_CPP_SOURCE
+
+	if (NOT CMAKE_SYSTEM_VERSION GREATER 9)
+		target_compile_definitions(efsw PRIVATE EFSW_FSEVENTS_NOT_SUPPORTED)
+	endif()
+elseif (WIN32)
+	target_sources(efsw PRIVATE
 		src/efsw/FileWatcherWin32.cpp
 		src/efsw/WatcherWin32.cpp
 	)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-	list(APPEND EFSW_CPP_SOURCE
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+	target_sources(efsw PRIVATE
 		src/efsw/FileWatcherInotify.cpp
 		src/efsw/WatcherInotify.cpp
 	)
 
-	find_path(EFSW_INOTIFY_H NAMES sys/inotify.h NO_CACHE)
-	if(EFSW_INOTIFY_H STREQUAL "EFSW_INOTIFY_H-NOTFOUND")
+	if (NOT EXISTS "/usr/include/sys/inotify.h" AND NOT EXISTS "/usr/local/include/sys/inotify.h")
 		target_compile_definitions(efsw PRIVATE EFSW_INOTIFY_NOSYS)
 	endif()
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-	list(APPEND EFSW_CPP_SOURCE
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+	target_sources(efsw PRIVATE
 		src/efsw/FileWatcherKqueue.cpp
 		src/efsw/WatcherKqueue.cpp
 	)
 endif()
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR
-	(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC"))
+if (MSVC)
 	target_compile_definitions(efsw PRIVATE _SCL_SECURE_NO_WARNINGS)
-else()
+else ()
 	target_compile_options(efsw PRIVATE -Wall -Wno-long-long -fPIC)
 endif()
 
-target_compile_definitions(efsw PRIVATE $<IF:$<CONFIG:Debug>,DEBUG,NDEBUG>)
-
-if(APPLE)
-	set(MAC_LIBS "-framework CoreFoundation" "-framework CoreServices")
-	target_link_libraries(efsw PRIVATE ${MAC_LIBS})
-	if(BUILD_STATIC_LIBS)
-		target_link_libraries(efsw-static PRIVATE ${MAC_LIBS})
-	endif()
-elseif(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Haiku") AND NOT WIN32)
-	target_link_libraries(efsw PRIVATE Threads::Threads)
+if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+	target_compile_definitions(efsw PRIVATE DEBUG)
+elseif (${CMAKE_BUILD_TYPE} MATCHES "Release")
+	target_compile_definitions(efsw PRIVATE NDEBUG)
 endif()
 
-target_sources(efsw PRIVATE ${EFSW_CPP_SOURCE})
-
-if(BUILD_STATIC_LIBS)
-	target_sources(efsw-static PRIVATE ${EFSW_CPP_SOURCE})
+if (APPLE)
+	set(MAC_LIBS "-framework CoreFoundation" "-framework CoreServices")
+	target_link_libraries(efsw PRIVATE ${MAC_LIBS})
+elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Haiku") AND NOT WIN32)
+	target_link_libraries(efsw PRIVATE Threads::Threads)
 endif()
 
 include(CMakePackageConfigHelpers)
@@ -158,41 +136,26 @@ configure_package_config_file(
 )
 
 export(TARGETS efsw NAMESPACE efsw:: FILE ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake)
-if(BUILD_STATIC_LIBS)
-	export(TARGETS efsw-static NAMESPACE efsw:: APPEND FILE ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake)
-endif()
 
 if(EFSW_INSTALL)
-	install(TARGETS efsw EXPORT efswExport
-		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-		ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-	)
+  install(TARGETS efsw EXPORT efswExport
+  	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
 
-	install(
-		FILES
-		include/efsw/efsw.h include/efsw/efsw.hpp
-		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/efsw
-	)
+  install (
+  	FILES
+  		include/efsw/efsw.h include/efsw/efsw.hpp
+  	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/efsw
+  )
 
-	if(BUILD_STATIC_LIBS)
-		install(TARGETS efsw-static EXPORT efswExport
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-		)
-	endif()
-
-	install(EXPORT efswExport NAMESPACE efsw:: DESTINATION "${packageDestDir}" FILE ${PROJECT_NAME}Targets.cmake)
-	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/efswConfig.cmake DESTINATION "${packageDestDir}")
+  install(EXPORT efswExport NAMESPACE efsw:: DESTINATION "${packageDestDir}" FILE ${PROJECT_NAME}Targets.cmake)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/efswConfig.cmake DESTINATION "${packageDestDir}")
 endif()
 
-if(BUILD_TEST_APP)
-	# C++ test application
+if (BUILD_TEST_APP)
 	add_executable(efsw-test src/test/efsw-test.cpp)
-	target_link_libraries(efsw-test efsw-static)
-
-	# C test application
-	add_executable(efsw-test-stdc src/test/efsw-test.c)
-	target_link_libraries(efsw-test-stdc efsw-static)
+	target_link_libraries(efsw-test efsw)
 endif()
+

@@ -23,6 +23,7 @@ linear-gradient-reflect
 map-all-to-image
 map-bit-to-image
 map-to-image-fill
+mesh-pattern
 negative-stride-image
 overlapping-glyphs
 paint-source-alpha

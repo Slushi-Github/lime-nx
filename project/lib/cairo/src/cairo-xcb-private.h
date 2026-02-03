@@ -765,6 +765,16 @@ _cairo_xcb_connection_render_create_conical_gradient (cairo_xcb_connection_t    
 						      uint32_t                  num_stops,
 						      xcb_render_fixed_t *stops,
 						      xcb_render_color_t *colors);
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_proto (cairo_xcb_surface_create);
+slim_hidden_proto (cairo_xcb_surface_create_for_bitmap);
+slim_hidden_proto (cairo_xcb_surface_create_with_xrender_format);
+slim_hidden_proto (cairo_xcb_surface_set_size);
+slim_hidden_proto (cairo_xcb_surface_set_drawable);
+slim_hidden_proto (cairo_xcb_device_debug_get_precision);
+slim_hidden_proto_no_warn (cairo_xcb_device_debug_set_precision);
+slim_hidden_proto_no_warn (cairo_xcb_device_debug_cap_xrender_version);
+#endif
 
 cairo_private void
 _cairo_xcb_resources_get (cairo_xcb_screen_t *screen,

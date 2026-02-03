@@ -423,6 +423,14 @@ public void writeToPNG (OutputStream stream) throws IOException;
 	  operations do nothing. Retrieving the status of the
 	  singleton object returns <constant>CAIRO_STATUS_NO_MEMORY</constant>
 	  </para>
+	  <remark>
+	    Is this going to apply to
+	  <type>cairo_surface_t</type> as well?
+	</remark>
+	<remark>
+	  What about cairo_copy_path_data()? It's probably going to
+	  have to return <constant>NULL</constant>.
+	</remark>
       </listitem>
       <listitem><para>
 	  Errors propagate from object to object. Setting a pattern
@@ -430,6 +438,8 @@ public void writeToPNG (OutputStream stream) throws IOException;
 	  <type>cairo_t</type> puts the type into an error state.
       </para></listitem>
     </itemizedlist>
+    <remark>Much of the above is not yet implemented at the time of
+      this writing</remark>
     <para>
       A language binding could copy the C approach, and for a 
       language without exceptions, this is likely the right thing

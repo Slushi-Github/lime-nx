@@ -5,6 +5,10 @@
 [HTTP/3 Explained](https://http3-explained.haxx.se/en/) - the online free
 book describing the protocols involved.
 
+[QUIC implementation](https://github.com/curl/curl/wiki/QUIC-implementation) -
+the wiki page describing the plan for how to support QUIC and HTTP/3 in curl
+and libcurl.
+
 [quicwg.org](https://quicwg.org/) - home of the official protocol drafts
 
 ## QUIC libraries
@@ -106,48 +110,7 @@ Build curl
      % git clone https://github.com/curl/curl
      % cd curl
      % autoreconf -fi
-     % ./configure --with-gnutls=<somewhere1> --with-nghttp3=<somewhere2> --with-ngtcp2=<somewhere3>
-     % make
-     % make install
-
-## Build with wolfSSL
-
-Build wolfSSL
-
-     % git clone https://github.com/wolfSSL/wolfssl.git
-     % cd wolfssl
-     % autoreconf -fi
-     % ./configure --prefix=<somewhere1> --enable-quic --enable-session-ticket --enable-earlydata --enable-psk --enable-harden --enable-altcertchains
-     % make
-     % make install
-
-Build nghttp3
-
-     % cd ..
-     % git clone https://github.com/ngtcp2/nghttp3
-     % cd nghttp3
-     % autoreconf -fi
-     % ./configure --prefix=<somewhere2> --enable-lib-only
-     % make
-     % make install
-
-Build ngtcp2
-
-     % cd ..
-     % git clone https://github.com/ngtcp2/ngtcp2
-     % cd ngtcp2
-     % autoreconf -fi
-     % ./configure PKG_CONFIG_PATH=<somewhere1>/lib/pkgconfig:<somewhere2>/lib/pkgconfig LDFLAGS="-Wl,-rpath,<somewhere1>/lib" --prefix=<somewhere3> --enable-lib-only --with-wolfssl
-     % make
-     % make install
-
-Build curl
-
-     % cd ..
-     % git clone https://github.com/curl/curl
-     % cd curl
-     % autoreconf -fi
-     % ./configure --with-wolfssl=<somewhere1> --with-nghttp3=<somewhere2> --with-ngtcp2=<somewhere3>
+     % ./configure --without-openssl --with-gnutls=<somewhere1> --with-nghttp3=<somewhere2> --with-ngtcp2=<somewhere3>
      % make
      % make install
 
@@ -181,7 +144,7 @@ Build curl:
 
 Build msh3:
 
-     % git clone -b v0.4.0 --depth 1 --recursive https://github.com/nibanks/msh3
+     % git clone --depth 1 --recursive https://github.com/nibanks/msh3
      % cd msh3 && mkdir build && cd build
      % cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
      % cmake --build .
@@ -202,7 +165,7 @@ Run from `/usr/local/bin/curl`.
 
 Build msh3:
 
-     % git clone -b v0.4.0 --depth 1 --recursive https://github.com/nibanks/msh3
+     % git clone --depth 1 --recursive https://github.com/nibanks/msh3
      % cd msh3 && mkdir build && cd build
      % cmake -G 'Visual Studio 17 2022' -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
      % cmake --build . --config Release
@@ -253,7 +216,7 @@ development and experimenting.
 ## Prerequisite(s)
 
 An existing local HTTP/1.1 server that hosts files. Preferably also a few huge
-ones. You can easily create huge local files like `truncate -s=8G 8GB` - they
+ones.  You can easily create huge local files like `truncate -s=8G 8GB` - they
 are huge but do not occupy that much space on disk since they are just big
 holes.
 
@@ -291,21 +254,26 @@ that exists in curl's test dir.
 
 ### Caddy
 
-[Install Caddy](https://caddyserver.com/docs/install). For easiest use, the binary
-should be either in your PATH or your current directory.
+[Install caddy](https://caddyserver.com/docs/install), you can even put the
+single binary in a separate directory if you prefer.
 
-Create a `Caddyfile` with the following content:
+In the same directory you put caddy, create a `Caddyfile` with the following
+content to run an HTTP/3 reverse-proxy on port 7443:
 ~~~
+{
+    auto_https disable_redirects
+	servers :7443 {
+		protocol {
+			experimental_http3
+		}
+	}
+}
+
 localhost:7443 {
-	respond "Hello, world! You're using {http.request.proto}"
+	reverse_proxy localhost:80
 }
 ~~~
 
-Then run Caddy:
+Then run caddy:
 
     ./caddy start
-
-Making requests to `https://localhost:7443` should tell you which protocol is being used.
-
-You can change the hard-coded response to something more useful by replacing `respond`
-with `reverse_proxy` or `file_server`, for example: `reverse_proxy localhost:80`

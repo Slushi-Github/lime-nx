@@ -6,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 2016 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) 2016 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -19,8 +19,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 #***************************************************************************
 
 # This script invokes nghttpx properly to have it serve HTTP/2 for us.
@@ -31,7 +29,6 @@ my $logfile = "log/http2.log";
 my $nghttpx = "nghttpx";
 my $listenport = 9015;
 my $connect = "127.0.0.1,8990";
-my $conf = "nghttpx.conf";
 
 #***************************************************************************
 # Process command line options
@@ -71,12 +68,6 @@ while(@ARGV) {
             shift @ARGV;
         }
     }
-    elsif($ARGV[0] eq '--conf') {
-        if($ARGV[1]) {
-            $conf = $ARGV[1];
-            shift @ARGV;
-        }
-    }
     else {
         print STDERR "\nWarning: http2-server.pl unknown parameter: $ARGV[0]\n";
     }
@@ -87,7 +78,6 @@ my $cmdline="$nghttpx --backend=$connect ".
     "--frontend=\"*,$listenport;no-tls\" ".
     "--log-level=INFO ".
     "--pid-file=$pidfile ".
-    "--conf=$conf ".
     "--errorlog-file=$logfile";
 print "RUN: $cmdline\n" if($verbose);
 system("$cmdline 2>/dev/null");

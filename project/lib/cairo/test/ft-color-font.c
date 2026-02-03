@@ -27,9 +27,9 @@
 #include "cairo-test.h"
 #include <cairo-ft.h>
 
-#define SIZE 40
-#define HEIGHT SIZE
-#define WIDTH  (SIZE * 1.5)
+#define WIDTH  50
+#define HEIGHT WIDTH
+
 #define FONT "Noto Color Emoji"
 
 static const char smiley_face_utf8[] = { 0xf0, 0x9f, 0x99, 0x82, 0x00 }; /* U+1F642 */
@@ -87,23 +87,13 @@ static cairo_test_status_t
 draw (cairo_t *cr, int width, int height)
 {
     cairo_test_status_t result;
-    cairo_font_options_t *font_options;
 
     result = set_color_emoji_font (cr);
     if (result != CAIRO_TEST_SUCCESS)
         return result;
 
-    cairo_set_font_size (cr, SIZE/2);
-    cairo_move_to (cr, SIZE/8, 0.7 * SIZE);
-
-    cairo_show_text(cr, smiley_face_utf8);
-
-    /* Show that the color mode font option can disable color rendering */
-    font_options = cairo_font_options_create ();
-    cairo_get_font_options (cr, font_options);
-    cairo_font_options_set_color_mode (font_options, CAIRO_COLOR_MODE_NO_COLOR);
-    cairo_set_font_options (cr, font_options);
-    cairo_font_options_destroy (font_options);
+    cairo_set_font_size (cr, HEIGHT/2);
+    cairo_move_to (cr, width/4, 3*height/4);
 
     cairo_show_text(cr, smiley_face_utf8);
 

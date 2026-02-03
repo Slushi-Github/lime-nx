@@ -8,8 +8,9 @@ INSTALL_LIB_DIR ?= $(PREFIX)/lib
 INSTALL_INCLUDE_DIR ?= $(PREFIX)/include
 
 LIBS=fmt sdl ssl openal ui uv mysql sqlite
+ARCH ?= $(shell uname -m)
 
-CFLAGS = -Wall -O3 -I src -msse2 -mfpmath=sse -std=c11 -D LIBHL_EXPORTS
+CFLAGS = -Wall -O3 -I src -std=c11 -D LIBHL_EXPORTS
 LFLAGS = -L. -lhl
 EXTRA_LFLAGS ?=
 LIBFLAGS =
@@ -17,12 +18,17 @@ HLFLAGS = -ldl
 LIBEXT = so
 LIBTURBOJPEG = -lturbojpeg
 
-PCRE_INCLUDE = -I include/pcre
+PCRE_FLAGS = -I include/pcre -D HAVE_CONFIG_H -D PCRE2_CODE_UNIT_WIDTH=16
 
-PCRE = include/pcre/pcre_chartables.o include/pcre/pcre_compile.o include/pcre/pcre_dfa_exec.o \
-	include/pcre/pcre_exec.o include/pcre/pcre_fullinfo.o include/pcre/pcre_globals.o \
-	include/pcre/pcre_newline.o include/pcre/pcre_string_utils.o include/pcre/pcre_tables.o include/pcre/pcre_xclass.o \
-	include/pcre/pcre16_ord2utf16.o include/pcre/pcre16_valid_utf16.o include/pcre/pcre_ucd.o
+PCRE = include/pcre/pcre2_auto_possess.o include/pcre/pcre2_chartables.o include/pcre/pcre2_compile.o \
+	include/pcre/pcre2_config.o include/pcre/pcre2_context.o include/pcre/pcre2_convert.o \
+	include/pcre/pcre2_dfa_match.o include/pcre/pcre2_error.o include/pcre/pcre2_extuni.o \
+	include/pcre/pcre2_find_bracket.o include/pcre/pcre2_jit_compile.o include/pcre/pcre2_maketables.o \
+	include/pcre/pcre2_match_data.o include/pcre/pcre2_match.o include/pcre/pcre2_newline.o \
+	include/pcre/pcre2_ord2utf.o include/pcre/pcre2_pattern_info.o include/pcre/pcre2_script_run.o \
+	include/pcre/pcre2_serialize.o include/pcre/pcre2_string_utils.o include/pcre/pcre2_study.o \
+	include/pcre/pcre2_substitute.o include/pcre/pcre2_substring.o include/pcre/pcre2_tables.o \
+	include/pcre/pcre2_ucd.o include/pcre/pcre2_valid_utf.o include/pcre/pcre2_xclass.o
 
 RUNTIME = src/gc.o
 
@@ -63,17 +69,47 @@ ifeq ($(OS),Windows_NT)
 LIBFLAGS += -Wl,--export-all-symbols
 LIBEXT = dll
 RELEASE_NAME=win
+# VS variables are for packaging Visual Studio builds
+VS_RUNTIME_LIBRARY ?= c:/windows/system32/vcruntime140.dll
 
 ifeq ($(MARCH),32)
+CFLAGS += -msse2 -mfpmath=sse
 CC=i686-pc-cygwin-gcc
+BUILD_DIR = Release
+VS_SDL_LIBRARY ?= include/sdl/lib/x86/SDL2.dll
+VS_OPENAL_LIBRARY ?= include/openal/bin/Win32/soft_oal.dll
+else
+BUILD_DIR = x64/Release
+VS_SDL_LIBRARY ?= include/sdl/lib/x64/SDL2.dll
+VS_OPENAL_LIBRARY ?= include/openal/bin/Win64/soft_oal.dll
 endif
 
 else ifeq ($(UNAME),Darwin)
 
 # Mac
 LIBEXT=dylib
+
+BPREFIX := $(shell brew --prefix)
+
+BREW_LIBJPEG := $(shell brew --prefix libjpeg-turbo)
+BREW_SDL2 := $(shell brew --prefix sdl2)
+BREW_JPEGTURBO := $(shell brew --prefix jpeg-turbo)
+BREW_VORBIS := $(shell brew --prefix libvorbis)
+BREW_OPENAL := $(shell brew --prefix openal-soft)
+BREW_MBEDTLS := $(shell brew --prefix mbedtls@2)
+BREW_LIBPNG := $(shell brew --prefix libpng)
+BREW_LIBOGG := $(shell brew --prefix libogg)
+BREW_LIBUV := $(shell brew --prefix libuv)
+
+CFLAGS += -m$(MARCH) -I include -I $(BREW_LIBJPEG)/include \
+	-I $(BREW_JPEGTURBO)/include -I $(BREW_SDL2)/include -I $(BREW_VORBIS)/include \
+	-I $(BREW_MBEDTLS)/include -I $(BREW_LIBPNG)/include -I $(BREW_LIBOGG)/include \
+	-I $(BREW_LIBUV)/include \
+	-I $(BREW_OPENAL)/include -Dopenal_soft  -DGL_SILENCE_DEPRECATION
+LFLAGS += -Wl,-export_dynamic 
+
 CFLAGS += -m$(MARCH) -I include -I /usr/local/include -I /usr/local/opt/libjpeg-turbo/include \
-	-I /usr/local/opt/jpeg-turbo/include -I /usr/local/opt/sdl2/include/SDL2 -I /usr/local/opt/libvorbis/include \
+	-I /usr/local/opt/jpeg-turbo/include -I /usr/local/opt/sdl2/include -I /usr/local/opt/libvorbis/include \
 	-I /usr/local/opt/openal-soft/include -Dopenal_soft  -DGL_SILENCE_DEPRECATION
 LFLAGS += -Wl,-export_dynamic -L/usr/local/lib
 
@@ -83,15 +119,22 @@ CFLAGS += -isysroot $(ISYSROOT)
 LFLAGS += -isysroot $(ISYSROOT)
 endif
 
-LIBFLAGS += -L/usr/local/opt/libjpeg-turbo/lib -L/usr/local/opt/jpeg-turbo/lib -L/usr/local/lib -L/usr/local/opt/libvorbis/lib -L/usr/local/opt/openal-soft/lib
+LIBFLAGS += -L$(BREW_LIBJPEG)/lib -L$(BREW_SDL2)/lib -L$(BREW_JPEGTURBO)/lib \
+			-L$(BREW_VORBIS)/lib -L$(BREW_OPENAL)/lib -L$(BREW_MBEDTLS)/lib \
+			-L$(BREW_LIBPNG)/lib -L$(BREW_LIBOGG)/lib -L$(BREW_LIBUV)/lib
 LIBOPENGL = -framework OpenGL
 LIBOPENAL = -lopenal
 LIBSSL = -framework Security -framework CoreFoundation
 RELEASE_NAME = osx
 
 # Mac native debug
+ifneq ($(ARCH),arm64)
 HL_DEBUG = include/mdbg/mdbg.o include/mdbg/mach_excServer.o include/mdbg/mach_excUser.o
 LIB += ${HL_DEBUG}
+endif
+
+CFLAGS += -arch $(ARCH)
+LFLAGS += -arch $(ARCH)
 
 else
 
@@ -100,13 +143,14 @@ CFLAGS += -m$(MARCH) -fPIC -pthread -fno-omit-frame-pointer
 LFLAGS += -lm -Wl,-rpath,.:'$$ORIGIN':$(INSTALL_LIB_DIR) -Wl,--export-dynamic -Wl,--no-undefined
 
 ifeq ($(MARCH),32)
-CFLAGS += -I /usr/include/i386-linux-gnu
+CFLAGS += -I /usr/include/i386-linux-gnu -msse2 -mfpmath=sse
 LIBFLAGS += -L/opt/libjpeg-turbo/lib
 else
 LIBFLAGS += -L/opt/libjpeg-turbo/lib64
 endif
 
 LIBOPENAL = -lopenal
+LIBOPENGL = -lGL
 RELEASE_NAME = linux
 
 endif
@@ -123,7 +167,7 @@ endif
 all: libhl hl libs
 
 install:
-	$(UNAME)==Darwin && make uninstall
+	$(UNAME)==Darwin && ${MAKE} uninstall
 	mkdir -p $(INSTALL_BIN_DIR)
 	cp hl $(INSTALL_BIN_DIR)
 	mkdir -p $(INSTALL_LIB_DIR)
@@ -145,7 +189,7 @@ src/std/regexp.o: src/std/regexp.c
 	${CC} ${CFLAGS} -o $@ -c $< ${PCRE_FLAGS}
 
 libhl: ${LIB}
-	${CC} -o libhl.$(LIBEXT) -m${MARCH} ${LIBFLAGS} -shared ${LIB} -lpthread -lm
+	${CC} ${CFLAGS} -o libhl.$(LIBEXT) -m${MARCH} ${LIBFLAGS} -shared ${LIB} -lpthread -lm
 
 hlc: ${BOOT}
 	${CC} ${CFLAGS} -o hlc ${BOOT} ${LFLAGS} ${EXTRA_LFLAGS}
@@ -181,21 +225,14 @@ sqlite: ${SQLITE} libhl
 	${CC} ${CFLAGS} -shared -o sqlite.hdll ${SQLITE} ${LIBFLAGS} -L. -lhl -lsqlite3
 
 mesa:
-	(cd libs/mesa && make)
+	(cd libs/mesa && ${MAKE})
 
-release: release_version release_$(RELEASE_NAME)
-
-release_version:
-	$(eval HL_VER := `(hl --version)`-$(RELEASE_NAME))
-	rm -rf hl-$(HL_VER)
-	mkdir hl-$(HL_VER)
-	mkdir hl-$(HL_VER)/include
-	cp src/hl.h src/hlc* hl-$(HL_VER)/include
+release: release_prepare release_$(RELEASE_NAME)
 
 release_haxelib:
-	make HLIB=directx release_haxelib_package
-	make HLIB=sdl release_haxelib_package
-	make HLIB=openal release_haxelib_package
+	${MAKE} HLIB=directx release_haxelib_package
+	${MAKE} HLIB=sdl release_haxelib_package
+	${MAKE} HLIB=openal release_haxelib_package
 
 ifeq ($(HLIB),directx)
 HLPACK=dx
@@ -211,23 +248,28 @@ release_haxelib_package:
 	haxelib submit $(HLIB).zip
 	rm -rf $(HLIB)_release
 
+BUILD_DIR ?= .
+PACKAGE_NAME := hashlink-$(shell $(BUILD_DIR)/hl --version)-$(RELEASE_NAME)
+
+release_prepare:
+	rm -rf $(PACKAGE_NAME)
+	mkdir $(PACKAGE_NAME)
+	mkdir $(PACKAGE_NAME)/include
+	cp src/hl.h src/hlc.h src/hlc_main.c $(PACKAGE_NAME)/include
+
 release_win:
-	(cd x64/ReleaseVS2015 && cp hl.exe libhl.dll *.hdll *.lib ../../hl-$(HL_VER))
-	cp c:/windows/system32/vcruntime140.dll hl-$(HL_VER)
-	cp `which SDL2.dll` hl-$(HL_VER)
-	cp `which OpenAL32.dll` hl-$(HL_VER)
-	zip -r hl-$(HL_VER).zip hl-$(HL_VER)
-	rm -rf hl-$(HL_VER)
+	cp $(BUILD_DIR)/{hl.exe,libhl.dll,*.hdll,*.lib} $(PACKAGE_NAME)
+	cp $(VS_RUNTIME_LIBRARY) $(PACKAGE_NAME)
+	cp $(VS_SDL_LIBRARY) $(PACKAGE_NAME)
+	cp $(VS_OPENAL_LIBRARY) $(PACKAGE_NAME)/OpenAL32.dll
+	# 7z switches: https://sevenzip.osdn.jp/chm/cmdline/switches/
+	7z a -spf -y -mx9 -bt $(PACKAGE_NAME).zip $(PACKAGE_NAME)
+	rm -rf $(PACKAGE_NAME)
 
-release_linux:
-	cp hl libhl.so *.hdll hl-$(HL_VER)
-	tar -czf hl-$(HL_VER).tgz hl-$(HL_VER)
-	rm -rf hl-$(HL_VER)
-
-release_osx:
-	cp hl libhl.dylib *.hdll hl-$(HL_VER)
-	tar -czf hl-$(HL_VER).tgz hl-$(HL_VER)
-	rm -rf hl-$(HL_VER)
+release_linux release_osx:
+	cp hl libhl.$(LIBEXT) *.hdll $(PACKAGE_NAME)
+	tar -cvzf $(PACKAGE_NAME).tar.gz $(PACKAGE_NAME)
+	rm -rf $(PACKAGE_NAME)
 
 codesign_osx:
 	sudo security delete-identity -c hl-cert || echo

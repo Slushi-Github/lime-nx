@@ -74,10 +74,6 @@ preamble (cairo_test_context_t *ctx)
     cairo_font_options_get_hint_metrics (NULL);
     assert (cairo_font_options_get_hint_metrics (default_options) == CAIRO_HINT_METRICS_DEFAULT);
 
-    cairo_font_options_set_color_palette (NULL, CAIRO_COLOR_PALETTE_DEFAULT);
-    cairo_font_options_get_color_palette (NULL);
-    assert (cairo_font_options_get_color_palette (default_options) == CAIRO_COLOR_PALETTE_DEFAULT);
-
     cairo_font_options_destroy (NULL);
     cairo_font_options_destroy (default_options);
     cairo_font_options_destroy (nil_options);

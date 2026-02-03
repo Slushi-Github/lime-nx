@@ -1,15 +1,10 @@
-/* SPDX-License-Identifier: Zlib
-Copyright (c) 2014 - 2024 Guillaume Vareille http://ysengrin.com
-	 ____________________________________________________________________
-	|                                                                    |
-	| 100% compatible C C++  ->  You can rename tinfiledialogs.c as .cpp |
-	|____________________________________________________________________|
+/* If you are using a C++ compiler to compile tinyfiledialogs.c (maybe renamed with an extension ".cpp")
+then comment out << extern "C" >> bellow in this header file) */
 
-********* TINY FILE DIALOGS OFFICIAL WEBSITE IS ON SOURCEFORGE *********
-  _________
- /         \ tinyfiledialogs.h v3.19.2 [Jul 24, 2025]
+/*_________
+ /         \ tinyfiledialogs.h v3.8.8 [Apr 22, 2021] zlib licence
  |tiny file| Unique header file created [November 9, 2014]
- | dialogs |
+ | dialogs | Copyright (c) 2014 - 2021 Guillaume Vareille http://ysengrin.com
  \____  ___/ http://tinyfiledialogs.sourceforge.net
       \|     git clone http://git.code.sf.net/p/tinyfiledialogs/code tinyfd
  ____________________________________________
@@ -19,13 +14,12 @@ Copyright (c) 2014 - 2024 Guillaume Vareille http://ysengrin.com
  ________________________________________________________________________________
 |  ____________________________________________________________________________  |
 | |                                                                            | |
-| |  - in tinyfiledialogs, char is UTF-8 by default (since v3.6)               | |
-| |                                                                            | |
 | | on windows:                                                                | |
 | |  - for UTF-16, use the wchar_t functions at the bottom of the header file  | |
-| |                                                                            | |
 | |  - _wfopen() requires wchar_t                                              | |
-| |  - fopen() uses char but expects ASCII or MBCS (not UTF-8)                 | |
+| |                                                                            | |
+| |  - in tinyfiledialogs, char is UTF-8 by default (since v3.6)               | |
+| |  - but fopen() expects MBCS (not UTF-8)                                    | |
 | |  - if you want char to be MBCS: set tinyfd_winUtf8 to 0                    | |
 | |                                                                            | |
 | |  - alternatively, tinyfiledialogs provides                                 | |
@@ -50,19 +44,14 @@ appreciated but is not required.
 2. Altered source versions must be plainly marked as such, and must not be
 misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
-
-     __________________________________________
-    |  ______________________________________  |
-    | |                                      | |
-    | | DO NOT USE USER INPUT IN THE DIALOGS | |
-    | |______________________________________| |
-    |__________________________________________|
 */
 
 #ifndef TINYFILEDIALOGS_H
 #define TINYFILEDIALOGS_H
 
 #ifdef	__cplusplus
+/* if tinydialogs.c is compiled as C++ code rather than C code, you may need to comment this out
+				and the corresponding closing bracket near the end of this file. */
 extern "C" {
 #endif
 
@@ -96,23 +85,23 @@ int tinyfd_setGlobalInt(char const * aIntVariableName, int aValue); /* returns -
 				      "tinyfd_forceConsole" "tinyfd_assumeGraphicDisplay" "tinyfd_winUtf8"
 **************/
 
+
 extern char tinyfd_version[8]; /* contains tinyfd current version number */
 extern char tinyfd_needs[]; /* info about requirements */
 extern int tinyfd_verbose; /* 0 (default) or 1 : on unix, prints the command line calls */
 extern int tinyfd_silent; /* 1 (default) or 0 : on unix, hide errors and warnings from called dialogs */
 
-/** Curses dialogs are difficult to use and counter-intuitive.
-On windows they are only ascii and still uses the unix backslash ! **/
+/* Curses dialogs are difficult to use, on windows they are only ascii and uses the unix backslah */
 extern int tinyfd_allowCursesDialogs; /* 0 (default) or 1 */
 
 extern int tinyfd_forceConsole;  /* 0 (default) or 1 */
 /* for unix & windows: 0 (graphic mode) or 1 (console mode).
 0: try to use a graphic solution, if it fails then it uses console mode.
-1: forces all dialogs into console mode even when an X server is present.
-   if enabled, it can use the package Dialog or dialog.exe.
+1: forces all dialogs into console mode even when an X server is present,
+   it can use the package dialog or dialog.exe.
    on windows it only make sense for console applications */
 
-/* extern int tinyfd_assumeGraphicDisplay; */ /* 0 (default) or 1  */
+extern int tinyfd_assumeGraphicDisplay; /* 0 (default) or 1  */
 /* some systems don't set the environment variable DISPLAY even when a graphic display is present.
 set this to 1 to tell tinyfiledialogs to assume the existence of a graphic display */
 
@@ -123,9 +112,9 @@ but will return 0 for console mode, 1 for graphic mode.
 tinyfd_response is then filled with the retain solution.
 possible values for tinyfd_response are (all lowercase)
 for graphic mode:
-  windows_wchar windows applescript kdialog zenity zenity3 yad matedialog
-  shellementary qarma python2-tkinter python3-tkinter python-dbus
-  perl-dbus gxmessage gmessage xmessage xdialog gdialog dunst
+  windows_wchar windows applescript kdialog zenity zenity3 matedialog
+  shellementary qarma yad python2-tkinter python3-tkinter python-dbus
+  perl-dbus gxmessage gmessage xmessage xdialog gdialog
 for console mode:
   dialog whiptail basicinput no_solution */
 
@@ -148,12 +137,12 @@ int tinyfd_messageBox(
 char * tinyfd_inputBox(
 	char const * aTitle , /* NULL or "" */
 	char const * aMessage , /* NULL or "" (\n and \t have no effect) */
-	char const * aDefaultInput ) ;  /* NULL = passwordBox, "" = inputbox */
+	char const * aDefaultInput ) ;  /* NULL passwordBox, "" inputbox */
 		/* returns NULL on cancel */
 
 char * tinyfd_saveFileDialog(
 	char const * aTitle , /* NULL or "" */
-	char const * aDefaultPathAndOrFile , /* NULL or "" , ends with / to set only a directory */
+	char const * aDefaultPathAndFile , /* NULL or "" */
 	int aNumOfFilterPatterns , /* 0  (1 in the following example) */
 	char const * const * aFilterPatterns , /* NULL or char const * lFilterPatterns[1]={"*.txt"} */
 	char const * aSingleFilterDescription ) ; /* NULL or "text files" */
@@ -161,7 +150,7 @@ char * tinyfd_saveFileDialog(
 
 char * tinyfd_openFileDialog(
 	char const * aTitle, /* NULL or "" */
-	char const * aDefaultPathAndOrFile, /* NULL or "" , ends with / to set only a directory */
+	char const * aDefaultPathAndFile, /* NULL or "" */
 	int aNumOfFilterPatterns , /* 0 (2 in the following example) */
 	char const * const * aFilterPatterns, /* NULL or char const * lFilterPatterns[2]={"*.png","*.jpg"}; */
 	char const * aSingleFilterDescription, /* NULL or "image files" */
@@ -176,14 +165,14 @@ char * tinyfd_selectFolderDialog(
 
 char * tinyfd_colorChooser(
 	char const * aTitle, /* NULL or "" */
-	char const * aDefaultHexRGB, /* NULL or "" or "#FF0000" */
+	char const * aDefaultHexRGB, /* NULL or "#FF0000" */
 	unsigned char const aDefaultRGB[3] , /* unsigned char lDefaultRGB[3] = { 0 , 128 , 255 }; */
 	unsigned char aoResultRGB[3] ) ; /* unsigned char lResultRGB[3]; */
-		/* aDefaultRGB is used only if aDefaultHexRGB is absent */
-		/* aDefaultRGB and aoResultRGB can be the same array */
-		/* returns NULL on cancel */
 		/* returns the hexcolor as a string "#FF0000" */
 		/* aoResultRGB also contains the result */
+		/* aDefaultRGB is used only if aDefaultHexRGB is NULL */
+		/* aDefaultRGB and aoResultRGB can be the same array */
+		/* returns NULL on cancel */
 
 
 /************ WINDOWS ONLY SECTION ************************/
@@ -213,7 +202,7 @@ wchar_t * tinyfd_inputBoxW(
 /* windows only - utf-16 version */
 wchar_t * tinyfd_saveFileDialogW(
 	wchar_t const * aTitle, /* NULL or L"" */
-	wchar_t const * aDefaultPathAndOrFile, /* NULL or L"" , ends with / to set only a directory */
+	wchar_t const * aDefaultPathAndFile, /* NULL or L"" */
 	int aNumOfFilterPatterns, /* 0 (1 in the following example) */
 	wchar_t const * const * aFilterPatterns, /* NULL or wchar_t const * lFilterPatterns[1]={L"*.txt"} */
 	wchar_t const * aSingleFilterDescription); /* NULL or L"text files" */
@@ -222,7 +211,7 @@ wchar_t * tinyfd_saveFileDialogW(
 /* windows only - utf-16 version */
 wchar_t * tinyfd_openFileDialogW(
 	wchar_t const * aTitle, /* NULL or L"" */
-	wchar_t const * aDefaultPathAndOrFile, /* NULL or L"" , ends with / to set only a directory */
+	wchar_t const * aDefaultPathAndFile, /* NULL or L"" */
 	int aNumOfFilterPatterns , /* 0 (2 in the following example) */
 	wchar_t const * const * aFilterPatterns, /* NULL or wchar_t const * lFilterPatterns[2]={L"*.png","*.jpg"} */
 	wchar_t const * aSingleFilterDescription, /* NULL or L"image files" */

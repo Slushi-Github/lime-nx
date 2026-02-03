@@ -20,8 +20,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -57,6 +55,7 @@ extern const struct NameValue setopt_nv_CURLFTPSSL_CCC[];
 extern const struct NameValue setopt_nv_CURLUSESSL[];
 extern const struct NameValueUnsigned setopt_nv_CURLSSLOPT[];
 extern const struct NameValue setopt_nv_CURL_NETRC[];
+extern const struct NameValue setopt_nv_CURLPROTO[];
 extern const struct NameValueUnsigned setopt_nv_CURLAUTH[];
 extern const struct NameValueUnsigned setopt_nv_CURLHSTS[];
 
@@ -72,6 +71,8 @@ extern const struct NameValueUnsigned setopt_nv_CURLHSTS[];
 #define setopt_nv_CURLOPT_SSL_OPTIONS setopt_nv_CURLSSLOPT
 #define setopt_nv_CURLOPT_PROXY_SSL_OPTIONS setopt_nv_CURLSSLOPT
 #define setopt_nv_CURLOPT_NETRC setopt_nv_CURL_NETRC
+#define setopt_nv_CURLOPT_PROTOCOLS setopt_nv_CURLPROTO
+#define setopt_nv_CURLOPT_REDIR_PROTOCOLS setopt_nv_CURLPROTO
 #define setopt_nv_CURLOPT_PROXYTYPE setopt_nv_CURLPROXY
 #define setopt_nv_CURLOPT_PROXYAUTH setopt_nv_CURLAUTH
 #define setopt_nv_CURLOPT_SOCKS5_AUTH setopt_nv_CURLAUTH

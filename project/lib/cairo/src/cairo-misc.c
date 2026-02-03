@@ -48,9 +48,6 @@
 #ifdef HAVE_XLOCALE_H
 #include <xlocale.h>
 #endif
-#if HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
 
 COMPILE_TIME_ASSERT ((int)CAIRO_STATUS_LAST_STATUS < (int)CAIRO_INT_STATUS_UNSUPPORTED);
 COMPILE_TIME_ASSERT (CAIRO_INT_STATUS_LAST_STATUS <= 127);
@@ -179,13 +176,12 @@ cairo_status_to_string (cairo_status_t status)
 	return "invalid tag name, attributes, or nesting";
     case CAIRO_STATUS_DWRITE_ERROR:
 	return "Window Direct Write error";
-    case CAIRO_STATUS_SVG_FONT_ERROR:
-	return "error occured while rendering an OpenType-SVG font";
     default:
     case CAIRO_STATUS_LAST_STATUS:
 	return "<unknown error status>";
     }
 }
+
 
 /**
  * cairo_glyph_allocate:
@@ -215,6 +211,7 @@ cairo_glyph_allocate (int num_glyphs)
 
     return _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
 }
+slim_hidden_def (cairo_glyph_allocate);
 
 /**
  * cairo_glyph_free:
@@ -234,6 +231,7 @@ cairo_glyph_free (cairo_glyph_t *glyphs)
 {
     free (glyphs);
 }
+slim_hidden_def (cairo_glyph_free);
 
 /**
  * cairo_text_cluster_allocate:
@@ -263,6 +261,7 @@ cairo_text_cluster_allocate (int num_clusters)
 
     return _cairo_malloc_ab (num_clusters, sizeof (cairo_text_cluster_t));
 }
+slim_hidden_def (cairo_text_cluster_allocate);
 
 /**
  * cairo_text_cluster_free:
@@ -282,6 +281,8 @@ cairo_text_cluster_free (cairo_text_cluster_t *clusters)
 {
     free (clusters);
 }
+slim_hidden_def (cairo_text_cluster_free);
+
 
 /* Private stuff */
 
@@ -806,12 +807,12 @@ get_C_locale (void)
     locale_t C;
 
 retry:
-    C = (locale_t) _cairo_atomic_ptr_get ((cairo_atomic_intptr_t *) &C_locale);
+    C = (locale_t) _cairo_atomic_ptr_get ((void **) &C_locale);
 
     if (unlikely (!C)) {
         C = newlocale (LC_ALL_MASK, "C", NULL);
 
-        if (!_cairo_atomic_ptr_cmpxchg ((cairo_atomic_intptr_t *) &C_locale, NULL, C)) {
+        if (!_cairo_atomic_ptr_cmpxchg ((void **) &C_locale, NULL, C)) {
             freelocale (C_locale);
             goto retry;
         }
@@ -887,33 +888,6 @@ _cairo_strtod (const char *nptr, char **endptr)
 }
 #endif
 
-#ifndef HAVE_STRNDUP
-char *
-_cairo_strndup (const char *s, size_t n)
-{
-    const char *end;
-    size_t len;
-    char *sdup;
-
-    if (s == NULL)
-	return NULL;
-
-    end = memchr (s, 0, n);
-    if (end)
-	len = end - s;
-    else
-	len = n;
-
-    sdup = (char *) _cairo_malloc (len + 1);
-    if (sdup != NULL) {
-	memcpy (sdup, s, len);
-	sdup[len] = '\0';
-    }
-
-    return sdup;
-}
-#endif
-
 /**
  * _cairo_fopen:
  * @filename: filename to open
@@ -959,40 +933,14 @@ _cairo_fopen (const char *filename, const char *mode, FILE **file_out)
 	return status;
     }
 
-    result = _wfopen (filename_w, mode_w);
+    result = _wfopen(filename_w, mode_w);
 
     free (filename_w);
     free (mode_w);
 
 #else /* Use fopen directly */
-
-#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 7)
-    /* Glibc 2.7 supports the "e" mode flag that opens the file with O_CLOEXEC.
-     * this avoid the race condition in the fcntl fallback below. */
-
-    char new_mode[20];
-    snprintf (new_mode, sizeof (new_mode), "%s%s", mode, "e");
-    result = fopen (filename, new_mode);
-
-#else /* fopen "e" not available */
-
     result = fopen (filename, mode);
-
-#if defined(HAVE_FCNTL_H) && defined(FD_CLOEXEC)
-    /* Manually set CLOEXEC */
-    if (result != NULL) {
-	int fd = fileno (result);
-	if (fd != -1) {
-	    int flags = fcntl (fd, F_GETFD);
-	    if (flags >= 0)
-		flags = fcntl (fd, F_SETFD, flags | FD_CLOEXEC);
-	}
-    }
-#endif /* defined(HAVE_FCNTL_H) && defined(FD_CLOEXEC) */
-
-#endif /* fopen "e" not available */
-
-#endif /* !_WIN32 */
+#endif
 
     *file_out = result;
 
@@ -1000,15 +948,27 @@ _cairo_fopen (const char *filename, const char *mode, FILE **file_out)
 }
 
 #ifdef _WIN32
+
+#define WIN32_LEAN_AND_MEAN
+/* We require Windows 2000 features such as ETO_PDY */
+#if !defined(WINVER) || (WINVER < 0x0500)
+# define WINVER 0x0500
+#endif
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
+# define _WIN32_WINNT 0x0500
+#endif
+
 #include <windows.h>
 #include <io.h>
 
+#if !_WIN32_WCE
 /* tmpfile() replacement for Windows.
  *
  * On Windows tmpfile() creates the file in the root directory. This
- * may fail due to insufficient privileges.
+ * may fail due to insufficient privileges. However, this isn't a
+ * problem on Windows CE so we don't use it there.
  */
-static FILE *
+FILE *
 _cairo_win32_tmpfile (void)
 {
     DWORD path_len;
@@ -1022,7 +982,7 @@ _cairo_win32_tmpfile (void)
     if (path_len <= 0 || path_len >= MAX_PATH)
 	return NULL;
 
-    if (GetTempFileNameW (path_name, L"cairo_", 0, file_name) == 0)
+    if (GetTempFileNameW (path_name, L"ps_", 0, file_name) == 0)
 	return NULL;
 
     handle = CreateFileW (file_name,
@@ -1051,59 +1011,9 @@ _cairo_win32_tmpfile (void)
 
     return fp;
 }
+#endif /* !_WIN32_WCE */
+
 #endif /* _WIN32 */
-
-/**
- * _cairo_tmpfile:
- *
- * Exactly like the C library function. On platforms that support
- * O_CLOEXEC, the file will be opened with this flag. On Windows, the
- * file is opened in the temp directory instead of the root directory.
- *
- * Return value: a file handle or NULL on error.
- **/
-FILE *
-_cairo_tmpfile (void)
-{
-#ifdef _WIN32
-    return _cairo_win32_tmpfile ();
-#else /* !_WIN32 */
-    int fd;
-    FILE *file;
-    int flags;
-
-#ifdef O_TMPFILE
-    fd = open(P_tmpdir,
-	      O_TMPFILE | O_EXCL | O_RDWR | O_NOATIME | O_CLOEXEC,
-	      0600);
-    if (fd == -1 && errno == ENOENT) {
-	fd = open("/tmp",
-		  O_TMPFILE | O_EXCL | O_RDWR | O_NOATIME | O_CLOEXEC,
-		  0600);
-    }
-    if (fd != -1)
-	return fdopen (fd, "wb+");
-
-    /* Fallback */
-#endif /* O_TMPFILE */
-
-    file = tmpfile();
-
-#if defined(HAVE_FCNTL_H) && defined(FD_CLOEXEC)
-    /* Manually set CLOEXEC */
-    if (file != NULL) {
-	fd = fileno(file);
-	if (fd != -1) {
-	    flags = fcntl(fd, F_GETFD);
-	    if (flags >= 0 && !(flags & FD_CLOEXEC))
-		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
-	}
-    }
-#endif /* defined(HAVE_FCNTL_H) && defined(FD_CLOEXEC) */
-
-    return file;
-#endif /* !_WIN32 */
-}
 
 typedef struct _cairo_intern_string {
     cairo_hash_entry_t hash_entry;

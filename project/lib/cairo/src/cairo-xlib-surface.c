@@ -47,15 +47,6 @@
 
 #include "cairoint.h"
 
-/**
- * CAIRO_HAS_XLIB_XCB_FUNCTIONS:
- *
- * Defined if Cairo has support for XCB integration with Xlib.
- * This macro can be used to conditionally compile backend-specific code.
- *
- * Since: 1.10
- **/
-
 #if !CAIRO_HAS_XLIB_XCB_FUNCTIONS
 
 #include "cairo-xlib-private.h"
@@ -1773,7 +1764,7 @@ found:
 	;
     }
 
-    surface = _cairo_calloc (sizeof (cairo_xlib_surface_t));
+    surface = _cairo_malloc (sizeof (cairo_xlib_surface_t));
     if (unlikely (surface == NULL))
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 

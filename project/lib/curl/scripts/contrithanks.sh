@@ -6,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 2013 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) 2013 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -18,8 +18,6 @@
 #
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
-#
-# SPDX-License-Identifier: curl
 #
 ###########################################################################
 
@@ -55,7 +53,7 @@ cat ./docs/THANKS
   fi
  ) | \
 
-grep -Eai '(^Author|^Commit|by):' | \
+egrep -ai '(^Author|^Commit|by):' | \
 cut -d: -f2- | \
 cut '-d(' -f1 | \
 cut '-d<' -f1 | \

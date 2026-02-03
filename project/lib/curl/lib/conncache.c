@@ -19,8 +19,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -498,7 +496,7 @@ Curl_conncache_extract_oldest(struct Curl_easy *data)
       conn = curr->ptr;
 
       if(!CONN_INUSE(conn) && !conn->bits.close &&
-         !conn->connect_only) {
+         !conn->bits.connect_only) {
         /* Set higher score for the age passed since the connection was used */
         score = Curl_timediff(now, conn->lastused);
 

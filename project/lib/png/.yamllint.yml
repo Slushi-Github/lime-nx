@@ -3,5 +3,3 @@ rules:
   document-start: disable
   document-end: disable
   line-length: disable
-  truthy:
-    check-keys: false

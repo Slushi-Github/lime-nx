@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 /* Now include the curl_setup.h file from libcurl's private libdir (the source
@@ -484,13 +482,5 @@ extern int unitfail;
 
 #define global_init(A) \
   chk_global_init((A), (__FILE__), (__LINE__))
-
-#define NO_SUPPORT_BUILT_IN                     \
-  int test(char *URL)                           \
-  {                                             \
-    (void)URL;                                  \
-    fprintf(stderr, "Missing support\n");       \
-    return 1;                                   \
-  }
 
 /* ---------------------------------------------------------------- */

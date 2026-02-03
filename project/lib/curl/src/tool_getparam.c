@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -41,7 +39,6 @@
 #include "tool_paramhlp.h"
 #include "tool_parsecfg.h"
 #include "tool_main.h"
-#include "dynbuf.h"
 
 #include "memdebug.h" /* keep this as LAST include */
 
@@ -96,7 +93,6 @@ static const struct LongShort aliases[]= {
   {"*h", "trace-ascii",              ARG_FILENAME},
   {"*H", "alpn",                     ARG_BOOL},
   {"*i", "limit-rate",               ARG_STRING},
-  {"*I", "rate",                     ARG_STRING},
   {"*j", "compressed",               ARG_BOOL},
   {"*J", "tr-encoding",              ARG_BOOL},
   {"*k", "digest",                   ARG_BOOL},
@@ -234,7 +230,6 @@ static const struct LongShort aliases[]= {
   {"db", "data-binary",              ARG_STRING},
   {"de", "data-urlencode",           ARG_STRING},
   {"df", "json",                     ARG_STRING},
-  {"dg", "url-query",                ARG_STRING},
   {"D",  "dump-header",              ARG_FILENAME},
   {"e",  "referer",                  ARG_STRING},
   {"E",  "cert",                     ARG_FILENAME},
@@ -316,7 +311,7 @@ static const struct LongShort aliases[]= {
   {"N",  "buffer",                   ARG_BOOL},
          /* 'buffer' listed as --no-buffer in the help */
   {"o",  "output",                   ARG_FILENAME},
-  {"O",  "remote-name",              ARG_BOOL},
+  {"O",  "remote-name",              ARG_NONE},
   {"Oa", "remote-name-all",          ARG_BOOL},
   {"Ob", "output-dir",               ARG_STRING},
   {"Oc", "clobber",                  ARG_BOOL},
@@ -489,6 +484,7 @@ GetFileAndPassword(char *nextarg, char **file, char **password)
     Curl_safefree(*password);
     *password = passphrase;
   }
+  cleanarg(nextarg);
 }
 
 /* Get a size parameter for '--limit-rate' or '--max-filesize'.
@@ -502,7 +498,7 @@ static ParameterError GetSizeParameter(struct GlobalConfig *global,
   char *unit;
   curl_off_t value;
 
-  if(curlx_strtoofft(arg, &unit, 10, &value)) {
+  if(curlx_strtoofft(arg, &unit, 0, &value)) {
     warnf(global, "invalid number specified for %s\n", which);
     return PARAM_BAD_USE;
   }
@@ -543,121 +539,6 @@ static ParameterError GetSizeParameter(struct GlobalConfig *global,
   return PARAM_OK;
 }
 
-#ifdef HAVE_WRITABLE_ARGV
-static void cleanarg(argv_item_t str)
-{
-  /* now that GetStr has copied the contents of nextarg, wipe the next
-   * argument out so that the username:password isn't displayed in the
-   * system process list */
-  if(str) {
-    size_t len = strlen(str);
-    memset(str, ' ', len);
-  }
-}
-#else
-#define cleanarg(x)
-#endif
-
-/* --data-urlencode */
-static ParameterError data_urlencode(struct GlobalConfig *global,
-                                     char *nextarg,
-                                     char **postp,
-                                     size_t *lenp)
-{
-  /* [name]=[content], we encode the content part only
-   * [name]@[file name]
-   *
-   * Case 2: we first load the file using that name and then encode
-   * the content.
-   */
-  ParameterError err;
-  const char *p = strchr(nextarg, '=');
-  size_t nlen;
-  char is_file;
-  char *postdata = NULL;
-  size_t size = 0;
-  if(!p)
-    /* there was no '=' letter, check for a '@' instead */
-    p = strchr(nextarg, '@');
-  if(p) {
-    nlen = p - nextarg; /* length of the name part */
-    is_file = *p++; /* pass the separator */
-  }
-  else {
-    /* neither @ nor =, so no name and it isn't a file */
-    nlen = is_file = 0;
-    p = nextarg;
-  }
-  if('@' == is_file) {
-    FILE *file;
-    /* a '@' letter, it means that a file name or - (stdin) follows */
-    if(!strcmp("-", p)) {
-      file = stdin;
-      set_binmode(stdin);
-    }
-    else {
-      file = fopen(p, "rb");
-      if(!file)
-        warnf(global,
-              "Couldn't read data from file \"%s\", this makes "
-              "an empty POST.\n", nextarg);
-    }
-
-    err = file2memory(&postdata, &size, file);
-
-    if(file && (file != stdin))
-      fclose(file);
-    if(err)
-      return err;
-  }
-  else {
-    GetStr(&postdata, p);
-    if(postdata)
-      size = strlen(postdata);
-  }
-
-  if(!postdata) {
-    /* no data from the file, point to a zero byte string to make this
-       get sent as a POST anyway */
-    postdata = strdup("");
-    if(!postdata)
-      return PARAM_NO_MEM;
-    size = 0;
-  }
-  else {
-    char *enc = curl_easy_escape(NULL, postdata, (int)size);
-    Curl_safefree(postdata); /* no matter if it worked or not */
-    if(enc) {
-      /* replace (in-place) '%20' by '+' according to RFC1866 */
-      size_t enclen = replace_url_encoded_space_by_plus(enc);
-      /* now make a string with the name from above and append the
-         encoded string */
-      size_t outlen = nlen + enclen + 2;
-      char *n = malloc(outlen);
-      if(!n) {
-        curl_free(enc);
-        return PARAM_NO_MEM;
-      }
-      if(nlen > 0) { /* only append '=' if we have a name */
-        msnprintf(n, outlen, "%.*s=%s", (int)nlen, nextarg, enc);
-        size = outlen-1;
-      }
-      else {
-        strcpy(n, enc);
-        size = outlen-2; /* since no '=' was inserted */
-      }
-      curl_free(enc);
-      postdata = n;
-    }
-    else
-      return PARAM_NO_MEM;
-  }
-  *postp = postdata;
-  *lenp = size;
-  return PARAM_OK;
-}
-
-
 ParameterError getparameter(const char *flag, /* f or -long-flag */
                             char *nextarg,    /* NULL if unset */
                             bool *usedarg,    /* set to TRUE if the arg
@@ -677,17 +558,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
   ParameterError err;
   bool toggle = TRUE; /* how to switch boolean options, on or off. Controlled
                          by using --OPTION or --no-OPTION */
-#ifdef HAVE_WRITABLE_ARGV
-  argv_item_t clearthis = NULL;
-#endif
-
-  static const char *redir_protos[] = {
-    "http",
-    "https",
-    "ftp",
-    "ftps",
-    NULL
-  };
 
   *usedarg = FALSE; /* default is that we don't use the arg */
 
@@ -764,9 +634,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       /* this option requires an extra parameter */
       if(!longopt && parse[1]) {
         nextarg = (char *)&parse[1]; /* this is the actual extra parameter */
-#ifdef HAVE_WRITABLE_ARGV
-        clearthis = nextarg;
-#endif
         singleopt = TRUE;   /* don't loop anymore after this */
       }
       else if(!nextarg)
@@ -800,24 +667,24 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         GetStr(&config->dns_ipv6_addr, nextarg);
         break;
       case 'a': /* random-file */
+        GetStr(&config->random_file, nextarg);
         break;
       case 'b': /* egd-file */
+        GetStr(&config->egd_file, nextarg);
         break;
       case 'B': /* OAuth 2.0 bearer token */
         GetStr(&config->oauth_bearer, nextarg);
-        cleanarg(clearthis);
+        cleanarg(nextarg);
         config->authtype |= CURLAUTH_BEARER;
         break;
       case 'c': /* connect-timeout */
-        err = secs2ms(&config->connecttimeout_ms, nextarg);
+        err = str2udouble(&config->connecttimeout, nextarg,
+                          LONG_MAX/1000);
         if(err)
           return err;
         break;
       case 'C': /* doh-url */
         GetStr(&config->doh_url, nextarg);
-        if(config->doh_url && !config->doh_url[0])
-          /* if given a blank string, we make it NULL again */
-          Curl_safefree(config->doh_url);
         break;
       case 'd': /* ciphers */
         GetStr(&config->cipher_list, nextarg);
@@ -850,7 +717,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         global->tracetype = TRACE_BIN;
         break;
       case 'G': /* --npn */
-        warnf(global, "--npn is no longer supported\n");
+        config->nonpn = (!toggle)?TRUE:FALSE;
         break;
       case 'h': /* --trace-ascii */
         GetStr(&global->trace_dump, nextarg);
@@ -873,54 +740,11 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         config->sendpersecond = value;
       }
       break;
-      case 'I': /* --rate (request rate) */
-      {
-        /* support a few different suffixes, extract the suffix first, then
-           get the number and convert to per hour.
-           /s == per second
-           /m == per minute
-           /h == per hour (default)
-           /d == per day (24 hours)
-        */
-        char *div = strchr(nextarg, '/');
-        char number[26];
-        long denominator;
-        long numerator = 60*60*1000; /* default per hour */
-        size_t numlen = div ? (size_t)(div - nextarg) : strlen(nextarg);
-        if(numlen > sizeof(number)-1)
-          return PARAM_NUMBER_TOO_LARGE;
-        strncpy(number, nextarg, numlen);
-        number[numlen] = 0;
-        err = str2unum(&denominator, number);
-        if(err)
-          return err;
-        if(denominator < 1)
-          return PARAM_BAD_USE;
-        if(div) {
-          char unit = div[1];
-          switch(unit) {
-          case 's': /* per second */
-            numerator = 1000;
-            break;
-          case 'm': /* per minute */
-            numerator = 60*1000;
-            break;
-          case 'h': /* per hour */
-            break;
-          case 'd': /* per day */
-            numerator = 24*60*60*1000;
-            break;
-          default:
-            errorf(global, "unsupported --rate unit\n");
-            return PARAM_BAD_USE;
-          }
-        }
-        global->ms_per_transfer = numerator/denominator;
-      }
-      break;
 
       case 'j': /* --compressed */
-        if(toggle && !(feature_libz || feature_brotli || feature_zstd))
+        if(toggle &&
+           !(curlinfo->features & (CURL_VERSION_LIBZ |
+                                   CURL_VERSION_BROTLI | CURL_VERSION_ZSTD)))
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         config->encoding = toggle;
         break;
@@ -937,30 +761,36 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case 'l': /* --negotiate */
-        if(!toggle)
-          config->authtype &= ~CURLAUTH_NEGOTIATE;
-        else if(feature_spnego)
-          config->authtype |= CURLAUTH_NEGOTIATE;
+        if(toggle) {
+          if(curlinfo->features & CURL_VERSION_SPNEGO)
+            config->authtype |= CURLAUTH_NEGOTIATE;
+          else
+            return PARAM_LIBCURL_DOESNT_SUPPORT;
+        }
         else
-          return PARAM_LIBCURL_DOESNT_SUPPORT;
+          config->authtype &= ~CURLAUTH_NEGOTIATE;
         break;
 
       case 'm': /* --ntlm */
-        if(!toggle)
-          config->authtype &= ~CURLAUTH_NTLM;
-        else if(feature_ntlm)
-          config->authtype |= CURLAUTH_NTLM;
+        if(toggle) {
+          if(curlinfo->features & CURL_VERSION_NTLM)
+            config->authtype |= CURLAUTH_NTLM;
+          else
+            return PARAM_LIBCURL_DOESNT_SUPPORT;
+        }
         else
-          return PARAM_LIBCURL_DOESNT_SUPPORT;
+          config->authtype &= ~CURLAUTH_NTLM;
         break;
 
       case 'M': /* --ntlm-wb */
-        if(!toggle)
-          config->authtype &= ~CURLAUTH_NTLM_WB;
-        else if(feature_ntlm_wb)
-          config->authtype |= CURLAUTH_NTLM_WB;
+        if(toggle) {
+          if(curlinfo->features & CURL_VERSION_NTLM_WB)
+            config->authtype |= CURLAUTH_NTLM_WB;
+          else
+            return PARAM_LIBCURL_DOESNT_SUPPORT;
+        }
         else
-          return PARAM_LIBCURL_DOESNT_SUPPORT;
+          config->authtype &= ~CURLAUTH_NTLM_WB;
         break;
 
       case 'n': /* --basic for completeness */
@@ -1006,9 +836,10 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case 't': /* --proxy-ntlm */
-        if(!feature_ntlm)
+        if(curlinfo->features & CURL_VERSION_NTLM)
+          config->proxyntlm = toggle;
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        config->proxyntlm = toggle;
         break;
 
       case 'u': /* --crlf */
@@ -1042,9 +873,10 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
       case 'x': /* --krb */
         /* kerberos level string */
-        if(!feature_spnego)
+        if(curlinfo->features & CURL_VERSION_SPNEGO)
+          GetStr(&config->krblevel, nextarg);
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        GetStr(&config->krblevel, nextarg);
         break;
       case 'X': /* --haproxy-protocol */
         config->haproxy_protocol = toggle;
@@ -1104,12 +936,9 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     case '$': /* more options without a short option */
       switch(subletter) {
       case 'a': /* --ssl */
-        if(toggle && !feature_ssl)
+        if(toggle && !(curlinfo->features & CURL_VERSION_SSL))
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         config->ftp_ssl = toggle;
-        if(config->ftp_ssl)
-          warnf(global,
-                "--ssl is an insecure option, consider --ssl-reqd instead\n");
         break;
       case 'b': /* --ftp-pasv */
         Curl_safefree(config->ftpport);
@@ -1164,9 +993,10 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case 'k': /* --proxy-negotiate */
-        if(!feature_spnego)
+        if(curlinfo->features & CURL_VERSION_SPNEGO)
+          config->proxynegotiate = toggle;
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        config->proxynegotiate = toggle;
         break;
 
       case 'l': /* --form-escape */
@@ -1227,7 +1057,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         GetStr(&config->ftp_alternative_to_user, nextarg);
         break;
       case 'v': /* --ssl-reqd */
-        if(toggle && !feature_ssl)
+        if(toggle && !(curlinfo->features & CURL_VERSION_SSL))
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         config->ftp_ssl_reqd = toggle;
         break;
@@ -1235,7 +1065,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         config->disable_sessionid = (!toggle)?TRUE:FALSE;
         break;
       case 'x': /* --ftp-ssl-control */
-        if(toggle && !feature_ssl)
+        if(toggle && !(curlinfo->features & CURL_VERSION_SSL))
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         config->ftp_ssl_control = toggle;
         break;
@@ -1281,7 +1111,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         /* This specifies the noproxy list */
         GetStr(&config->noproxy, nextarg);
         break;
-       case '7': /* --socks5-gssapi-nec */
+       case '7': /* --socks5-gssapi-nec*/
         config->socks5_gssapi_nec = toggle;
         break;
       case '8': /* --proxy1.0 */
@@ -1308,13 +1138,12 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
       case 'D': /* --proto */
         config->proto_present = TRUE;
-        err = proto2num(config, built_in_protos, &config->proto_str, nextarg);
-        if(err)
-          return err;
+        if(proto2num(config, &config->proto, nextarg))
+          return PARAM_BAD_USE;
         break;
       case 'E': /* --proto-redir */
         config->proto_redir_present = TRUE;
-        if(proto2num(config, redir_protos, &config->proto_redir_str, nextarg))
+        if(proto2num(config, &config->proto_redir, nextarg))
           return PARAM_BAD_USE;
         break;
       case 'F': /* --resolve */
@@ -1364,7 +1193,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
           return err;
         break;
       case 'R': /* --expect100-timeout */
-        err = secs2ms(&config->expect100timeout_ms, nextarg);
+        err = str2udouble(&config->expect100timeout, nextarg, LONG_MAX/1000);
         if(err)
           return err;
         break;
@@ -1427,14 +1256,15 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         config->httpversion = CURL_HTTP_VERSION_2_0;
         break;
       case '3': /* --http2-prior-knowledge */
-        /* HTTP version 2.0 over clean TCP */
+        /* HTTP version 2.0 over clean TCP*/
         config->httpversion = CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE;
         break;
       case '4': /* --http3 */
         /* HTTP version 3 go over QUIC - at once */
-        if(!feature_http3)
+        if(curlinfo->features & CURL_VERSION_HTTP3)
+          config->httpversion = CURL_HTTP_VERSION_3;
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        config->httpversion = CURL_HTTP_VERSION_3;
         break;
       case '9':
         /* Allow HTTP/0.9 responses! */
@@ -1499,14 +1329,16 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     case 'b':
       switch(subletter) {
       case 'a': /* --alt-svc */
-        if(!feature_altsvc)
+        if(curlinfo->features & CURL_VERSION_ALTSVC)
+          GetStr(&config->altsvc, nextarg);
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        GetStr(&config->altsvc, nextarg);
         break;
       case 'b': /* --hsts */
-        if(!feature_hsts)
+        if(curlinfo->features & CURL_VERSION_HSTS)
+          GetStr(&config->hsts, nextarg);
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        GetStr(&config->hsts, nextarg);
         break;
       default:  /* --cookie string coming up: */
         if(nextarg[0] == '@') {
@@ -1555,42 +1387,91 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       size_t size = 0;
       bool raw_mode = (subletter == 'r');
 
-      if(subletter == 'g') { /* --url-query */
-#define MAX_QUERY_LEN 100000 /* larger is not likely to ever work */
-        char *query;
-        struct curlx_dynbuf dyn;
-        curlx_dyn_init(&dyn, MAX_QUERY_LEN);
-
-        if(*nextarg == '+') {
-          /* use without encoding */
-          query = strdup(&nextarg[1]);
-          if(!query)
-            return PARAM_NO_MEM;
+      if(subletter == 'e') { /* --data-urlencode */
+        /* [name]=[content], we encode the content part only
+         * [name]@[file name]
+         *
+         * Case 2: we first load the file using that name and then encode
+         * the content.
+         */
+        const char *p = strchr(nextarg, '=');
+        size_t nlen;
+        char is_file;
+        if(!p)
+          /* there was no '=' letter, check for a '@' instead */
+          p = strchr(nextarg, '@');
+        if(p) {
+          nlen = p - nextarg; /* length of the name part */
+          is_file = *p++; /* pass the separator */
         }
         else {
-          err = data_urlencode(global, nextarg, &query, &size);
+          /* neither @ nor =, so no name and it isn't a file */
+          nlen = is_file = 0;
+          p = nextarg;
+        }
+        if('@' == is_file) {
+          /* a '@' letter, it means that a file name or - (stdin) follows */
+          if(!strcmp("-", p)) {
+            file = stdin;
+            set_binmode(stdin);
+          }
+          else {
+            file = fopen(p, "rb");
+            if(!file)
+              warnf(global,
+                    "Couldn't read data from file \"%s\", this makes "
+                    "an empty POST.\n", nextarg);
+          }
+
+          err = file2memory(&postdata, &size, file);
+
+          if(file && (file != stdin))
+            fclose(file);
           if(err)
             return err;
         }
-
-        if(config->query) {
-          CURLcode result =
-            curlx_dyn_addf(&dyn, "%s&%s", config->query, query);
-          free(query);
-          if(result)
-            return PARAM_NO_MEM;
-          free(config->query);
-          config->query = curlx_dyn_ptr(&dyn);
+        else {
+          GetStr(&postdata, p);
+          if(postdata)
+            size = strlen(postdata);
         }
-        else
-          config->query = query;
 
-        break; /* this is not a POST argument at all */
-      }
-      else if(subletter == 'e') { /* --data-urlencode */
-        err = data_urlencode(global, nextarg, &postdata, &size);
-        if(err)
-          return err;
+        if(!postdata) {
+          /* no data from the file, point to a zero byte string to make this
+             get sent as a POST anyway */
+          postdata = strdup("");
+          if(!postdata)
+            return PARAM_NO_MEM;
+          size = 0;
+        }
+        else {
+          char *enc = curl_easy_escape(NULL, postdata, (int)size);
+          Curl_safefree(postdata); /* no matter if it worked or not */
+          if(enc) {
+            /* replace (in-place) '%20' by '+' according to RFC1866 */
+            size_t enclen = replace_url_encoded_space_by_plus(enc);
+            /* now make a string with the name from above and append the
+               encoded string */
+            size_t outlen = nlen + enclen + 2;
+            char *n = malloc(outlen);
+            if(!n) {
+              curl_free(enc);
+              return PARAM_NO_MEM;
+            }
+            if(nlen > 0) { /* only append '=' if we have a name */
+              msnprintf(n, outlen, "%.*s=%s", nlen, nextarg, enc);
+              size = outlen-1;
+            }
+            else {
+              strcpy(n, enc);
+              size = outlen-2; /* since no '=' was inserted */
+            }
+            curl_free(enc);
+            postdata = n;
+          }
+          else
+            return PARAM_NO_MEM;
+        }
       }
       else if('@' == *nextarg && !raw_mode) {
         /* the data begins with a '@' letter, it means that a file name
@@ -1706,7 +1587,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     case 'E':
       switch(subletter) {
       case '\0': /* certificate file */
-        cleanarg(clearthis);
         GetFileAndPassword(nextarg, &config->cert, &config->key_passwd);
         break;
       case 'a': /* CA info PEM file */
@@ -1723,7 +1603,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
       case 'e': /* private key passphrase */
         GetStr(&config->key_passwd, nextarg);
-        cleanarg(clearthis);
+        cleanarg(nextarg);
         break;
       case 'f': /* crypto engine */
         GetStr(&config->engine, nextarg);
@@ -1748,40 +1628,42 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         GetStr(&config->crlfile, nextarg);
         break;
       case 'k': /* TLS username */
-        if(!feature_tls_srp) {
-          cleanarg(clearthis);
+        if(!(curlinfo->features & CURL_VERSION_TLSAUTH_SRP)) {
+          cleanarg(nextarg);
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         }
         GetStr(&config->tls_username, nextarg);
-        cleanarg(clearthis);
+        cleanarg(nextarg);
         break;
       case 'l': /* TLS password */
-        if(!feature_tls_srp) {
-          cleanarg(clearthis);
+        if(!(curlinfo->features & CURL_VERSION_TLSAUTH_SRP)) {
+          cleanarg(nextarg);
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         }
         GetStr(&config->tls_password, nextarg);
-        cleanarg(clearthis);
+        cleanarg(nextarg);
         break;
       case 'm': /* TLS authentication type */
-        if(!feature_tls_srp)
+        if(curlinfo->features & CURL_VERSION_TLSAUTH_SRP) {
+          GetStr(&config->tls_authtype, nextarg);
+          if(!curl_strequal(config->tls_authtype, "SRP"))
+            return PARAM_LIBCURL_DOESNT_SUPPORT; /* only support TLS-SRP */
+        }
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        GetStr(&config->tls_authtype, nextarg);
-        if(!curl_strequal(config->tls_authtype, "SRP"))
-          return PARAM_LIBCURL_DOESNT_SUPPORT; /* only support TLS-SRP */
         break;
       case 'n': /* no empty SSL fragments, --ssl-allow-beast */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->ssl_allow_beast = toggle;
         break;
 
       case 'o': /* --ssl-auto-client-cert */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->ssl_auto_client_cert = toggle;
         break;
 
       case 'O': /* --proxy-ssl-auto-client-cert */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->proxy_ssl_auto_client_cert = toggle;
         break;
 
@@ -1806,12 +1688,12 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case 's': /* --ssl-no-revoke */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->ssl_no_revoke = TRUE;
         break;
 
       case 'S': /* --ssl-revoke-best-effort */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->ssl_revoke_best_effort = TRUE;
         break;
 
@@ -1820,29 +1702,34 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case 'u': /* TLS username for proxy */
-        cleanarg(clearthis);
-        if(!feature_tls_srp)
+        if(!(curlinfo->features & CURL_VERSION_TLSAUTH_SRP)) {
+          cleanarg(nextarg);
           return PARAM_LIBCURL_DOESNT_SUPPORT;
+        }
         GetStr(&config->proxy_tls_username, nextarg);
+        cleanarg(nextarg);
         break;
 
       case 'v': /* TLS password for proxy */
-        cleanarg(clearthis);
-        if(!feature_tls_srp)
+        if(!(curlinfo->features & CURL_VERSION_TLSAUTH_SRP)) {
+          cleanarg(nextarg);
           return PARAM_LIBCURL_DOESNT_SUPPORT;
+        }
         GetStr(&config->proxy_tls_password, nextarg);
+        cleanarg(nextarg);
         break;
 
       case 'w': /* TLS authentication type for proxy */
-        if(!feature_tls_srp)
+        if(curlinfo->features & CURL_VERSION_TLSAUTH_SRP) {
+          GetStr(&config->proxy_tls_authtype, nextarg);
+          if(!curl_strequal(config->proxy_tls_authtype, "SRP"))
+            return PARAM_LIBCURL_DOESNT_SUPPORT; /* only support TLS-SRP */
+        }
+        else
           return PARAM_LIBCURL_DOESNT_SUPPORT;
-        GetStr(&config->proxy_tls_authtype, nextarg);
-        if(!curl_strequal(config->proxy_tls_authtype, "SRP"))
-          return PARAM_LIBCURL_DOESNT_SUPPORT; /* only support TLS-SRP */
         break;
 
       case 'x': /* certificate file for proxy */
-        cleanarg(clearthis);
         GetFileAndPassword(nextarg, &config->proxy_cert,
                            &config->proxy_key_passwd);
         break;
@@ -1861,7 +1748,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
 
       case '1': /* private key passphrase for proxy */
         GetStr(&config->proxy_key_passwd, nextarg);
-        cleanarg(clearthis);
+        cleanarg(nextarg);
         break;
 
       case '2': /* ciphers for proxy */
@@ -1873,7 +1760,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
 
       case '4': /* no empty SSL fragments for proxy */
-        if(feature_ssl)
+        if(curlinfo->features & CURL_VERSION_SSL)
           config->proxy_ssl_allow_beast = toggle;
         break;
 
@@ -1979,7 +1866,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         GetStr(&config->request_target, nextarg);
       }
       else
-        config->use_httpget = toggle;
+        config->use_httpget = TRUE;
       break;
 
     case 'h': /* h for help */
@@ -2080,17 +1967,19 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case 'm':
       /* specified max time */
-      err = secs2ms(&config->timeout_ms, nextarg);
+      err = str2udouble(&config->timeout, nextarg, LONG_MAX/1000);
       if(err)
         return err;
       break;
     case 'M': /* M for manual, huge help */
       if(toggle) { /* --no-manual shows no manual... */
-#ifndef USE_MANUAL
+#ifdef USE_MANUAL
+        return PARAM_MANUAL_REQUESTED;
+#else
         warnf(global,
               "built-in manual was disabled at build-time!\n");
+        return PARAM_OPTION_UNKNOWN;
 #endif
-        return PARAM_MANUAL_REQUESTED;
       }
       break;
     case 'n':
@@ -2307,12 +2196,12 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     case 'u':
       /* user:password  */
       GetStr(&config->userpwd, nextarg);
-      cleanarg(clearthis);
+      cleanarg(nextarg);
       break;
     case 'U':
       /* Proxy user:password  */
       GetStr(&config->proxyuserpwd, nextarg);
-      cleanarg(clearthis);
+      cleanarg(nextarg);
       break;
     case 'v':
       if(toggle) {
@@ -2404,9 +2293,8 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         err = str2unum(&global->parallel_max, nextarg);
         if(err)
           return err;
-        if(global->parallel_max > MAX_PARALLEL)
-          global->parallel_max = MAX_PARALLEL;
-        else if(global->parallel_max < 1)
+        if((global->parallel_max > MAX_PARALLEL) ||
+           (global->parallel_max < 1))
           global->parallel_max = PARALLEL_DEFAULT;
         break;
       case 'c':   /* --parallel-connect */
@@ -2485,17 +2373,11 @@ ParameterError parse_args(struct GlobalConfig *global, int argc,
            following (URL) argument to start with -. */
         stillflags = FALSE;
       else {
-        char *nextarg = NULL;
-        if(i < (argc - 1)) {
-          nextarg = curlx_convert_tchar_to_UTF8(argv[i + 1]);
-          if(!nextarg) {
-            curlx_unicodefree(orig_opt);
-            return PARAM_NO_MEM;
-          }
-        }
+        char *nextarg = (i < (argc - 1))
+          ? curlx_convert_tchar_to_UTF8(argv[i + 1])
+          : NULL;
 
-        result = getparameter(orig_opt, nextarg, &passarg,
-                              global, config);
+        result = getparameter(orig_opt, nextarg, &passarg, global, config);
 
         curlx_unicodefree(nextarg);
         config = global->last;
@@ -2533,7 +2415,8 @@ ParameterError parse_args(struct GlobalConfig *global, int argc,
       bool used;
 
       /* Just add the URL please */
-      result = getparameter("--url", orig_opt, &used, global, config);
+      result = getparameter("--url", orig_opt, &used, global,
+                            config);
     }
 
     if(!result)

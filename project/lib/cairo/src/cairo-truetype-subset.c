@@ -1,4 +1,3 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2004 Red Hat, Inc
@@ -194,7 +193,7 @@ _cairo_truetype_font_create (cairo_scaled_font_subset_t  *scaled_font_subset,
     if (unlikely (status))
 	return status;
 
-    font = _cairo_calloc (sizeof (cairo_truetype_font_t));
+    font = _cairo_malloc (sizeof (cairo_truetype_font_t));
     if (unlikely (font == NULL))
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -212,14 +211,14 @@ _cairo_truetype_font_create (cairo_scaled_font_subset_t  *scaled_font_subset,
     /* Add 2: +1 case font does not contain .notdef, and +1 because an extra
      * entry is required to contain the end location of the last glyph.
      */
-    font->glyphs = _cairo_calloc_ab (font->base.num_glyphs_in_face + 2, sizeof (subset_glyph_t));
+    font->glyphs = calloc (font->base.num_glyphs_in_face + 2, sizeof (subset_glyph_t));
     if (unlikely (font->glyphs == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail1;
     }
 
     /* Add 1 in case font does not contain .notdef */
-    font->parent_to_subset = _cairo_calloc_ab (font->base.num_glyphs_in_face + 1, sizeof (int));
+    font->parent_to_subset = calloc (font->base.num_glyphs_in_face + 1, sizeof (int));
     if (unlikely (font->parent_to_subset == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail2;
@@ -259,7 +258,7 @@ _cairo_truetype_font_create (cairo_scaled_font_subset_t  *scaled_font_subset,
     }
 
     /* Add 1 in case font does not contain .notdef */
-    font->widths = _cairo_calloc_ab (font->base.num_glyphs_in_face + 1, sizeof (int));
+    font->widths = calloc (font->base.num_glyphs_in_face + 1, sizeof (int));
     if (unlikely (font->widths == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail4;
@@ -1181,8 +1180,8 @@ cairo_truetype_subset_init_internal (cairo_truetype_subset_t     *truetype_subse
     /* The widths array returned must contain only widths for the
      * glyphs in font_subset. Any subglyphs appended after
      * font_subset->num_glyphs are omitted. */
-    truetype_subset->widths = _cairo_calloc_ab (font->scaled_font_subset->num_glyphs,
-						sizeof (double));
+    truetype_subset->widths = calloc (sizeof (double),
+                                      font->scaled_font_subset->num_glyphs);
     if (unlikely (truetype_subset->widths == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail3;
@@ -1317,10 +1316,8 @@ _cairo_truetype_reverse_cmap (cairo_scaled_font_t *scaled_font,
 
     /* A Format 4 cmap contains 8 uint16_t numbers and 4 arrays of
      * uint16_t each num_segments long. */
-    if (size < (8 + 4*num_segments)*sizeof(uint16_t)) {
-        status = CAIRO_INT_STATUS_UNSUPPORTED;
-        goto fail;
-    }
+    if (size < (8 + 4*num_segments)*sizeof(uint16_t))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
 
     end_code = map->endCount;
     start_code = &(end_code[num_segments + 1]);
@@ -1357,10 +1354,8 @@ _cairo_truetype_reverse_cmap (cairo_scaled_font_t *scaled_font,
 	    int j;
 
 	    if (range_size > 0) {
-		if ((char*)glyph_ids + 2*range_size > (char*)map + size) {
-                    status = CAIRO_INT_STATUS_UNSUPPORTED;
-                    goto fail;
-                }
+		if ((char*)glyph_ids + 2*range_size > (char*)map + size)
+		    return CAIRO_INT_STATUS_UNSUPPORTED;
 
 		for (j = 0; j < range_size; j++) {
 		    if (glyph_ids[j] == g_id_be) {
@@ -1447,17 +1442,17 @@ cleanup:
 #define MAX_FONT_NAME_LENGTH 127
 
 static cairo_status_t
-find_name (tt_name_t *name, unsigned long size, int name_id, int platform, int encoding, int language, char **str_out)
+find_name (tt_name_t *name, int name_id, int platform, int encoding, int language, char **str_out)
 {
     tt_name_record_t *record;
-    unsigned int i, len;
+    int i, len;
     char *str;
     char *p;
     cairo_bool_t has_tag;
     cairo_status_t status;
 
     str = NULL;
-    for (i = 0; i < MIN(be16_to_cpu (name->num_records), size / sizeof(name->records[0])); i++) {
+    for (i = 0; i < be16_to_cpu (name->num_records); i++) {
         record = &(name->records[i]);
 	if (be16_to_cpu (record->name) == name_id &&
 	    be16_to_cpu (record->platform) == platform &&
@@ -1471,18 +1466,14 @@ find_name (tt_name_t *name, unsigned long size, int name_id, int platform, int e
 	    if (len > MAX_FONT_NAME_LENGTH)
 		break;
 
-	    uint16_t offset = be16_to_cpu (name->strings_offset) + be16_to_cpu (record->offset);
-	    if (offset + len > size)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
 	    str = _cairo_malloc (len + 1);
 	    if (str == NULL)
 		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
 	    memcpy (str,
-		    ((char*)name) + offset,
+		    ((char*)name) + be16_to_cpu (name->strings_offset) + be16_to_cpu (record->offset),
 		    len);
-	    str[len] = 0;
+	    str[be16_to_cpu (record->length)] = 0;
 	    break;
 	}
     }
@@ -1496,7 +1487,7 @@ find_name (tt_name_t *name, unsigned long size, int name_id, int platform, int e
 	int size = 0;
 	char *utf8;
 	uint16_t *u = (uint16_t *) str;
-	unsigned int u_len = len/2;
+	int u_len = len/2;
 
 	for (i = 0; i < u_len; i++)
 	    size += _cairo_ucs4_to_utf8 (be16_to_cpu(u[i]), NULL);
@@ -1536,7 +1527,13 @@ find_name (tt_name_t *name, unsigned long size, int name_id, int platform, int e
 	}
     }
     if (has_tag) {
-	p = _cairo_strndup (str + 7, len - 7);
+	p = _cairo_malloc (len - 6);
+	if (unlikely (p == NULL)) {
+	    status =_cairo_error (CAIRO_STATUS_NO_MEMORY);
+	    goto fail;
+	}
+	memcpy (p, str + 7, len - 7);
+	p[len-7] = 0;
 	free (str);
 	str = p;
     }
@@ -1588,35 +1585,35 @@ _cairo_truetype_read_font_name (cairo_scaled_font_t  	 *scaled_font,
 
     /* Find PS Name (name_id = 6). OT spec says PS name must be one of
      * the following two encodings */
-    status = find_name (name, size, 6, 3, 1, 0x409, &ps_name); /* win, unicode, english-us */
+    status = find_name (name, 6, 3, 1, 0x409, &ps_name); /* win, unicode, english-us */
     if (unlikely(status))
 	goto fail;
 
     if (!ps_name) {
-	status = find_name (name, size, 6, 1, 0, 0, &ps_name); /* mac, roman, english */
+	status = find_name (name, 6, 1, 0, 0, &ps_name); /* mac, roman, english */
 	if (unlikely(status))
 	    goto fail;
     }
 
     /* Find Family name (name_id = 1) */
-    status = find_name (name, size, 1, 3, 1, 0x409, &family_name); /* win, unicode, english-us */
+    status = find_name (name, 1, 3, 1, 0x409, &family_name); /* win, unicode, english-us */
     if (unlikely(status))
 	goto fail;
 
     if (!family_name) {
-	status = find_name (name, size, 1, 3, 0, 0x409, &family_name); /* win, symbol, english-us */
+	status = find_name (name, 1, 3, 0, 0x409, &family_name); /* win, symbol, english-us */
 	if (unlikely(status))
 	    goto fail;
     }
 
     if (!family_name) {
-	status = find_name (name, size, 1, 1, 0, 0, &family_name); /* mac, roman, english */
+	status = find_name (name, 1, 1, 0, 0, &family_name); /* mac, roman, english */
 	if (unlikely(status))
 	    goto fail;
     }
 
     if (!family_name) {
-	status = find_name (name, size, 1, 3, 1, -1, &family_name); /* win, unicode, any language */
+	status = find_name (name, 1, 3, 1, -1, &family_name); /* win, unicode, any language */
 	if (unlikely(status))
 	    goto fail;
     }

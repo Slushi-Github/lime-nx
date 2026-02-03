@@ -1,3 +1,4 @@
+
 /* vers.c - define format of libpng.vers
  *
  * Copyright (c) 2011-2014 Glenn Randers-Pehrson

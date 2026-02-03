@@ -21,24 +21,29 @@
 
 #include "config.h"
 
-#include "backends/opensl.h"
+#include "opensl.h"
 
-#include <stdlib.h>
 #include <jni.h>
 
-#include <new>
 #include <array>
+#include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <new>
 #include <thread>
 #include <functional>
 
-#include "alcmain.h"
-#include "alexcpt.h"
-#include "alu.h"
-#include "compat.h"
-#include "endiantest.h"
+#include "albit.h"
+#include "alnumeric.h"
+#include "alsem.h"
+#include "alstring.h"
+#include "althrd_setname.h"
+#include "core/device.h"
+#include "core/helpers.h"
+#include "core/logging.h"
+#include "dynload.h"
+#include "opthelpers.h"
 #include "ringbuffer.h"
-#include "threads.h"
 
 #include <SLES/OpenSLES.h>
 #include <SLES/OpenSLES_Android.h>
@@ -47,16 +52,44 @@
 
 namespace {
 
+using namespace std::string_view_literals;
+
+
+#if HAVE_DYNLOAD
+#define SLES_SYMBOLS(MAGIC)                 \
+    MAGIC(slCreateEngine);                  \
+    MAGIC(SL_IID_ANDROIDCONFIGURATION);     \
+    MAGIC(SL_IID_ANDROIDSIMPLEBUFFERQUEUE); \
+    MAGIC(SL_IID_ENGINE);                   \
+    MAGIC(SL_IID_PLAY);                     \
+    MAGIC(SL_IID_RECORD);
+
+void *sles_handle;
+#define MAKE_SYMBOL(f) decltype(f) * p##f
+SLES_SYMBOLS(MAKE_SYMBOL)
+#undef MAKE_SYMBOL
+
+#ifndef IN_IDE_PARSER
+#define slCreateEngine (*pslCreateEngine)
+#define SL_IID_ANDROIDCONFIGURATION (*pSL_IID_ANDROIDCONFIGURATION)
+#define SL_IID_ANDROIDSIMPLEBUFFERQUEUE (*pSL_IID_ANDROIDSIMPLEBUFFERQUEUE)
+#define SL_IID_ENGINE (*pSL_IID_ENGINE)
+#define SL_IID_PLAY (*pSL_IID_PLAY)
+#define SL_IID_RECORD (*pSL_IID_RECORD)
+#endif
+#endif
+
+
 /* Helper macros */
 #define EXTRACT_VCALL_ARGS(...)  __VA_ARGS__))
 #define VCALL(obj, func)  ((*(obj))->func((obj), EXTRACT_VCALL_ARGS
 #define VCALL0(obj, func)  ((*(obj))->func((obj) EXTRACT_VCALL_ARGS
 
 
-constexpr ALCchar opensl_device[] = "OpenSL";
+[[nodiscard]] constexpr auto GetDeviceName() noexcept { return "OpenSL"sv; }
 
-
-SLuint32 GetChannelMask(DevFmtChannels chans)
+[[nodiscard]]
+constexpr SLuint32 GetChannelMask(DevFmtChannels chans) noexcept
 {
     switch(chans)
     {
@@ -67,15 +100,19 @@ SLuint32 GetChannelMask(DevFmtChannels chans)
     case DevFmtX51: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
         SL_SPEAKER_FRONT_CENTER | SL_SPEAKER_LOW_FREQUENCY | SL_SPEAKER_SIDE_LEFT |
         SL_SPEAKER_SIDE_RIGHT;
-    case DevFmtX51Rear: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
-        SL_SPEAKER_FRONT_CENTER | SL_SPEAKER_LOW_FREQUENCY | SL_SPEAKER_BACK_LEFT |
-        SL_SPEAKER_BACK_RIGHT;
     case DevFmtX61: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
         SL_SPEAKER_FRONT_CENTER | SL_SPEAKER_LOW_FREQUENCY | SL_SPEAKER_BACK_CENTER |
         SL_SPEAKER_SIDE_LEFT | SL_SPEAKER_SIDE_RIGHT;
-    case DevFmtX71: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
+    case DevFmtX71:
+    case DevFmtX3D71: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
         SL_SPEAKER_FRONT_CENTER | SL_SPEAKER_LOW_FREQUENCY | SL_SPEAKER_BACK_LEFT |
         SL_SPEAKER_BACK_RIGHT | SL_SPEAKER_SIDE_LEFT | SL_SPEAKER_SIDE_RIGHT;
+    case DevFmtX714: return SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT |
+        SL_SPEAKER_FRONT_CENTER | SL_SPEAKER_LOW_FREQUENCY | SL_SPEAKER_BACK_LEFT |
+        SL_SPEAKER_BACK_RIGHT | SL_SPEAKER_SIDE_LEFT | SL_SPEAKER_SIDE_RIGHT |
+        SL_SPEAKER_TOP_FRONT_LEFT | SL_SPEAKER_TOP_FRONT_RIGHT | SL_SPEAKER_TOP_BACK_LEFT |
+        SL_SPEAKER_TOP_BACK_RIGHT;
+    case DevFmtX7144:
     case DevFmtAmbi3D:
         break;
     }
@@ -83,7 +120,7 @@ SLuint32 GetChannelMask(DevFmtChannels chans)
 }
 
 #ifdef SL_ANDROID_DATAFORMAT_PCM_EX
-SLuint32 GetTypeRepresentation(DevFmtType type)
+constexpr SLuint32 GetTypeRepresentation(DevFmtType type) noexcept
 {
     switch(type)
     {
@@ -102,7 +139,14 @@ SLuint32 GetTypeRepresentation(DevFmtType type)
 }
 #endif
 
-const char *res_str(SLresult result)
+constexpr SLuint32 GetByteOrderEndianness() noexcept
+{
+    if(al::endian::native == al::endian::little)
+        return SL_BYTEORDER_LITTLEENDIAN;
+    return SL_BYTEORDER_BIGENDIAN;
+}
+
+constexpr const char *res_str(SLresult result) noexcept
 {
     switch(result)
     {
@@ -136,25 +180,24 @@ const char *res_str(SLresult result)
     return "Unknown error code";
 }
 
-#define PRINTERR(x, s) do {                                                      \
-    if UNLIKELY((x) != SL_RESULT_SUCCESS)                                        \
-        ERR("%s: %s\n", (s), res_str((x)));                                      \
-} while(0)
+inline void PrintErr(SLresult res, const char *str)
+{
+    if(res != SL_RESULT_SUCCESS) UNLIKELY
+        ERR("{}: {}", str, res_str(res));
+}
 
 
 struct OpenSLPlayback final : public BackendBase {
-    OpenSLPlayback(ALCdevice *device) noexcept : BackendBase{device} { }
+    explicit OpenSLPlayback(DeviceBase *device) noexcept : BackendBase{device} { }
     ~OpenSLPlayback() override;
 
     void process(SLAndroidSimpleBufferQueueItf bq) noexcept;
-    static void processC(SLAndroidSimpleBufferQueueItf bq, void *context) noexcept
-    { static_cast<OpenSLPlayback*>(context)->process(bq); }
 
     int mixerProc();
 
-    void open(const ALCchar *name) override;
+    void open(std::string_view name) override;
     bool reset() override;
-    bool start() override;
+    void start() override;
     void stop() override;
     ClockLatency getClockLatency() override;
 
@@ -171,12 +214,12 @@ struct OpenSLPlayback final : public BackendBase {
     RingBufferPtr mRing{nullptr};
     al::semaphore mSem;
 
-    ALuint mFrameSize{0};
+    std::mutex mMutex;
+
+    uint mFrameSize{0};
 
     std::atomic<bool> mKillNow{true};
     std::thread mThread;
-
-    DEF_NEWDEL(OpenSLPlayback)
 };
 
 OpenSLPlayback::~OpenSLPlayback()
@@ -215,83 +258,82 @@ void OpenSLPlayback::process(SLAndroidSimpleBufferQueueItf) noexcept
 int OpenSLPlayback::mixerProc()
 {
     SetRTPriority();
-    althrd_setname(MIXER_THREAD_NAME);
+    althrd_setname(GetMixerThreadName());
 
     SLPlayItf player;
     SLAndroidSimpleBufferQueueItf bufferQueue;
     SLresult result{VCALL(mBufferQueueObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE,
         &bufferQueue)};
-    PRINTERR(result, "bufferQueue->GetInterface SL_IID_ANDROIDSIMPLEBUFFERQUEUE");
+    PrintErr(result, "bufferQueue->GetInterface SL_IID_ANDROIDSIMPLEBUFFERQUEUE");
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mBufferQueueObj,GetInterface)(SL_IID_PLAY, &player);
-        PRINTERR(result, "bufferQueue->GetInterface SL_IID_PLAY");
+        PrintErr(result, "bufferQueue->GetInterface SL_IID_PLAY");
     }
 
     const size_t frame_step{mDevice->channelsFromFmt()};
 
-    std::unique_lock<OpenSLPlayback> dlock{*this};
     if(SL_RESULT_SUCCESS != result)
-        aluHandleDisconnect(mDevice, "Failed to get playback buffer: 0x%08x", result);
+        mDevice->handleDisconnect("Failed to get playback buffer: {:#08x}", result);
 
-    while(SL_RESULT_SUCCESS == result && !mKillNow.load(std::memory_order_acquire) &&
-          mDevice->Connected.load(std::memory_order_acquire))
+    while(SL_RESULT_SUCCESS == result && !mKillNow.load(std::memory_order_acquire)
+        && mDevice->Connected.load(std::memory_order_acquire))
     {
         if(mRing->writeSpace() == 0)
         {
             SLuint32 state{0};
 
             result = VCALL(player,GetPlayState)(&state);
-            PRINTERR(result, "player->GetPlayState");
+            PrintErr(result, "player->GetPlayState");
             if(SL_RESULT_SUCCESS == result && state != SL_PLAYSTATE_PLAYING)
             {
                 result = VCALL(player,SetPlayState)(SL_PLAYSTATE_PLAYING);
-                PRINTERR(result, "player->SetPlayState");
+                PrintErr(result, "player->SetPlayState");
             }
             if(SL_RESULT_SUCCESS != result)
             {
-                aluHandleDisconnect(mDevice, "Failed to start platback: 0x%08x", result);
+                mDevice->handleDisconnect("Failed to start playback: {:#08x}", result);
                 break;
             }
 
             if(mRing->writeSpace() == 0)
             {
-                dlock.unlock();
                 mSem.wait();
-                dlock.lock();
                 continue;
             }
         }
 
+        std::unique_lock<std::mutex> dlock{mMutex};
         auto data = mRing->getWriteVector();
-        aluMixData(mDevice, data.first.buf,
-            static_cast<ALuint>(data.first.len*mDevice->UpdateSize), frame_step);
-        if(data.second.len > 0)
-            aluMixData(mDevice, data.second.buf,
-                static_cast<ALuint>(data.second.len*mDevice->UpdateSize), frame_step);
+        mDevice->renderSamples(data[0].buf,
+            static_cast<uint>(data[0].len)*mDevice->mUpdateSize, frame_step);
+        if(data[1].len > 0)
+            mDevice->renderSamples(data[1].buf,
+                static_cast<uint>(data[1].len)*mDevice->mUpdateSize, frame_step);
 
-        size_t todo{data.first.len + data.second.len};
+        const auto todo = size_t{data[0].len + data[1].len};
         mRing->writeAdvance(todo);
+        dlock.unlock();
 
         for(size_t i{0};i < todo;i++)
         {
-            if(!data.first.len)
+            if(!data[0].len)
             {
-                data.first = data.second;
-                data.second.buf = nullptr;
-                data.second.len = 0;
+                data[0] = data[1];
+                data[1].buf = nullptr;
+                data[1].len = 0;
             }
 
-            result = VCALL(bufferQueue,Enqueue)(data.first.buf, mDevice->UpdateSize*mFrameSize);
-            PRINTERR(result, "bufferQueue->Enqueue");
+            result = VCALL(bufferQueue,Enqueue)(data[0].buf, mDevice->mUpdateSize*mFrameSize);
+            PrintErr(result, "bufferQueue->Enqueue");
             if(SL_RESULT_SUCCESS != result)
             {
-                aluHandleDisconnect(mDevice, "Failed to queue audio: 0x%08x", result);
+                mDevice->handleDisconnect("Failed to queue audio: {:#08x}", result);
                 break;
             }
 
-            data.first.len--;
-            data.first.buf += mDevice->UpdateSize*mFrameSize;
+            data[0].len--;
+            data[0].buf += mDevice->mUpdateSize*mFrameSize;
         }
     }
 
@@ -299,35 +341,39 @@ int OpenSLPlayback::mixerProc()
 }
 
 
-void OpenSLPlayback::open(const ALCchar *name)
+void OpenSLPlayback::open(std::string_view name)
 {
-    if(!name)
-        name = opensl_device;
-    else if(strcmp(name, opensl_device) != 0)
-        throw al::backend_exception{ALC_INVALID_VALUE, "Device name \"%s\" not found", name};
+    if(name.empty())
+        name = GetDeviceName();
+    else if(name != GetDeviceName())
+        throw al::backend_exception{al::backend_error::NoDevice, "Device name \"{}\" not found",
+            name};
+
+    /* There's only one device, so if it's already open, there's nothing to do. */
+    if(mEngineObj) return;
 
     // create engine
     SLresult result{slCreateEngine(&mEngineObj, 0, nullptr, 0, nullptr, nullptr)};
-    PRINTERR(result, "slCreateEngine");
+    PrintErr(result, "slCreateEngine");
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mEngineObj,Realize)(SL_BOOLEAN_FALSE);
-        PRINTERR(result, "engine->Realize");
+        PrintErr(result, "engine->Realize");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mEngineObj,GetInterface)(SL_IID_ENGINE, &mEngine);
-        PRINTERR(result, "engine->GetInterface");
+        PrintErr(result, "engine->GetInterface");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mEngine,CreateOutputMix)(&mOutputMix, 0, nullptr, nullptr);
-        PRINTERR(result, "engine->CreateOutputMix");
+        PrintErr(result, "engine->CreateOutputMix");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mOutputMix,Realize)(SL_BOOLEAN_FALSE);
-        PRINTERR(result, "outputMix->Realize");
+        PrintErr(result, "outputMix->Realize");
     }
 
     if(SL_RESULT_SUCCESS != result)
@@ -341,11 +387,11 @@ void OpenSLPlayback::open(const ALCchar *name)
         mEngineObj = nullptr;
         mEngine = nullptr;
 
-        throw al::backend_exception{ALC_INVALID_VALUE,
-            "Failed to initialize OpenSL device: 0x%08x", result};
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to initialize OpenSL device: {:#08x}", result};
     }
 
-    mDevice->DeviceName = name;
+    mDeviceName = name;
 }
 
 bool OpenSLPlayback::reset()
@@ -358,78 +404,10 @@ bool OpenSLPlayback::reset()
 
     mRing = nullptr;
 
-#if 0
-    if(!mDevice->Flags.get<FrequencyRequest>())
-    {
-        /* FIXME: Disabled until I figure out how to get the Context needed for
-         * the getSystemService call.
-         */
-        JNIEnv *env = Android_GetJNIEnv();
-        jobject jctx = Android_GetContext();
-
-        /* Get necessary stuff for using java.lang.Integer,
-         * android.content.Context, and android.media.AudioManager.
-         */
-        jclass int_cls = JCALL(env,FindClass)("java/lang/Integer");
-        jmethodID int_parseint = JCALL(env,GetStaticMethodID)(int_cls,
-            "parseInt", "(Ljava/lang/String;)I"
-        );
-        TRACE("Integer: %p, parseInt: %p\n", int_cls, int_parseint);
-
-        jclass ctx_cls = JCALL(env,FindClass)("android/content/Context");
-        jfieldID ctx_audsvc = JCALL(env,GetStaticFieldID)(ctx_cls,
-            "AUDIO_SERVICE", "Ljava/lang/String;"
-        );
-        jmethodID ctx_getSysSvc = JCALL(env,GetMethodID)(ctx_cls,
-            "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;"
-        );
-        TRACE("Context: %p, AUDIO_SERVICE: %p, getSystemService: %p\n",
-              ctx_cls, ctx_audsvc, ctx_getSysSvc);
-
-        jclass audmgr_cls = JCALL(env,FindClass)("android/media/AudioManager");
-        jfieldID audmgr_prop_out_srate = JCALL(env,GetStaticFieldID)(audmgr_cls,
-            "PROPERTY_OUTPUT_SAMPLE_RATE", "Ljava/lang/String;"
-        );
-        jmethodID audmgr_getproperty = JCALL(env,GetMethodID)(audmgr_cls,
-            "getProperty", "(Ljava/lang/String;)Ljava/lang/String;"
-        );
-        TRACE("AudioManager: %p, PROPERTY_OUTPUT_SAMPLE_RATE: %p, getProperty: %p\n",
-              audmgr_cls, audmgr_prop_out_srate, audmgr_getproperty);
-
-        const char *strchars;
-        jstring strobj;
-
-        /* Now make the calls. */
-        //AudioManager audMgr = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
-        strobj = JCALL(env,GetStaticObjectField)(ctx_cls, ctx_audsvc);
-        jobject audMgr = JCALL(env,CallObjectMethod)(jctx, ctx_getSysSvc, strobj);
-        strchars = JCALL(env,GetStringUTFChars)(strobj, nullptr);
-        TRACE("Context.getSystemService(%s) = %p\n", strchars, audMgr);
-        JCALL(env,ReleaseStringUTFChars)(strobj, strchars);
-
-        //String srateStr = audMgr.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
-        strobj = JCALL(env,GetStaticObjectField)(audmgr_cls, audmgr_prop_out_srate);
-        jstring srateStr = JCALL(env,CallObjectMethod)(audMgr, audmgr_getproperty, strobj);
-        strchars = JCALL(env,GetStringUTFChars)(strobj, nullptr);
-        TRACE("audMgr.getProperty(%s) = %p\n", strchars, srateStr);
-        JCALL(env,ReleaseStringUTFChars)(strobj, strchars);
-
-        //int sampleRate = Integer.parseInt(srateStr);
-        sampleRate = JCALL(env,CallStaticIntMethod)(int_cls, int_parseint, srateStr);
-
-        strchars = JCALL(env,GetStringUTFChars)(srateStr, nullptr);
-        TRACE("Got system sample rate %uhz (%s)\n", sampleRate, strchars);
-        JCALL(env,ReleaseStringUTFChars)(srateStr, strchars);
-
-        if(!sampleRate) sampleRate = device->Frequency;
-        else sampleRate = maxu(sampleRate, MIN_OUTPUT_RATE);
-    }
-#endif
-
     mDevice->FmtChans = DevFmtStereo;
     mDevice->FmtType = DevFmtShort;
 
-    SetDefaultWFXChannelOrder(mDevice);
+    setDefaultWFXChannelOrder();
     mFrameSize = mDevice->frameSizeFromFmt();
 
 
@@ -446,18 +424,18 @@ bool OpenSLPlayback::reset()
 
     SLDataLocator_AndroidSimpleBufferQueue loc_bufq{};
     loc_bufq.locatorType = SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE;
-    loc_bufq.numBuffers = mDevice->BufferSize / mDevice->UpdateSize;
+    loc_bufq.numBuffers = mDevice->mBufferSize / mDevice->mUpdateSize;
 
     SLDataSource audioSrc{};
 #ifdef SL_ANDROID_DATAFORMAT_PCM_EX
     SLAndroidDataFormat_PCM_EX format_pcm_ex{};
     format_pcm_ex.formatType = SL_ANDROID_DATAFORMAT_PCM_EX;
     format_pcm_ex.numChannels = mDevice->channelsFromFmt();
-    format_pcm_ex.sampleRate = mDevice->Frequency * 1000;
+    format_pcm_ex.sampleRate = mDevice->mSampleRate * 1000;
     format_pcm_ex.bitsPerSample = mDevice->bytesFromFmt() * 8;
     format_pcm_ex.containerSize = format_pcm_ex.bitsPerSample;
     format_pcm_ex.channelMask = GetChannelMask(mDevice->FmtChans);
-    format_pcm_ex.endianness = IS_LITTLE_ENDIAN ? SL_BYTEORDER_LITTLEENDIAN : SL_BYTEORDER_BIGENDIAN;
+    format_pcm_ex.endianness = GetByteOrderEndianness();
     format_pcm_ex.representation = GetTypeRepresentation(mDevice->FmtType);
 
     audioSrc.pLocator = &loc_bufq;
@@ -484,32 +462,31 @@ bool OpenSLPlayback::reset()
         SLDataFormat_PCM format_pcm{};
         format_pcm.formatType = SL_DATAFORMAT_PCM;
         format_pcm.numChannels = mDevice->channelsFromFmt();
-        format_pcm.samplesPerSec = mDevice->Frequency * 1000;
+        format_pcm.samplesPerSec = mDevice->mSampleRate * 1000;
         format_pcm.bitsPerSample = mDevice->bytesFromFmt() * 8;
         format_pcm.containerSize = format_pcm.bitsPerSample;
         format_pcm.channelMask = GetChannelMask(mDevice->FmtChans);
-        format_pcm.endianness = IS_LITTLE_ENDIAN ? SL_BYTEORDER_LITTLEENDIAN :
-            SL_BYTEORDER_BIGENDIAN;
+        format_pcm.endianness = GetByteOrderEndianness();
 
         audioSrc.pLocator = &loc_bufq;
         audioSrc.pFormat = &format_pcm;
 
         result = VCALL(mEngine,CreateAudioPlayer)(&mBufferQueueObj, &audioSrc, &audioSnk, ids.size(),
             ids.data(), reqs.data());
-        PRINTERR(result, "engine->CreateAudioPlayer");
+        PrintErr(result, "engine->CreateAudioPlayer");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         /* Set the stream type to "media" (games, music, etc), if possible. */
         SLAndroidConfigurationItf config;
         result = VCALL(mBufferQueueObj,GetInterface)(SL_IID_ANDROIDCONFIGURATION, &config);
-        PRINTERR(result, "bufferQueue->GetInterface SL_IID_ANDROIDCONFIGURATION");
+        PrintErr(result, "bufferQueue->GetInterface SL_IID_ANDROIDCONFIGURATION");
         if(SL_RESULT_SUCCESS == result)
         {
             SLint32 streamType = SL_ANDROID_STREAM_MEDIA;
             result = VCALL(config,SetConfiguration)(SL_ANDROID_KEY_STREAM_TYPE, &streamType,
                 sizeof(streamType));
-            PRINTERR(result, "config->SetConfiguration");
+            PrintErr(result, "config->SetConfiguration");
         }
 
         /* Clear any error since this was optional. */
@@ -518,12 +495,12 @@ bool OpenSLPlayback::reset()
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mBufferQueueObj,Realize)(SL_BOOLEAN_FALSE);
-        PRINTERR(result, "bufferQueue->Realize");
+        PrintErr(result, "bufferQueue->Realize");
     }
     if(SL_RESULT_SUCCESS == result)
     {
-        const ALuint num_updates{mDevice->BufferSize / mDevice->UpdateSize};
-        mRing = RingBuffer::Create(num_updates, mFrameSize*mDevice->UpdateSize, true);
+        const uint num_updates{mDevice->mBufferSize / mDevice->mUpdateSize};
+        mRing = RingBuffer::Create(num_updates, mFrameSize*mDevice->mUpdateSize, true);
     }
 
     if(SL_RESULT_SUCCESS != result)
@@ -538,32 +515,33 @@ bool OpenSLPlayback::reset()
     return true;
 }
 
-bool OpenSLPlayback::start()
+void OpenSLPlayback::start()
 {
     mRing->reset();
 
     SLAndroidSimpleBufferQueueItf bufferQueue;
     SLresult result{VCALL(mBufferQueueObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE,
         &bufferQueue)};
-    PRINTERR(result, "bufferQueue->GetInterface");
+    PrintErr(result, "bufferQueue->GetInterface");
+    if(SL_RESULT_SUCCESS == result)
+    {
+        result = VCALL(bufferQueue,RegisterCallback)(
+            [](SLAndroidSimpleBufferQueueItf bq, void *context) noexcept
+            { static_cast<OpenSLPlayback*>(context)->process(bq); }, this);
+        PrintErr(result, "bufferQueue->RegisterCallback");
+    }
     if(SL_RESULT_SUCCESS != result)
-        return false;
-
-    result = VCALL(bufferQueue,RegisterCallback)(&OpenSLPlayback::processC, this);
-    PRINTERR(result, "bufferQueue->RegisterCallback");
-    if(SL_RESULT_SUCCESS != result) return false;
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to register callback: {:#08x}", result};
 
     try {
         mKillNow.store(false, std::memory_order_release);
-        mThread = std::thread(std::mem_fn(&OpenSLPlayback::mixerProc), this);
-        return true;
+        mThread = std::thread(&OpenSLPlayback::mixerProc, this);
     }
     catch(std::exception& e) {
-        ERR("Could not create playback thread: %s\n", e.what());
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to start mixing thread: {}", e.what()};
     }
-    catch(...) {
-    }
-    return false;
 }
 
 void OpenSLPlayback::stop()
@@ -576,25 +554,25 @@ void OpenSLPlayback::stop()
 
     SLPlayItf player;
     SLresult result{VCALL(mBufferQueueObj,GetInterface)(SL_IID_PLAY, &player)};
-    PRINTERR(result, "bufferQueue->GetInterface");
+    PrintErr(result, "bufferQueue->GetInterface");
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(player,SetPlayState)(SL_PLAYSTATE_STOPPED);
-        PRINTERR(result, "player->SetPlayState");
+        PrintErr(result, "player->SetPlayState");
     }
 
     SLAndroidSimpleBufferQueueItf bufferQueue;
     result = VCALL(mBufferQueueObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE, &bufferQueue);
-    PRINTERR(result, "bufferQueue->GetInterface");
+    PrintErr(result, "bufferQueue->GetInterface");
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL0(bufferQueue,Clear)();
-        PRINTERR(result, "bufferQueue->Clear");
+        PrintErr(result, "bufferQueue->Clear");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(bufferQueue,RegisterCallback)(nullptr, nullptr);
-        PRINTERR(result, "bufferQueue->RegisterCallback");
+        PrintErr(result, "bufferQueue->RegisterCallback");
     }
     if(SL_RESULT_SUCCESS == result)
     {
@@ -603,7 +581,9 @@ void OpenSLPlayback::stop()
             std::this_thread::yield();
             result = VCALL(bufferQueue,GetState)(&state);
         } while(SL_RESULT_SUCCESS == result && state.count > 0);
-        PRINTERR(result, "bufferQueue->GetState");
+        PrintErr(result, "bufferQueue->GetState");
+
+        mRing->reset();
     }
 }
 
@@ -611,28 +591,26 @@ ClockLatency OpenSLPlayback::getClockLatency()
 {
     ClockLatency ret;
 
-    std::lock_guard<OpenSLPlayback> _{*this};
-    ret.ClockTime = GetDeviceClockTime(mDevice);
-    ret.Latency  = std::chrono::seconds{mRing->readSpace() * mDevice->UpdateSize};
-    ret.Latency /= mDevice->Frequency;
+    std::lock_guard<std::mutex> dlock{mMutex};
+    ret.ClockTime = mDevice->getClockTime();
+    ret.Latency  = std::chrono::seconds{mRing->readSpace() * mDevice->mUpdateSize};
+    ret.Latency /= mDevice->mSampleRate;
 
     return ret;
 }
 
 
 struct OpenSLCapture final : public BackendBase {
-    OpenSLCapture(ALCdevice *device) noexcept : BackendBase{device} { }
+    explicit OpenSLCapture(DeviceBase *device) noexcept : BackendBase{device} { }
     ~OpenSLCapture() override;
 
     void process(SLAndroidSimpleBufferQueueItf bq) noexcept;
-    static void processC(SLAndroidSimpleBufferQueueItf bq, void *context) noexcept
-    { static_cast<OpenSLCapture*>(context)->process(bq); }
 
-    void open(const ALCchar *name) override;
-    bool start() override;
+    void open(std::string_view name) override;
+    void start() override;
     void stop() override;
-    ALCenum captureSamples(al::byte *buffer, ALCuint samples) override;
-    ALCuint availableSamples() override;
+    void captureSamples(std::byte *buffer, uint samples) override;
+    uint availableSamples() override;
 
     /* engine interfaces */
     SLObjectItf mEngineObj{nullptr};
@@ -642,11 +620,9 @@ struct OpenSLCapture final : public BackendBase {
     SLObjectItf mRecordObj{nullptr};
 
     RingBufferPtr mRing{nullptr};
-    ALCuint mSplOffset{0u};
+    uint mSplOffset{0u};
 
-    ALuint mFrameSize{0};
-
-    DEF_NEWDEL(OpenSLCapture)
+    uint mFrameSize{0};
 };
 
 OpenSLCapture::~OpenSLCapture()
@@ -669,39 +645,40 @@ void OpenSLCapture::process(SLAndroidSimpleBufferQueueItf) noexcept
 }
 
 
-void OpenSLCapture::open(const ALCchar* name)
+void OpenSLCapture::open(std::string_view name)
 {
-    if(!name)
-        name = opensl_device;
-    else if(strcmp(name, opensl_device) != 0)
-        throw al::backend_exception{ALC_INVALID_VALUE, "Device name \"%s\" not found", name};
+    if(name.empty())
+        name = GetDeviceName();
+    else if(name != GetDeviceName())
+        throw al::backend_exception{al::backend_error::NoDevice, "Device name \"{}\" not found",
+            name};
 
     SLresult result{slCreateEngine(&mEngineObj, 0, nullptr, 0, nullptr, nullptr)};
-    PRINTERR(result, "slCreateEngine");
+    PrintErr(result, "slCreateEngine");
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mEngineObj,Realize)(SL_BOOLEAN_FALSE);
-        PRINTERR(result, "engine->Realize");
+        PrintErr(result, "engine->Realize");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mEngineObj,GetInterface)(SL_IID_ENGINE, &mEngine);
-        PRINTERR(result, "engine->GetInterface");
+        PrintErr(result, "engine->GetInterface");
     }
     if(SL_RESULT_SUCCESS == result)
     {
         mFrameSize = mDevice->frameSizeFromFmt();
         /* Ensure the total length is at least 100ms */
-        ALuint length{maxu(mDevice->BufferSize, mDevice->Frequency/10)};
+        uint length{std::max(mDevice->mBufferSize, mDevice->mSampleRate/10u)};
         /* Ensure the per-chunk length is at least 10ms, and no more than 50ms. */
-        ALuint update_len{clampu(mDevice->BufferSize/3, mDevice->Frequency/100,
-            mDevice->Frequency/100*5)};
-        ALuint num_updates{(length+update_len-1) / update_len};
+        uint update_len{std::clamp(mDevice->mBufferSize/3u, mDevice->mSampleRate/100u,
+            mDevice->mSampleRate/100u*5u)};
+        uint num_updates{(length+update_len-1) / update_len};
 
         mRing = RingBuffer::Create(num_updates, update_len*mFrameSize, false);
 
-        mDevice->UpdateSize = update_len;
-        mDevice->BufferSize = static_cast<ALuint>(mRing->writeSpace() * update_len);
+        mDevice->mUpdateSize = update_len;
+        mDevice->mBufferSize = static_cast<uint>(mRing->writeSpace() * update_len);
     }
     if(SL_RESULT_SUCCESS == result)
     {
@@ -720,19 +697,18 @@ void OpenSLCapture::open(const ALCchar* name)
 
         SLDataLocator_AndroidSimpleBufferQueue loc_bq{};
         loc_bq.locatorType = SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE;
-        loc_bq.numBuffers = mDevice->BufferSize / mDevice->UpdateSize;
+        loc_bq.numBuffers = mDevice->mBufferSize / mDevice->mUpdateSize;
 
         SLDataSink audioSnk{};
 #ifdef SL_ANDROID_DATAFORMAT_PCM_EX
         SLAndroidDataFormat_PCM_EX format_pcm_ex{};
         format_pcm_ex.formatType = SL_ANDROID_DATAFORMAT_PCM_EX;
         format_pcm_ex.numChannels = mDevice->channelsFromFmt();
-        format_pcm_ex.sampleRate = mDevice->Frequency * 1000;
+        format_pcm_ex.sampleRate = mDevice->mSampleRate * 1000;
         format_pcm_ex.bitsPerSample = mDevice->bytesFromFmt() * 8;
         format_pcm_ex.containerSize = format_pcm_ex.bitsPerSample;
         format_pcm_ex.channelMask = GetChannelMask(mDevice->FmtChans);
-        format_pcm_ex.endianness = IS_LITTLE_ENDIAN ? SL_BYTEORDER_LITTLEENDIAN :
-            SL_BYTEORDER_BIGENDIAN;
+        format_pcm_ex.endianness = GetByteOrderEndianness();
         format_pcm_ex.representation = GetTypeRepresentation(mDevice->FmtType);
 
         audioSnk.pLocator = &loc_bq;
@@ -751,19 +727,18 @@ void OpenSLCapture::open(const ALCchar* name)
                 SLDataFormat_PCM format_pcm{};
                 format_pcm.formatType = SL_DATAFORMAT_PCM;
                 format_pcm.numChannels = mDevice->channelsFromFmt();
-                format_pcm.samplesPerSec = mDevice->Frequency * 1000;
+                format_pcm.samplesPerSec = mDevice->mSampleRate * 1000;
                 format_pcm.bitsPerSample = mDevice->bytesFromFmt() * 8;
                 format_pcm.containerSize = format_pcm.bitsPerSample;
                 format_pcm.channelMask = GetChannelMask(mDevice->FmtChans);
-                format_pcm.endianness = IS_LITTLE_ENDIAN ? SL_BYTEORDER_LITTLEENDIAN :
-                    SL_BYTEORDER_BIGENDIAN;
+                format_pcm.endianness = GetByteOrderEndianness();
 
                 audioSnk.pLocator = &loc_bq;
                 audioSnk.pFormat = &format_pcm;
                 result = VCALL(mEngine,CreateAudioRecorder)(&mRecordObj, &audioSrc, &audioSnk,
                     ids.size(), ids.data(), reqs.data());
             }
-            PRINTERR(result, "engine->CreateAudioRecorder");
+            PrintErr(result, "engine->CreateAudioRecorder");
         }
     }
     if(SL_RESULT_SUCCESS == result)
@@ -771,13 +746,13 @@ void OpenSLCapture::open(const ALCchar* name)
         /* Set the record preset to "generic", if possible. */
         SLAndroidConfigurationItf config;
         result = VCALL(mRecordObj,GetInterface)(SL_IID_ANDROIDCONFIGURATION, &config);
-        PRINTERR(result, "recordObj->GetInterface SL_IID_ANDROIDCONFIGURATION");
+        PrintErr(result, "recordObj->GetInterface SL_IID_ANDROIDCONFIGURATION");
         if(SL_RESULT_SUCCESS == result)
         {
             SLuint32 preset = SL_ANDROID_RECORDING_PRESET_GENERIC;
             result = VCALL(config,SetConfiguration)(SL_ANDROID_KEY_RECORDING_PRESET, &preset,
                 sizeof(preset));
-            PRINTERR(result, "config->SetConfiguration");
+            PrintErr(result, "config->SetConfiguration");
         }
 
         /* Clear any error since this was optional. */
@@ -786,34 +761,39 @@ void OpenSLCapture::open(const ALCchar* name)
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mRecordObj,Realize)(SL_BOOLEAN_FALSE);
-        PRINTERR(result, "recordObj->Realize");
+        PrintErr(result, "recordObj->Realize");
     }
 
     SLAndroidSimpleBufferQueueItf bufferQueue;
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(mRecordObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE, &bufferQueue);
-        PRINTERR(result, "recordObj->GetInterface");
+        PrintErr(result, "recordObj->GetInterface");
     }
     if(SL_RESULT_SUCCESS == result)
     {
-        result = VCALL(bufferQueue,RegisterCallback)(&OpenSLCapture::processC, this);
-        PRINTERR(result, "bufferQueue->RegisterCallback");
+        result = VCALL(bufferQueue,RegisterCallback)(
+            [](SLAndroidSimpleBufferQueueItf bq, void *context) noexcept
+            { static_cast<OpenSLCapture*>(context)->process(bq); }, this);
+        PrintErr(result, "bufferQueue->RegisterCallback");
     }
     if(SL_RESULT_SUCCESS == result)
     {
-        const ALuint chunk_size{mDevice->UpdateSize * mFrameSize};
+        const uint chunk_size{mDevice->mUpdateSize * mFrameSize};
+        const auto silence = (mDevice->FmtType == DevFmtUByte) ? std::byte{0x80} : std::byte{0};
 
         auto data = mRing->getWriteVector();
-        for(size_t i{0u};i < data.first.len && SL_RESULT_SUCCESS == result;i++)
+        std::fill_n(data[0].buf, data[0].len*chunk_size, silence);
+        std::fill_n(data[1].buf, data[1].len*chunk_size, silence);
+        for(size_t i{0u};i < data[0].len && SL_RESULT_SUCCESS == result;i++)
         {
-            result = VCALL(bufferQueue,Enqueue)(data.first.buf + chunk_size*i, chunk_size);
-            PRINTERR(result, "bufferQueue->Enqueue");
+            result = VCALL(bufferQueue,Enqueue)(data[0].buf + chunk_size*i, chunk_size);
+            PrintErr(result, "bufferQueue->Enqueue");
         }
-        for(size_t i{0u};i < data.second.len && SL_RESULT_SUCCESS == result;i++)
+        for(size_t i{0u};i < data[1].len && SL_RESULT_SUCCESS == result;i++)
         {
-            result = VCALL(bufferQueue,Enqueue)(data.second.buf + chunk_size*i, chunk_size);
-            PRINTERR(result, "bufferQueue->Enqueue");
+            result = VCALL(bufferQueue,Enqueue)(data[1].buf + chunk_size*i, chunk_size);
+            PrintErr(result, "bufferQueue->Enqueue");
         }
     }
 
@@ -828,129 +808,178 @@ void OpenSLCapture::open(const ALCchar* name)
         mEngineObj = nullptr;
         mEngine = nullptr;
 
-        throw al::backend_exception{ALC_INVALID_VALUE,
-            "Failed to initialize OpenSL device: 0x%08x", result};
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to initialize OpenSL device: {:#08x}", result};
     }
 
-    mDevice->DeviceName = name;
+    mDeviceName = name;
 }
 
-bool OpenSLCapture::start()
+void OpenSLCapture::start()
 {
     SLRecordItf record;
     SLresult result{VCALL(mRecordObj,GetInterface)(SL_IID_RECORD, &record)};
-    PRINTERR(result, "recordObj->GetInterface");
+    PrintErr(result, "recordObj->GetInterface");
 
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(record,SetRecordState)(SL_RECORDSTATE_RECORDING);
-        PRINTERR(result, "record->SetRecordState");
+        PrintErr(result, "record->SetRecordState");
     }
-
     if(SL_RESULT_SUCCESS != result)
-    {
-        aluHandleDisconnect(mDevice, "Failed to start capture: 0x%08x", result);
-        return false;
-    }
-
-    return true;
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to start capture: {:#08x}", result};
 }
 
 void OpenSLCapture::stop()
 {
     SLRecordItf record;
     SLresult result{VCALL(mRecordObj,GetInterface)(SL_IID_RECORD, &record)};
-    PRINTERR(result, "recordObj->GetInterface");
+    PrintErr(result, "recordObj->GetInterface");
 
     if(SL_RESULT_SUCCESS == result)
     {
         result = VCALL(record,SetRecordState)(SL_RECORDSTATE_PAUSED);
-        PRINTERR(result, "record->SetRecordState");
+        PrintErr(result, "record->SetRecordState");
     }
 }
 
-ALCenum OpenSLCapture::captureSamples(al::byte *buffer, ALCuint samples)
+void OpenSLCapture::captureSamples(std::byte *buffer, uint samples)
 {
-    SLAndroidSimpleBufferQueueItf bufferQueue{};
-    if LIKELY(mDevice->Connected.load(std::memory_order_acquire))
-    {
-        const SLresult result{VCALL(mRecordObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE,
-            &bufferQueue)};
-        PRINTERR(result, "recordObj->GetInterface");
-        if UNLIKELY(SL_RESULT_SUCCESS != result)
-        {
-            aluHandleDisconnect(mDevice, "Failed to get capture buffer queue: 0x%08x", result);
-            bufferQueue = nullptr;
-        }
-    }
-
-    const ALuint update_size{mDevice->UpdateSize};
-    const ALuint chunk_size{update_size * mFrameSize};
+    const uint update_size{mDevice->mUpdateSize};
+    const uint chunk_size{update_size * mFrameSize};
 
     /* Read the desired samples from the ring buffer then advance its read
      * pointer.
      */
-    auto data = mRing->getReadVector();
-    for(ALCuint i{0};i < samples;)
+    size_t adv_count{0};
+    auto rdata = mRing->getReadVector();
+    for(uint i{0};i < samples;)
     {
-        const ALCuint rem{minu(samples - i, update_size - mSplOffset)};
-        std::copy_n(data.first.buf + mSplOffset*mFrameSize, rem*mFrameSize, buffer + i*mFrameSize);
+        const uint rem{std::min(samples - i, update_size - mSplOffset)};
+        std::copy_n(rdata[0].buf + mSplOffset*size_t{mFrameSize}, rem*size_t{mFrameSize},
+            buffer + i*size_t{mFrameSize});
 
         mSplOffset += rem;
         if(mSplOffset == update_size)
         {
             /* Finished a chunk, reset the offset and advance the read pointer. */
             mSplOffset = 0;
-            mRing->readAdvance(1);
 
-            if LIKELY(bufferQueue)
-            {
-                const SLresult result{VCALL(bufferQueue,Enqueue)(data.first.buf, chunk_size)};
-                PRINTERR(result, "bufferQueue->Enqueue");
-                if UNLIKELY(SL_RESULT_SUCCESS != result)
-                {
-                    aluHandleDisconnect(mDevice, "Failed to update capture buffer: 0x%08x",
-                        result);
-                    bufferQueue = nullptr;
-                }
-            }
-
-            data.first.len--;
-            if(!data.first.len)
-                data.first = data.second;
+            ++adv_count;
+            rdata[0].len -= 1;
+            if(!rdata[0].len)
+                rdata[0] = rdata[1];
             else
-                data.first.buf += chunk_size;
+                rdata[0].buf += chunk_size;
         }
 
         i += rem;
     }
 
-    return ALC_NO_ERROR;
+    SLAndroidSimpleBufferQueueItf bufferQueue{};
+    if(mDevice->Connected.load(std::memory_order_acquire)) LIKELY
+    {
+        const SLresult result{VCALL(mRecordObj,GetInterface)(SL_IID_ANDROIDSIMPLEBUFFERQUEUE,
+            &bufferQueue)};
+        PrintErr(result, "recordObj->GetInterface");
+        if(SL_RESULT_SUCCESS != result) UNLIKELY
+        {
+            mDevice->handleDisconnect("Failed to get capture buffer queue: {:#08x}", result);
+            bufferQueue = nullptr;
+        }
+    }
+    if(!bufferQueue || adv_count == 0)
+        return;
+
+    /* For each buffer chunk that was fully read, queue another writable buffer
+     * chunk to keep the OpenSL queue full. This is rather convoluted, as a
+     * result of the ring buffer holding more elements than are writable at a
+     * given time. The end of the write vector increments when the read pointer
+     * advances, which will "expose" a previously unwritable element. So for
+     * every element that we've finished reading, we queue that many elements
+     * from the end of the write vector.
+     */
+    mRing->readAdvance(adv_count);
+
+    SLresult result{SL_RESULT_SUCCESS};
+    auto wdata = mRing->getWriteVector();
+    if(adv_count > wdata[1].len) LIKELY
+    {
+        auto len1 = std::min(wdata[0].len, adv_count-wdata[1].len);
+        auto buf1 = wdata[0].buf + chunk_size*(wdata[0].len-len1);
+        for(size_t i{0u};i < len1 && SL_RESULT_SUCCESS == result;i++)
+        {
+            result = VCALL(bufferQueue,Enqueue)(buf1 + chunk_size*i, chunk_size);
+            PrintErr(result, "bufferQueue->Enqueue");
+        }
+    }
+    if(wdata[1].len > 0)
+    {
+        auto len2 = std::min(wdata[1].len, adv_count);
+        auto buf2 = wdata[1].buf + chunk_size*(wdata[1].len-len2);
+        for(size_t i{0u};i < len2 && SL_RESULT_SUCCESS == result;i++)
+        {
+            result = VCALL(bufferQueue,Enqueue)(buf2 + chunk_size*i, chunk_size);
+            PrintErr(result, "bufferQueue->Enqueue");
+        }
+    }
 }
 
-ALCuint OpenSLCapture::availableSamples()
-{ return static_cast<ALuint>(mRing->readSpace()*mDevice->UpdateSize - mSplOffset); }
+uint OpenSLCapture::availableSamples()
+{ return static_cast<uint>(mRing->readSpace()*mDevice->mUpdateSize - mSplOffset); }
 
 } // namespace
 
-bool OSLBackendFactory::init() { return true; }
+bool OSLBackendFactory::init()
+{
+#if HAVE_DYNLOAD
+    if(!sles_handle)
+    {
+#define SLES_LIBNAME "libOpenSLES.so"
+        sles_handle = LoadLib(SLES_LIBNAME);
+        if(!sles_handle)
+        {
+            WARN("Failed to load {}", SLES_LIBNAME);
+            return false;
+        }
+
+        std::string missing_syms;
+#define LOAD_SYMBOL(f) do {                                                   \
+    p##f = reinterpret_cast<decltype(p##f)>(GetSymbol(sles_handle, #f));      \
+    if(p##f == nullptr) missing_syms += "\n" #f;                              \
+} while(0)
+        SLES_SYMBOLS(LOAD_SYMBOL);
+#undef LOAD_SYMBOL
+
+        if(!missing_syms.empty())
+        {
+            WARN("Missing expected symbols:{}", missing_syms);
+            CloseLib(sles_handle);
+            sles_handle = nullptr;
+            return false;
+        }
+    }
+#endif
+
+    return true;
+}
 
 bool OSLBackendFactory::querySupport(BackendType type)
 { return (type == BackendType::Playback || type == BackendType::Capture); }
 
-void OSLBackendFactory::probe(DevProbe type, std::string *outnames)
+auto OSLBackendFactory::enumerate(BackendType type) -> std::vector<std::string>
 {
     switch(type)
     {
-        case DevProbe::Playback:
-        case DevProbe::Capture:
-            /* Includes null char. */
-            outnames->append(opensl_device, sizeof(opensl_device));
-            break;
+    case BackendType::Playback:
+    case BackendType::Capture:
+        return std::vector{std::string{GetDeviceName()}};
     }
+    return {};
 }
 
-BackendPtr OSLBackendFactory::createBackend(ALCdevice *device, BackendType type)
+BackendPtr OSLBackendFactory::createBackend(DeviceBase *device, BackendType type)
 {
     if(type == BackendType::Playback)
         return BackendPtr{new OpenSLPlayback{device}};

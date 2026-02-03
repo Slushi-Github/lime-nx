@@ -1559,7 +1559,7 @@ _translate_real (csi_t *ctx,
 {
     uint8_t hdr;
 
-    if ((double)real >= INT32_MIN && (double)real <= INT32_MAX && (int) real == real)
+    if (real >= INT32_MIN && real <= INT32_MAX && (int) real == real)
 	return _translate_integer (ctx, real, closure);
 
 #if WORDS_BIGENDIAN

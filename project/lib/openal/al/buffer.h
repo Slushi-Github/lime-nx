@@ -1,104 +1,80 @@
 #ifndef AL_BUFFER_H
 #define AL_BUFFER_H
 
+#include "config.h"
+
+#include <array>
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
+#include <utility>
 
 #include "AL/al.h"
+#include "AL/alc.h"
 
-#include "albyte.h"
+#include "alc/inprogext.h"
 #include "almalloc.h"
-#include "atomic.h"
-#include "inprogext.h"
+#include "alnumeric.h"
+#include "core/buffer_storage.h"
 #include "vector.h"
 
-
-/* User formats */
-enum UserFmtType : unsigned char {
-    UserFmtUByte,
-    UserFmtShort,
-    UserFmtFloat,
-    UserFmtDouble,
-    UserFmtMulaw,
-    UserFmtAlaw,
-    UserFmtIMA4,
-    UserFmtMSADPCM,
+#if ALSOFT_EAX
+enum class EaxStorage : uint8_t {
+    Automatic,
+    Accessible,
+    Hardware
 };
-enum UserFmtChannels : unsigned char {
-    UserFmtMono,
-    UserFmtStereo,
-    UserFmtRear,
-    UserFmtQuad,
-    UserFmtX51, /* (WFX order) */
-    UserFmtX61, /* (WFX order) */
-    UserFmtX71, /* (WFX order) */
-    UserFmtBFormat2D, /* WXY */
-    UserFmtBFormat3D, /* WXYZ */
-};
+#endif // ALSOFT_EAX
 
 
-/* Storable formats */
-enum FmtType : unsigned char {
-    FmtUByte  = UserFmtUByte,
-    FmtShort  = UserFmtShort,
-    FmtFloat  = UserFmtFloat,
-    FmtDouble = UserFmtDouble,
-    FmtMulaw  = UserFmtMulaw,
-    FmtAlaw   = UserFmtAlaw,
-};
-enum FmtChannels : unsigned char {
-    FmtMono   = UserFmtMono,
-    FmtStereo = UserFmtStereo,
-    FmtRear   = UserFmtRear,
-    FmtQuad   = UserFmtQuad,
-    FmtX51    = UserFmtX51,
-    FmtX61    = UserFmtX61,
-    FmtX71    = UserFmtX71,
-    FmtBFormat2D = UserFmtBFormat2D,
-    FmtBFormat3D = UserFmtBFormat3D,
-};
-#define MAX_INPUT_CHANNELS  (8)
-
-
-ALuint BytesFromFmt(FmtType type) noexcept;
-ALuint ChannelsFromFmt(FmtChannels chans) noexcept;
-
-
-struct ALbuffer {
-    al::vector<al::byte,16> mData;
-
-    ALuint Frequency{0u};
+struct ALbuffer : public BufferStorage {
     ALbitfieldSOFT Access{0u};
-    ALuint SampleLen{0u};
 
-    FmtChannels mFmtChannels{};
-    FmtType     mFmtType{};
+    al::vector<std::byte,16> mDataStorage;
 
-    UserFmtType OriginalType{};
     ALuint OriginalSize{0};
-    ALuint OriginalAlign{0};
-
-    ALenum AmbiLayout{AL_FUMA_SOFT};
-    ALenum AmbiScaling{AL_FUMA_SOFT};
-
-    ALuint LoopStart{0u};
-    ALuint LoopEnd{0u};
 
     ALuint UnpackAlign{0};
     ALuint PackAlign{0};
+    ALuint UnpackAmbiOrder{1};
 
     ALbitfieldSOFT MappedAccess{0u};
     ALsizei MappedOffset{0};
     ALsizei MappedSize{0};
 
+    ALuint mLoopStart{0u};
+    ALuint mLoopEnd{0u};
+
     /* Number of times buffer was attached to a source (deletion can only occur when 0) */
-    RefCount ref{0u};
+    std::atomic<ALuint> ref{0u};
 
     /* Self ID */
     ALuint id{0};
 
-    inline ALuint bytesFromFmt() const noexcept { return BytesFromFmt(mFmtType); }
-    inline ALuint channelsFromFmt() const noexcept { return ChannelsFromFmt(mFmtChannels); }
-    inline ALuint frameSizeFromFmt() const noexcept { return channelsFromFmt() * bytesFromFmt(); }
+    static void SetName(ALCcontext *context, ALuint id, std::string_view name);
+
+    DISABLE_ALLOC
+
+#if ALSOFT_EAX
+    EaxStorage eax_x_ram_mode{EaxStorage::Automatic};
+    bool eax_x_ram_is_hardware{};
+#endif // ALSOFT_EAX
+};
+
+struct BufferSubList {
+    uint64_t FreeMask{~0_u64};
+    gsl::owner<std::array<ALbuffer,64>*> Buffers{nullptr};
+
+    BufferSubList() noexcept = default;
+    BufferSubList(const BufferSubList&) = delete;
+    BufferSubList(BufferSubList&& rhs) noexcept : FreeMask{rhs.FreeMask}, Buffers{rhs.Buffers}
+    { rhs.FreeMask = ~0_u64; rhs.Buffers = nullptr; }
+    ~BufferSubList();
+
+    BufferSubList& operator=(const BufferSubList&) = delete;
+    BufferSubList& operator=(BufferSubList&& rhs) noexcept
+    { std::swap(FreeMask, rhs.FreeMask); std::swap(Buffers, rhs.Buffers); return *this; }
 };
 
 #endif

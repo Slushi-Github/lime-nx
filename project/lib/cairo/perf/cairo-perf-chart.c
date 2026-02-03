@@ -139,7 +139,7 @@ find_ranges (struct chart *chart)
     double test_time;
     int seen_non_null;
     int num_tests = 0;
-    double slow_sum = 0, fast_sum = 0, sum = 0;
+    double slow_sum = 0, fast_sum = 0, sum;
     int slow_count = 0, fast_count = 0;
     int *count;
     int i;

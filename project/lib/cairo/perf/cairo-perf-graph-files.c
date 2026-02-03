@@ -25,19 +25,14 @@
  * Authors: Chris Wilson <chris@chris-wilson.co.uk>
  */
 
-#define GLIB_DISABLE_DEPRECATION_WARNINGS
-
 #include "cairo-perf.h"
 #include "cairo-perf-graph.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-
-#ifdef G_OS_UNIX
 #include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
-#endif
 
 #include <cairo.h>
 
@@ -237,8 +232,6 @@ show_case_toggled (GtkCellRendererToggle *cell,
     graph_view_update_visible ((GraphView *) app->gv);
 }
 
-#ifdef G_OS_UNIX
-
 static gboolean
 git_read (GIOChannel	   *io,
 	  GIOCondition	    cond,
@@ -307,8 +300,6 @@ do_git (struct _app_data  *app,
     g_io_add_watch (app->git_io, G_IO_IN | G_IO_HUP, (GIOFunc) git_read, app);
 }
 
-#endif
-
 static void
 gv_report_selected (GraphView	     *gv,
 		    int 	      i,
@@ -336,11 +327,7 @@ gv_report_selected (GraphView	     *gv,
 	argv[3] = id;
 	argv[4] = NULL;
 
-#ifdef G_OS_UNIX
 	do_git (app, argv);
-#else
-        g_print ("id: %s\n", id);
-#endif
 	g_free (id);
     }
 }

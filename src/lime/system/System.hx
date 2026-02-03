@@ -233,6 +233,18 @@ class System
 	#end
 
 	/**
+		Returns the display orientation with the specified ID.
+	**/
+	public static function getDisplayOrientation(id:Int):DisplayOrientation
+	{
+		#if (lime_cffi && !macro)
+		return NativeCFFI.lime_system_get_display_orientation(id);
+		#else
+		return DISPLAY_ORIENTATION_UNKNOWN;
+		#end
+	}
+
+	/**
 		Returns information about the video display with the specified ID.
 	**/
 	public static function getDisplay(id:Int):Display
@@ -361,7 +373,7 @@ class System
 	#end
 
 	/**
-		Opens a file with the system default application.
+		Opens a file with the suste, default application.
 
 		In a web browser, opens a URL with target `_blank`.
 	**/
@@ -379,9 +391,6 @@ class System
 			Browser.window.open(path, "_blank");
 			#elseif flash
 			Lib.getURL(new URLRequest(path), "_blank");
-			#elseif android
-			var openFile = JNI.createStaticMethod("org/haxe/lime/GameActivity", "openFile", "(Ljava/lang/String;)V");
-			openFile(path);
 			#elseif (lime_cffi && !macro)
 			NativeCFFI.lime_system_open_file(path);
 			#end
@@ -401,13 +410,26 @@ class System
 			Browser.window.open(url, target);
 			#elseif flash
 			Lib.getURL(new URLRequest(url), target);
-			#elseif android
-			var openURL = JNI.createStaticMethod("org/haxe/lime/GameActivity", "openURL", "(Ljava/lang/String;Ljava/lang/String;)V");
-			openURL(url, target);
 			#elseif (lime_cffi && !macro)
 			NativeCFFI.lime_system_open_url(url, target);
 			#end
 		}
+	}
+
+	public static function getHint(key:String):String
+	{
+		if (key != null)
+		{
+			#if (lime_cffi && !macro)
+			#if (ios || tvos)
+			return NativeCFFI.lime_system_get_hint(key);
+			#else
+			return CFFI.stringValue(NativeCFFI.lime_system_get_hint(key));
+			#end
+			#end
+		}
+
+		return null;
 	}
 
 	@:noCompletion private static function __copyMissingFields(target:Dynamic, source:Dynamic):Void
@@ -867,6 +889,15 @@ class System
 
 		return __userDirectory;
 	}
+}
+
+#if (haxe_ver >= 4.0) enum #else @:enum #end abstract DisplayOrientation(Int) from Int to Int from UInt to UInt
+{
+	var DISPLAY_ORIENTATION_UNKNOWN = 0;
+	var DISPLAY_ORIENTATION_LANDSCAPE = 1;
+	var DISPLAY_ORIENTATION_LANDSCAPE_FLIPPED = 2;
+	var DISPLAY_ORIENTATION_PORTRAIT = 3;
+	var DISPLAY_ORIENTATION_PORTRAIT_FLIPPED = 4;
 }
 
 #if (haxe_ver >= 4.0) private enum #else @:enum private #end abstract SystemDirectory(Int) from Int to Int from UInt to UInt

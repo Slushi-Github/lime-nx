@@ -235,7 +235,7 @@ _cairo_toy_font_face_keys_equal (const void *key_a,
  * @weight: the weight for the font
  *
  * Creates a font face from a triplet of family, slant, and weight.
- * These font faces are used in implementation of the #cairo_t "toy"
+ * These font faces are used in implementation of the the #cairo_t "toy"
  * font API.
  *
  * If @family is the zero-length string "", the platform-specific default
@@ -312,7 +312,7 @@ cairo_toy_font_face_create (const char          *family,
     }
 
     /* Otherwise create it and insert into hash table. */
-    font_face = _cairo_calloc (sizeof (cairo_toy_font_face_t));
+    font_face = _cairo_malloc (sizeof (cairo_toy_font_face_t));
     if (unlikely (font_face == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto UNWIND_HASH_TABLE_LOCK;
@@ -340,6 +340,7 @@ cairo_toy_font_face_create (const char          *family,
  UNWIND:
     return (cairo_font_face_t*) &_cairo_font_face_nil;
 }
+slim_hidden_def (cairo_toy_font_face_create);
 
 static cairo_bool_t
 _cairo_toy_font_face_destroy (void *abstract_face)
@@ -468,6 +469,7 @@ cairo_toy_font_face_get_slant (cairo_font_face_t *font_face)
     }
     return toy_font_face->slant;
 }
+slim_hidden_def (cairo_toy_font_face_get_slant);
 
 /**
  * cairo_toy_font_face_get_weight:
@@ -494,6 +496,7 @@ cairo_toy_font_face_get_weight (cairo_font_face_t *font_face)
     }
     return toy_font_face->weight;
 }
+slim_hidden_def (cairo_toy_font_face_get_weight);
 
 static const cairo_font_face_backend_t _cairo_toy_font_face_backend = {
     CAIRO_FONT_TYPE_TOY,

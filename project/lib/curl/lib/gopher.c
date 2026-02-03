@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -30,7 +28,6 @@
 #include <curl/curl.h>
 #include "transfer.h"
 #include "sendf.h"
-#include "cfilters.h"
 #include "connect.h"
 #include "progress.h"
 #include "gopher.h"
@@ -118,9 +115,7 @@ static CURLcode gopher_connect(struct Curl_easy *data, bool *done)
 static CURLcode gopher_connecting(struct Curl_easy *data, bool *done)
 {
   struct connectdata *conn = data->conn;
-  CURLcode result;
-
-  result = Curl_conn_connect(data, FIRSTSOCKET, TRUE, done);
+  CURLcode result = Curl_ssl_connect(data, conn, FIRSTSOCKET);
   if(result)
     connclose(conn, "Failed TLS connection");
   *done = TRUE;
@@ -239,4 +234,4 @@ static CURLcode gopher_do(struct Curl_easy *data, bool *done)
   Curl_setup_transfer(data, FIRSTSOCKET, -1, FALSE, -1);
   return CURLE_OK;
 }
-#endif /* CURL_DISABLE_GOPHER */
+#endif /*CURL_DISABLE_GOPHER*/

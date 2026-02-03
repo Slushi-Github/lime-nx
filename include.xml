@@ -48,13 +48,6 @@
 	<!-- <target name="switch" handler="lime-switch" />
 	<haxelib name="lime-switch" if="switch" /> -->
 
-	<!-- <section if="nx">
-		<set name="HXCPP_TOOLCHAIN_linux" value="1" />
-		<set name="nx" value="1" />
-		<set name="DEVKITPRO" value="D:/devkitPro" />
-		<set name="cpp" value="1" />
-	</section> -->
-
 	<target name="wiiu" handler="lime-wiiu" />
 	<haxelib name="lime-wiiu" if="wiiu" />
 
@@ -76,7 +69,6 @@
 		<target name="mac" path="tools/platforms/MacPlatform.hx" />
 		<target name="tvos" path="tools/platforms/TVOSPlatform.hx" />
 		<target name="windows" path="tools/platforms/WindowsPlatform.hx" />
-		<target name="nx" path="tools/platforms/SwitchPlatform.hx" />
 
 	</section>
 
@@ -94,7 +86,7 @@
 			<ndll name="zlib" haxelib="hxcpp" unless="emscripten || ios || tvos" />
 		</section>
 
-		<ndll name="lime" if="native" unless="lime-console static_link || nx static_link" />
+		<ndll name="lime" if="native" unless="lime-console static_link || lime-switch static_link" />
 
 		<dependency name="extension-api" path="dependencies/extension-api" if="android" />
 

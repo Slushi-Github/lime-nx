@@ -203,7 +203,7 @@ _cairo_stroke_style_dash_period (const cairo_stroke_style_t *style)
  * respect to c:
  *   solve ( diff (integrate ((f(w,d) - c*d)^2, d, 0, w), c), c)
  * Which leads to c = 9/32*pi*w
- * Since we're not interested in the true area, but just in a coverage estimate,
+ * Since we're not interested in the true area, but just in a coverage extimate,
  * we always divide the real area by the line width (w).
  * The same computation for square caps would be
  *   f(w,d) = 2 * integrate(w/2, x, -d/2, d/2)

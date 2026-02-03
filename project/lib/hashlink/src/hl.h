@@ -27,11 +27,11 @@
 	https://github.com/HaxeFoundation/hashlink/wiki/
 **/
 
-#define HL_VERSION	0x010C00
+#define HL_VERSION	0x010E00
 
 #if defined(_WIN32)
 #	define HL_WIN
-#	ifndef _DURANGO
+#	if !defined(_DURANGO) && !defined(_GAMING_XBOX)
 #		define HL_WIN_DESKTOP
 #	endif
 #endif
@@ -53,7 +53,9 @@
 
 #if defined(linux) || defined(__linux__)
 #	define HL_LINUX
-#	define _GNU_SOURCE
+#	ifndef _GNU_SOURCE
+#		define _GNU_SOURCE
+#	endif
 #endif
 
 #if defined(HL_IOS) || defined(HL_ANDROID) || defined(HL_TVOS)
@@ -72,7 +74,11 @@
 #	define HL_XBO
 #endif
 
-#if defined(HL_PS) || defined(HL_NX) || defined(HL_XBO)
+#ifdef _GAMING_XBOX
+#	define HL_XBS
+#endif
+
+#if defined(HL_PS) || defined(HL_NX) || defined(HL_XBO) || defined(HL_XBS) || defined(HL_OS)
 #	define HL_CONSOLE
 #endif
 
@@ -117,6 +123,10 @@
 #	pragma warning(disable:4820) // windows include
 #	pragma warning(disable:4668) // windows include
 #	pragma warning(disable:4738) // return float bad performances
+#	pragma warning(disable:4061) // explicit values in switch
+#	if (_MSC_VER >= 1920)
+#		pragma warning(disable:5045) // spectre
+#	endif
 #endif
 
 #if defined(HL_VCC) || defined(HL_MINGW) || defined(HL_CYGWIN)
@@ -205,10 +215,16 @@ typedef unsigned long long uint64;
 #define	HL_API IMPORT
 #endif
 
+#if defined(HL_VCC)
+#define HL_INLINE __inline
+#else
+#define HL_INLINE inline
+#endif
+
 // -------------- UNICODE -----------------------------------
 
 #if defined(HL_WIN) && !defined(HL_LLVM)
-#if defined(HL_WIN_DESKTOP) && !defined(HL_MINGW)
+#if (defined(HL_WIN_DESKTOP) && !defined(HL_MINGW)) || defined(HL_XBS)
 #	include <Windows.h>
 #elif defined(HL_WIN_DESKTOP) && defined(HL_MINGW)
 #	include<windows.h>
@@ -228,10 +244,6 @@ HL_API int uvszprintf( uchar *out, int out_size, const uchar *fmt, va_list argli
 #	define utoi(s,end)	wcstol(s,end,10)
 #	define ucmp(a,b)	wcscmp(a,b)
 #	define utostr(out,size,str) wcstombs(out,str,size)
-#elif defined(HL_MAC)
-typedef uint16_t uchar;
-#	undef USTR
-#	define USTR(str)	u##str
 #else
 #	include <stdarg.h>
 #if defined(HL_IOS) || defined(HL_TVOS) || defined(HL_MAC) || defined(HL_NX)
@@ -289,6 +301,7 @@ C_FUNCTION_END
 #	endif
 #elif defined(HL_MAC)
 #include <signal.h>
+#include <mach/mach.h>
 #	define hl_debug_break() \
 		if( hl_detect_debugger() ) \
 			raise(SIGTRAP);//__builtin_trap();
@@ -329,8 +342,9 @@ typedef enum {
 	HNULL	= 19,
 	HMETHOD = 20,
 	HSTRUCT	= 21,
+	HPACKED = 22,
 	// ---------
-	HLAST	= 22,
+	HLAST	= 23,
 	_H_FORCE_INT = 0x7FFFFFFF
 } hl_type_kind;
 
@@ -546,6 +560,9 @@ typedef struct {
 	vvirtual *virtuals;
 } vdynobj;
 
+#define HL_DYNOBJ_INDEX_SHIFT 17
+#define HL_DYNOBJ_INDEX_MASK ((1 << HL_DYNOBJ_INDEX_SHIFT) - 1)
+
 typedef struct _venum {
 	hl_type *t;
 	int index;
@@ -611,11 +628,13 @@ HL_API hl_field_lookup *hl_lookup_find( hl_field_lookup *l, int size, int hash )
 HL_API hl_field_lookup *hl_lookup_insert( hl_field_lookup *l, int size, int hash, hl_type *t, int index );
 
 HL_API int hl_dyn_geti( vdynamic *d, int hfield, hl_type *t );
+HL_API int64 hl_dyn_geti64( vdynamic *d, int hfield );
 HL_API void *hl_dyn_getp( vdynamic *d, int hfield, hl_type *t );
 HL_API float hl_dyn_getf( vdynamic *d, int hfield );
 HL_API double hl_dyn_getd( vdynamic *d, int hfield );
 
 HL_API int hl_dyn_casti( void *data, hl_type *t, hl_type *to );
+HL_API int64 hl_dyn_casti64( void *data, hl_type *t );
 HL_API void *hl_dyn_castp( void *data, hl_type *t, hl_type *to );
 HL_API float hl_dyn_castf( void *data, hl_type *t );
 HL_API double hl_dyn_castd( void *data, hl_type *t );
@@ -626,6 +645,7 @@ HL_API vdynamic *hl_make_dyn( void *data, hl_type *t );
 HL_API void hl_write_dyn( void *data, hl_type *t, vdynamic *v, bool is_tmp );
 
 HL_API void hl_dyn_seti( vdynamic *d, int hfield, hl_type *t, int value );
+HL_API void hl_dyn_seti64( vdynamic *d, int hfield, int64 value );
 HL_API void hl_dyn_setp( vdynamic *d, int hfield, hl_type *t, void *ptr );
 HL_API void hl_dyn_setf( vdynamic *d, int hfield, float f );
 HL_API void hl_dyn_setd( vdynamic *d, int hfield, double v );
@@ -659,15 +679,15 @@ HL_API vdynamic *hl_dyn_call_safe( vclosure *c, vdynamic **args, int nargs, bool
 	so you are sure it's of the used typed. Otherwise use hl_dyn_call
 */
 #define hl_call0(ret,cl) \
-	(cl->hasValue ? ((ret(*)(vdynamic*))cl->fun)(cl->value) : ((ret(*)())cl->fun)())
+	(cl->hasValue ? ((ret(*)(vdynamic*))cl->fun)((vdynamic*)cl->value) : ((ret(*)())cl->fun)())
 #define hl_call1(ret,cl,t,v) \
-	(cl->hasValue ? ((ret(*)(vdynamic*,t))cl->fun)(cl->value,v) : ((ret(*)(t))cl->fun)(v))
+	(cl->hasValue ? ((ret(*)(vdynamic*,t))cl->fun)((vdynamic*)cl->value,v) : ((ret(*)(t))cl->fun)(v))
 #define hl_call2(ret,cl,t1,v1,t2,v2) \
-	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2))cl->fun)(cl->value,v1,v2) : ((ret(*)(t1,t2))cl->fun)(v1,v2))
+	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2))cl->fun)((vdynamic*)cl->value,v1,v2) : ((ret(*)(t1,t2))cl->fun)(v1,v2))
 #define hl_call3(ret,cl,t1,v1,t2,v2,t3,v3) \
-	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2,t3))cl->fun)(cl->value,v1,v2,v3) : ((ret(*)(t1,t2,t3))cl->fun)(v1,v2,v3))
+	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2,t3))cl->fun)((vdynamic*)cl->value,v1,v2,v3) : ((ret(*)(t1,t2,t3))cl->fun)(v1,v2,v3))
 #define hl_call4(ret,cl,t1,v1,t2,v2,t3,v3,t4,v4) \
-	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2,t3,t4))cl->fun)(cl->value,v1,v2,v3,v4) : ((ret(*)(t1,t2,t3,t4))cl->fun)(v1,v2,v3,v4))
+	(cl->hasValue ? ((ret(*)(vdynamic*,t1,t2,t3,t4))cl->fun)((vdynamic*)cl->value,v1,v2,v3,v4) : ((ret(*)(t1,t2,t3,t4))cl->fun)(v1,v2,v3,v4))
 
 // ----------------------- THREADS --------------------------------------------------
 
@@ -750,6 +770,7 @@ HL_API void hl_free( hl_alloc *a );
 
 HL_API void hl_global_init( void );
 HL_API void hl_global_free( void );
+HL_API void hl_global_lock( bool lock );
 
 HL_API void *hl_alloc_executable_memory( int size );
 HL_API void hl_free_executable_memory( void *ptr, int size );
@@ -876,6 +897,7 @@ struct _hl_trap_ctx {
 #define HL_EXC_IS_THROW		4
 #define HL_THREAD_INVISIBLE	16
 #define HL_THREAD_PROFILER_PAUSED 32
+#define HL_EXC_KILL			64
 #define HL_TREAD_TRACK_SHIFT 16
 
 #define HL_TRACK_ALLOC		1
@@ -900,13 +922,27 @@ typedef struct {
 	int flags;
 	int exc_stack_count;
 	// extra
+	char thread_name[128];
 	jmp_buf gc_regs;
 	void *exc_stack_trace[HL_EXC_MAX_STACK];
 	void *extra_stack_data[HL_MAX_EXTRA_STACK];
 	int extra_stack_size;
+	#ifdef HL_MAC
+	thread_t mach_thread_id;
+	pthread_t pthread_id;
+	#endif
 } hl_thread_info;
 
+typedef struct {
+	int count;
+	bool stopping_world;
+	hl_thread_info **threads;
+	hl_mutex *global_lock;
+	hl_mutex *exclusive_lock;
+} hl_threads_info;
+
 HL_API hl_thread_info *hl_get_thread();
+HL_API hl_threads_info *hl_gc_threads_info();
 
 #ifdef HL_TRACK_ENABLE
 

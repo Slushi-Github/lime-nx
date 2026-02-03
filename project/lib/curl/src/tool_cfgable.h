@@ -20,13 +20,17 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 #include "tool_sdecls.h"
 #include "tool_urlglob.h"
 #include "tool_formparse.h"
+
+typedef enum {
+  ERR_NONE,
+  ERR_BINARY_TERMINAL = 1, /* binary to terminal detected */
+  ERR_LAST
+} curl_error;
 
 struct GlobalConfig;
 
@@ -46,6 +50,8 @@ struct State {
 
 struct OperationConfig {
   bool remote_time;
+  char *random_file;
+  char *egd_file;
   char *useragent;
   struct curl_slist *cookies;  /* cookies to serialize into a single line */
   char *cookiejar;          /* write to this file */
@@ -61,18 +67,17 @@ struct OperationConfig {
   bool disable_epsv;
   bool disable_eprt;
   bool ftp_pret;
-  char *proto_str;
+  long proto;
   bool proto_present;
-  char *proto_redir_str;
+  long proto_redir;
   bool proto_redir_present;
   char *proto_default;
   curl_off_t resume_from;
   char *postfields;
   curl_off_t postfieldsize;
   char *referer;
-  char *query;
-  long timeout_ms;
-  long connecttimeout_ms;
+  double timeout;
+  double connecttimeout;
   long maxredirs;
   curl_off_t max_filesize;
   char *output_dir;
@@ -216,7 +221,7 @@ struct OperationConfig {
   bool ftp_ssl_ccc;
   int ftp_ssl_ccc_mode;
   char *preproxy;
-  bool socks5_gssapi_nec;   /* The NEC reference server does not protect the
+  int socks5_gssapi_nec;    /* The NEC reference server does not protect the
                                encryption type exchange */
   unsigned long socks5_auth;/* auth bitmask for socks5 proxies */
   char *proxy_service_name; /* set authentication service name for HTTP and
@@ -255,8 +260,11 @@ struct OperationConfig {
   bool xattr;               /* store metadata in extended attributes */
   long gssapi_delegation;
   bool ssl_allow_beast;     /* allow this SSL vulnerability */
-  bool proxy_ssl_allow_beast; /* allow this SSL vulnerability for proxy */
+  bool proxy_ssl_allow_beast; /* allow this SSL vulnerability for proxy*/
+
   bool ssl_no_revoke;       /* disable SSL certificate revocation checks */
+  /*bool proxy_ssl_no_revoke; */
+
   bool ssl_revoke_best_effort; /* ignore SSL revocation offline/missing
                                   revocation list errors */
 
@@ -265,15 +273,17 @@ struct OperationConfig {
                                   certificate for authentication (Schannel) */
   bool proxy_ssl_auto_client_cert; /* proxy version of ssl_auto_client_cert */
   char *oauth_bearer;             /* OAuth 2.0 bearer token */
+  bool nonpn;                     /* enable/disable TLS NPN extension */
   bool noalpn;                    /* enable/disable TLS ALPN extension */
   char *unix_socket_path;         /* path to Unix domain socket */
   bool abstract_unix_socket;      /* path to an abstract Unix domain socket */
   bool falsestart;
   bool path_as_is;
-  long expect100timeout_ms;
+  double expect100timeout;
   bool suppress_connect_headers;  /* suppress proxy CONNECT response headers
                                      from user callbacks */
-  bool synthetic_error;           /* if TRUE, this is tool-internal error */
+  curl_error synthetic_error;     /* if non-zero, it overrides any libcurl
+                                     error */
   bool ssh_compression;           /* enable/disable SSH compression */
   long happy_eyeballs_timeout_ms; /* happy eyeballs timeout in milliseconds.
                                      0 is valid. default: CURL_HET_DEFAULT. */
@@ -315,8 +325,6 @@ struct GlobalConfig {
   char *libcurl;                  /* Output libcurl code to this file name */
   bool fail_early;                /* exit on first transfer error */
   bool styled_output;             /* enable fancy output style detection */
-  long ms_per_transfer;           /* start next transfer after (at least) this
-                                     many milliseconds */
 #ifdef CURLDEBUG
   bool test_event_based;
 #endif

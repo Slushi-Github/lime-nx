@@ -45,16 +45,10 @@
  * a lookup's or subtable's Coverage table(s), and then when we
  * want to apply the lookup or subtable to a glyph, before trying
  * to apply, we ask the filter if the glyph may be covered. If it's
- * not, we return early.  We can also match a digest against another
- * digest.
+ * not, we return early.
  *
- * We use these filters at three levels:
- *   - If the digest for all the glyphs in the buffer as a whole
- *     does not match the digest for the lookup, skip the lookup.
- *   - For each glyph, if it doesn't match the lookup digest,
- *     skip it.
- *   - For each glyph, if it doesn't match the subtable digest,
- *     skip it.
+ * We use these filters both at the lookup-level, and then again,
+ * at the subtable-level. Both have performance win.
  *
  * The main filter we use is a combination of three bits-pattern
  * filters. A bits-pattern filter checks a number of bits (5 or 6)
@@ -82,27 +76,20 @@ struct hb_set_digest_bits_pattern_t
 
   void init () { mask = 0; }
 
-  static hb_set_digest_bits_pattern_t full () { hb_set_digest_bits_pattern_t d; d.mask = (mask_t) -1; return d; }
-
-  void union_ (const hb_set_digest_bits_pattern_t &o) { mask |= o.mask; }
+  void add (const hb_set_digest_bits_pattern_t &o) { mask |= o.mask; }
 
   void add (hb_codepoint_t g) { mask |= mask_for (g); }
 
   bool add_range (hb_codepoint_t a, hb_codepoint_t b)
   {
-    if (mask == (mask_t) -1) return false;
     if ((b >> shift) - (a >> shift) >= mask_bits - 1)
-    {
       mask = (mask_t) -1;
-      return false;
-    }
-    else
-    {
+    else {
       mask_t ma = mask_for (a);
       mask_t mb = mask_for (b);
       mask |= mb + (mb - ma) - (mb < ma);
-      return true;
     }
+    return true;
   }
 
   template <typename T>
@@ -131,14 +118,11 @@ struct hb_set_digest_bits_pattern_t
   bool may_have (hb_codepoint_t g) const
   { return mask & mask_for (g); }
 
-  bool operator [] (hb_codepoint_t g) const
-  { return may_have (g); }
-
   private:
 
   static mask_t mask_for (hb_codepoint_t g)
   { return ((mask_t) 1) << ((g >> shift) & (mask_bits - 1)); }
-  mask_t mask = 0;
+  mask_t mask;
 };
 
 template <typename head_t, typename tail_t>
@@ -150,12 +134,10 @@ struct hb_set_digest_combiner_t
     tail.init ();
   }
 
-  static hb_set_digest_combiner_t full () { hb_set_digest_combiner_t d; d.head = head_t::full(); d.tail = tail_t::full (); return d; }
-
-  void union_ (const hb_set_digest_combiner_t &o)
+  void add (const hb_set_digest_combiner_t &o)
   {
-    head.union_ (o.head);
-    tail.union_(o.tail);
+    head.add (o.head);
+    tail.add (o.tail);
   }
 
   void add (hb_codepoint_t g)
@@ -166,7 +148,8 @@ struct hb_set_digest_combiner_t
 
   bool add_range (hb_codepoint_t a, hb_codepoint_t b)
   {
-    return (int) head.add_range (a, b) | (int) tail.add_range (a, b);
+    return head.add_range (a, b) &&
+	   tail.add_range (a, b);
   }
   template <typename T>
   void add_array (const T *array, unsigned int count, unsigned int stride=sizeof(T))
@@ -194,9 +177,6 @@ struct hb_set_digest_combiner_t
   {
     return head.may_have (g) && tail.may_have (g);
   }
-
-  bool operator [] (hb_codepoint_t g) const
-  { return may_have (g); }
 
   private:
   head_t head;

@@ -1,14 +1,6 @@
 project('ragel', 'c', 'cpp',
-  version : '6.10',
-  default_options: [
-    'cpp_eh=default',
-  ],
+  version : '6.10'
 )
-
-cpp = meson.get_compiler('cpp')
-add_project_arguments(cpp.get_supported_arguments([
-  '-fexceptions',
-]), language: 'cpp')
 
 conf = configuration_data()
 conf.set_quoted('PACKAGE', meson.project_name())
@@ -62,5 +54,5 @@ ragel = executable(
   meson.project_name(),
   ragel_sources,
   include_directories : ['aapl', 'ragel'],
-  native : true,
+  install : true,
 )

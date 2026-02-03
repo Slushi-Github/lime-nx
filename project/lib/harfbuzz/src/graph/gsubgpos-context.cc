@@ -52,11 +52,7 @@ unsigned gsubgpos_graph_context_t::create_node (unsigned size)
   if (!buffer)
     return -1;
 
-  if (!add_buffer (buffer)) {
-    // Allocation did not get stored for freeing later.
-    hb_free (buffer);
-    return -1;
-  }
+  add_buffer (buffer);
 
   return graph.new_node (buffer, buffer + size);
 }

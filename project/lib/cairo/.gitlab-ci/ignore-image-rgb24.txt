@@ -1,4 +1,5 @@
 a1-clip-fill-rule
+alpha-similar
 big-empty-box
 big-empty-triangle
 big-little-box
@@ -9,6 +10,7 @@ bug-source-cu
 clip-device-offset
 clip-fill-rule-pixel-aligned
 clip-text
+clip-unbounded
 culled-glyphs
 dash-zero-length
 degenerate-path

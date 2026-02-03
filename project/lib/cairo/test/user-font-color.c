@@ -32,27 +32,16 @@
 
 #include "cairo-test.h"
 
-#include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 
 #define BORDER 10
 #define TEXT_SIZE 64
-#define WIDTH  (TEXT_SIZE * 11 + 2*BORDER)
-#define HEIGHT (4*TEXT_SIZE + 5*BORDER)
+#define WIDTH  (TEXT_SIZE * 6 + 2*BORDER)
+#define HEIGHT (TEXT_SIZE + 2*BORDER)
 
-#define TEXT          "abcdefghij"
-
-/* These characters will be drawn twice with a different foreground color */
-#define FG_TEXT       "acfh"
-
-/* Uppercase draws the same text but forces the use of the non-color
- * render callback */
-#define TEXT_NO_COLOR    "ABCDEFGHIJ"
-#define FG_TEXT_NO_COLOR "ACFH"
-
-#define TEXT_PATH       "aabccdeffghhij"
+#define TEXT   "abcdef"
 
 
 static cairo_status_t
@@ -66,60 +55,39 @@ test_scaled_font_init (cairo_scaled_font_t  *scaled_font,
 }
 
 static void
-render_glyph_solid (cairo_t *cr,
-                    double width,
-                    double height,
-                    cairo_bool_t color,
-                    cairo_scaled_font_t *scaled_font)
+render_glyph_solid (cairo_t *cr, double width, double height, cairo_bool_t color)
 {
+    cairo_pattern_t *pattern = cairo_pattern_reference(cairo_get_source (cr));
+
     if (color)
-        cairo_set_source_rgba (cr, 0.7, 0.2, 0.1, 0.9);
+        cairo_set_source_rgba (cr, 0, 1, 1, 0.5);
     cairo_rectangle (cr, 0, 0, width/2, height/2);
     cairo_fill (cr);
 
-    if (color) {
-        if (scaled_font)
-            cairo_set_source (cr, cairo_user_scaled_font_get_foreground_marker (scaled_font));
-        else
-            cairo_set_source_rgba (cr, 0.2, 0.5, 0.3, 0.9);
-    }
+    if (color)
+        cairo_set_source (cr, pattern);
     cairo_rectangle (cr, width/4, height/4, width/2, height/2);
     cairo_fill (cr);
 
     if (color)
-        cairo_set_source_rgba (cr, 0.2, 0.3, 0.5, 0.9);
+        cairo_set_source_rgba (cr, 1, 1, 0, 0.5);
     cairo_rectangle (cr, width/2, height/2, width/2, height/2);
     cairo_fill (cr);
+
+    cairo_pattern_destroy (pattern);
 }
 
 static void
-render_glyph_linear (cairo_t *cr,
-                     double width,
-                     double height,
-                     cairo_bool_t color,
-                     cairo_scaled_font_t *scaled_font)
+render_glyph_linear (cairo_t *cr, double width, double height, cairo_bool_t color)
 {
     cairo_pattern_t *pat;
-    cairo_pattern_t *fg;
 
     pat = cairo_pattern_create_linear (0.0, 0.0, width, height);
-    if (scaled_font) {
-        double r, g, b, a;
-
-        fg = cairo_user_scaled_font_get_foreground_source (scaled_font);
-        if (cairo_pattern_get_rgba (fg, &r, &g, &b, &a) != CAIRO_STATUS_SUCCESS) {
-            r = g = b = 0;
-            a = 1;
-        }
-        cairo_pattern_add_color_stop_rgba (pat, 0,  r, g, b, a);
-        cairo_pattern_add_color_stop_rgb  (pat, 1,  0, 0, 1);
-    } else {
-        cairo_pattern_add_color_stop_rgb (pat, 0,   1, 0.4, 0.2);
-        cairo_pattern_add_color_stop_rgb (pat, 0.5, 0.2, 1, 0.4);
-        cairo_pattern_add_color_stop_rgb (pat, 1,   0.2, 0.3, 1);
-    }
-
+    cairo_pattern_add_color_stop_rgba (pat, 0,   1, 0, 0, 1);
+    cairo_pattern_add_color_stop_rgba (pat, 0.5, 0, 1, 0, color ? 0.5 : 1);
+    cairo_pattern_add_color_stop_rgba (pat, 1,   0, 0, 1, 1);
     cairo_set_source (cr, pat);
+
     cairo_rectangle (cr, 0, 0, width, height);
     cairo_fill (cr);
 }
@@ -133,23 +101,23 @@ render_glyph_text (cairo_t *cr, double width, double height, cairo_bool_t color)
     cairo_set_font_size(cr, 0.5);
 
     if (color)
-        cairo_set_source_rgb (cr, 0.5, 0.7, 0);
+        cairo_set_source_rgb (cr, 0.5, 0.5, 0);
     cairo_move_to (cr, width*0.1, height/2);
     cairo_show_text (cr, "a");
 
     if (color)
-        cairo_set_source_rgb (cr, 0, 0.5, 0.7);
+        cairo_set_source_rgb (cr, 0, 0.5, 0.5);
     cairo_move_to (cr, width*0.4, height*0.9);
     cairo_show_text (cr, "z");
 }
 
 static cairo_status_t
-test_scaled_font_render_glyph_common (cairo_scaled_font_t  *scaled_font,
-                                      unsigned long         glyph,
-                                      cairo_t              *cr,
-                                      cairo_text_extents_t *metrics,
-                                      cairo_bool_t          color)
+test_scaled_font_render_color_glyph (cairo_scaled_font_t  *scaled_font,
+                                     unsigned long         glyph,
+                                     cairo_t              *cr,
+                                     cairo_text_extents_t *metrics)
 {
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
     double width = 0.5;
     double height = 0.8;
 
@@ -157,78 +125,54 @@ test_scaled_font_render_glyph_common (cairo_scaled_font_t  *scaled_font,
     cairo_translate (cr,  0.125, -0.6);
     switch (glyph) {
         case 'a':
-            render_glyph_solid (cr, width, height, color, scaled_font);
+            render_glyph_solid (cr, width, height, TRUE);
             break;
         case 'b':
-            render_glyph_solid (cr, width, height, color, NULL);
+            render_glyph_linear (cr, width, height, TRUE);
             break;
         case 'c':
-            render_glyph_linear (cr, width, height, color, scaled_font);
+            render_glyph_text (cr, width, height, TRUE);
             break;
         case 'd':
-            render_glyph_linear (cr, width, height, color, NULL);
+            render_glyph_solid (cr, width, height, TRUE);
+            status = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
             break;
         case 'e':
-            render_glyph_text (cr, width, height, color);
+            render_glyph_linear (cr, width, height, TRUE);
+            status = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
             break;
         case 'f':
-            cairo_push_group (cr);
-            render_glyph_solid (cr, width, height, color, scaled_font);
-            cairo_pop_group_to_source (cr);
-            cairo_paint (cr);
+            render_glyph_solid (cr, width, height, TRUE);
+            status = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
             break;
-        case 'g':
-            cairo_push_group (cr);
-            render_glyph_solid (cr, width, height, color, NULL);
-            cairo_pop_group_to_source (cr);
-            cairo_paint (cr);
+    }
+
+    return status;
+}
+
+static cairo_status_t
+test_scaled_font_render_glyph (cairo_scaled_font_t  *scaled_font,
+			       unsigned long         glyph,
+			       cairo_t              *cr,
+			       cairo_text_extents_t *metrics)
+{
+    double width = 0.5;
+    double height = 0.8;
+    metrics->x_advance = 0.75;
+    cairo_translate (cr,  0.125, -0.6);
+    switch (glyph) {
+        case 'd':
+            render_glyph_solid (cr, width, height, FALSE);
             break;
-        case 'h':
-            cairo_push_group (cr);
-            render_glyph_linear (cr, width, height, color, scaled_font);
-            cairo_pop_group_to_source (cr);
-            cairo_paint (cr);
+        case 'e':
+            render_glyph_linear (cr, width, height, FALSE);
             break;
-        case 'i':
-            cairo_push_group (cr);
-            render_glyph_linear (cr, width, height, color, NULL);
-            cairo_pop_group_to_source (cr);
-            cairo_paint (cr);
-            break;
-        case 'j':
-            cairo_push_group (cr);
-            render_glyph_text (cr, width, height, color);
-            cairo_pop_group_to_source (cr);
-            cairo_paint (cr);
+        case 'f':
+            render_glyph_text (cr, width, height, FALSE);
             break;
     }
 
     return CAIRO_STATUS_SUCCESS;
-}
-
-static cairo_status_t
-test_scaled_font_render_color_glyph_callback (cairo_scaled_font_t  *scaled_font,
-                                     unsigned long         glyph,
-                                     cairo_t              *cr,
-                                     cairo_text_extents_t *metrics)
-{
-    if (isupper(glyph))
-        return CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
-
-    return test_scaled_font_render_glyph_common (scaled_font, glyph, cr, metrics, TRUE);
-}
-
-static cairo_status_t
-test_scaled_font_render_glyph_callback (cairo_scaled_font_t  *scaled_font,
-                                        unsigned long         glyph,
-                                        cairo_t              *cr,
-                                        cairo_text_extents_t *metrics)
-{
-    int c = glyph;
-    if (isupper(c))
-        c = tolower(c);
-
-    return test_scaled_font_render_glyph_common (scaled_font, c, cr, metrics, FALSE);
 }
 
 static cairo_status_t
@@ -239,33 +183,11 @@ _user_font_face_create (cairo_font_face_t **out)
 
     user_font_face = cairo_user_font_face_create ();
     cairo_user_font_face_set_init_func (user_font_face, test_scaled_font_init);
-    cairo_user_font_face_set_render_color_glyph_func (user_font_face,
-                                                      test_scaled_font_render_color_glyph_callback);
-    cairo_user_font_face_set_render_glyph_func (user_font_face,
-                                                test_scaled_font_render_glyph_callback);
+    cairo_user_font_face_set_render_color_glyph_func (user_font_face, test_scaled_font_render_color_glyph);
+    cairo_user_font_face_set_render_glyph_func (user_font_face, test_scaled_font_render_glyph);
 
     *out = user_font_face;
     return CAIRO_STATUS_SUCCESS;
-}
-
-/* Any text characters that are in fg_text will be drawn with a different color */
-static void
-draw_line (cairo_t *cr, const char *text, const char *fg_text)
-{
-    char buf[10];
-
-    for (unsigned i = 0; i < strlen(text); i++) {
-        buf[0] = text[i];
-        buf[1] = 0;
-
-        if (strchr (fg_text, text[i])) {
-            cairo_set_source_rgb (cr, 1, 0, 0);
-            cairo_show_text (cr, buf);
-        }
-
-        cairo_set_source_rgb (cr, 0, 1, 0);
-        cairo_show_text (cr, buf);
-    }
 }
 
 static cairo_test_status_t
@@ -276,7 +198,6 @@ draw (cairo_t *cr, int width, int height)
     cairo_font_extents_t font_extents;
     cairo_text_extents_t extents;
     cairo_status_t status;
-    cairo_font_options_t *font_options;
 
     cairo_set_source_rgb (cr, 1, 1, 1);
     cairo_paint (cr);
@@ -318,31 +239,10 @@ draw (cairo_t *cr, int width, int height)
     cairo_set_line_width (cr, 2);
     cairo_stroke (cr);
 
-    /* Line 1: text in color */
+    /* text in color */
+    cairo_set_source_rgb (cr, 0, 0.3, 0);
     cairo_move_to (cr, BORDER, BORDER + font_extents.ascent);
-    draw_line (cr, TEXT, FG_TEXT);
-
-    /* Line 2: text in non-color (color render callback returns
-     * CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED.
-     */
-    cairo_move_to (cr, BORDER, BORDER + font_extents.height + 1*BORDER + font_extents.ascent);
-    draw_line (cr, TEXT_NO_COLOR, FG_TEXT_NO_COLOR);
-
-    /* Line 3: Filled version of color text in blue */
-    cairo_move_to (cr, BORDER, BORDER + 2*font_extents.height + 2*BORDER + font_extents.ascent);
-    cairo_set_source_rgb (cr, 0, 0, 1);
-    cairo_text_path (cr, TEXT_PATH);
-    cairo_fill (cr);
-
-    /* Line 4: color glyphs with CAIRO_COLOR_MODE_NO_COLOR font option. */
-    font_options = cairo_font_options_create ();
-    cairo_get_font_options (cr, font_options);
-    cairo_font_options_set_color_mode (font_options, CAIRO_COLOR_MODE_NO_COLOR);
-    cairo_set_font_options (cr, font_options);
-    cairo_font_options_destroy (font_options);
-
-    cairo_move_to (cr, BORDER, BORDER + 3*font_extents.height + 3*BORDER + font_extents.ascent);
-    draw_line (cr, TEXT, FG_TEXT);
+    cairo_show_text (cr, text);
 
     return CAIRO_TEST_SUCCESS;
 }

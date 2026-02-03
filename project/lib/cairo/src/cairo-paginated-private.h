@@ -178,7 +178,7 @@ _cairo_surface_is_paginated (cairo_surface_t *surface);
 
 cairo_private cairo_status_t
 _cairo_paginated_surface_set_size (cairo_surface_t 	*surface,
-				   double		 width,
-				   double		 height);
+				   int			 width,
+				   int			 height);
 
 #endif /* CAIRO_PAGINATED_H */

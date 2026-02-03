@@ -1,4 +1,3 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2003 University of Southern California
@@ -62,6 +61,7 @@ typedef enum {
 typedef enum {
     CAIRO_SUBSETS_FOREACH_UNSCALED,
     CAIRO_SUBSETS_FOREACH_SCALED,
+    CAIRO_SUBSETS_FOREACH_USER
 } cairo_subsets_foreach_type_t;
 
 typedef struct _cairo_sub_font {
@@ -69,6 +69,7 @@ typedef struct _cairo_sub_font {
 
     cairo_bool_t is_scaled;
     cairo_bool_t is_composite;
+    cairo_bool_t is_user;
     cairo_bool_t use_latin_subset;
     cairo_bool_t reserve_notdef;
     cairo_scaled_font_subsets_t *parent;
@@ -166,7 +167,7 @@ _cairo_sub_font_glyph_create (unsigned long	scaled_font_glyph_index,
 {
     cairo_sub_font_glyph_t *sub_font_glyph;
 
-    sub_font_glyph = _cairo_calloc (sizeof (cairo_sub_font_glyph_t));
+    sub_font_glyph = _cairo_malloc (sizeof (cairo_sub_font_glyph_t));
     if (unlikely (sub_font_glyph == NULL)) {
 	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return NULL;
@@ -276,13 +277,14 @@ _cairo_sub_font_create (cairo_scaled_font_subsets_t	*parent,
     cairo_sub_font_t *sub_font;
     int i;
 
-    sub_font = _cairo_calloc (sizeof (cairo_sub_font_t));
+    sub_font = _cairo_malloc (sizeof (cairo_sub_font_t));
     if (unlikely (sub_font == NULL))
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     sub_font->is_scaled = is_scaled;
     sub_font->is_composite = is_composite;
-    sub_font->reserve_notdef = !sub_font->is_scaled;
+    sub_font->is_user = _cairo_font_face_is_user (scaled_font->font_face);
+    sub_font->reserve_notdef = !sub_font->is_user;
     _cairo_sub_font_init_key (sub_font, scaled_font);
 
     sub_font->parent = parent;
@@ -292,7 +294,7 @@ _cairo_sub_font_create (cairo_scaled_font_subsets_t	*parent,
     sub_font->use_latin_subset = parent->use_latin_subset;
 
     /* latin subsets of Type 3 and CID CFF fonts are not supported */
-    if (sub_font->is_scaled ||
+    if (sub_font->is_user || sub_font->is_scaled ||
 	_cairo_cff_scaled_font_is_cid_cff (scaled_font) )
     {
 	sub_font->use_latin_subset = FALSE;
@@ -402,10 +404,12 @@ _cairo_sub_font_glyph_lookup_unicode (cairo_scaled_font_t    *scaled_font,
     if (unicode != (uint32_t) -1) {
 	len = _cairo_ucs4_to_utf8 (unicode, buf);
 	if (len > 0) {
-            *utf8_out = _cairo_strndup (buf, len);
-            if (unlikely (*utf8_out == NULL))
-                return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	    *utf8_out = _cairo_malloc (len + 1);
+	    if (unlikely (*utf8_out == NULL))
+		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
+	    memcpy (*utf8_out, buf, len);
+	    (*utf8_out)[len] = 0;
 	    *utf8_len_out = len;
 	}
     }
@@ -430,17 +434,19 @@ _cairo_sub_font_glyph_map_to_unicode (cairo_sub_font_glyph_t *sub_font_glyph,
     if (utf8 != NULL && utf8_len != 0) {
 	if (sub_font_glyph->utf8 != NULL) {
 	    if (utf8_len == sub_font_glyph->utf8_len &&
-		strncmp (utf8, sub_font_glyph->utf8, utf8_len) == 0)
+		memcmp (utf8, sub_font_glyph->utf8, utf8_len) == 0)
 	    {
 		/* Requested utf8 mapping matches the existing mapping */
 		*is_mapped = TRUE;
 	    }
 	} else {
 	    /* No existing mapping. Use the requested mapping */
-            sub_font_glyph->utf8 = _cairo_strndup (utf8, utf8_len);
-            if (unlikely (sub_font_glyph->utf8 == NULL))
-                return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	    sub_font_glyph->utf8 = _cairo_malloc (utf8_len + 1);
+	    if (unlikely (sub_font_glyph->utf8 == NULL))
+		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
+	    memcpy (sub_font_glyph->utf8, utf8, utf8_len);
+	    sub_font_glyph->utf8[utf8_len] = 0;
 	    sub_font_glyph->utf8_len = utf8_len;
 	    *is_mapped = TRUE;
 	}
@@ -606,22 +612,25 @@ _cairo_sub_font_map_glyph (cairo_sub_font_t	*sub_font,
 		if (ucs4_len == 1) {
 		    font_unicode = ucs4[0];
 		    free (font_utf8);
-                    font_utf8 = _cairo_strndup (text_utf8, text_utf8_len);
-                    if (font_utf8 == NULL) {
-                        free (ucs4);
-                        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+		    font_utf8 = _cairo_malloc (text_utf8_len + 1);
+		    if (font_utf8 == NULL) {
+			free (ucs4);
+			return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 		    }
+		    memcpy (font_utf8, text_utf8, text_utf8_len);
+		    font_utf8[text_utf8_len] = 0;
 		    font_utf8_len = text_utf8_len;
 		}
 		free (ucs4);
 	    }
 	}
 
-	/* If glyph is in the winansi encoding and font is not a scaled
+	/* If glyph is in the winansi encoding and font is not a user
 	 * font, put glyph in the latin subset. */
 	is_latin = FALSE;
 	latin_character = -1;
-	if (sub_font->use_latin_subset && !sub_font->is_scaled)
+	if (sub_font->use_latin_subset &&
+	    (! _cairo_font_face_is_user (sub_font->scaled_font->font_face)))
 	{
 	    latin_character = _cairo_unicode_to_winansi (font_unicode);
 	    if (latin_character > 0)
@@ -749,7 +758,7 @@ _cairo_scaled_font_subsets_create_internal (cairo_subsets_type_t type)
 {
     cairo_scaled_font_subsets_t *subsets;
 
-    subsets = _cairo_calloc (sizeof (cairo_scaled_font_subsets_t));
+    subsets = _cairo_malloc (sizeof (cairo_scaled_font_subsets_t));
     if (unlikely (subsets == NULL)) {
 	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return NULL;
@@ -835,9 +844,6 @@ _cairo_scaled_font_subsets_map_glyph (cairo_scaled_font_subsets_t	*subsets,
     cairo_int_status_t status;
     int max_glyphs;
     cairo_bool_t type1_font;
-    cairo_bool_t has_path;
-    cairo_bool_t has_color;
-    cairo_bool_t is_user;
 
     /* Lookup glyph in unscaled subsets */
     if (subsets->type != CAIRO_SUBSETS_SCALED) {
@@ -871,47 +877,30 @@ _cairo_scaled_font_subsets_map_glyph (cairo_scaled_font_subsets_t	*subsets,
 
     /* Glyph not found. Determine whether the glyph is outline or
      * bitmap and add to the appropriate subset.
-     */
-    is_user = _cairo_font_face_is_user (scaled_font->font_face);
-    _cairo_scaled_font_freeze_cache (scaled_font);
-    /* Check if glyph is color */
-    status = _cairo_scaled_glyph_lookup (scaled_font,
-					 scaled_font_glyph_index,
-					 CAIRO_SCALED_GLYPH_INFO_COLOR_SURFACE,
-					 NULL, /* foreground color */
-					 &scaled_glyph);
-    has_color = (status == CAIRO_INT_STATUS_SUCCESS);
-
-    /* Check if glyph has a path */
-    status = _cairo_scaled_glyph_lookup (scaled_font,
-					 scaled_font_glyph_index,
-					 CAIRO_SCALED_GLYPH_INFO_PATH,
-					 NULL, /* foreground color */
-					 &scaled_glyph);
-    has_path = (status == CAIRO_INT_STATUS_SUCCESS);
-
-    /* glyph_index 0 (the .notdef glyph) is a special case. Some fonts
+     *
+     * glyph_index 0 (the .notdef glyph) is a special case. Some fonts
      * will return CAIRO_INT_STATUS_UNSUPPORTED when doing a
      * _scaled_glyph_lookup(_GLYPH_INFO_PATH). Type1-fallback creates
      * empty glyphs in this case so we can put the glyph in a unscaled
-     * subset.
-     */
-    if (scaled_font_glyph_index == 0 && !is_user)
-        has_path = TRUE;
-
-    /* If this fails there is nothing we can do with this glyph. */
-    status = _cairo_scaled_glyph_lookup (scaled_font,
-					 scaled_font_glyph_index,
-					 CAIRO_SCALED_GLYPH_INFO_SURFACE,
+     * subset. */
+    if (scaled_font_glyph_index == 0 ||
+	_cairo_font_face_is_user (scaled_font->font_face)) {
+	status = CAIRO_STATUS_SUCCESS;
+    } else {
+	_cairo_scaled_font_freeze_cache (scaled_font);
+	status = _cairo_scaled_glyph_lookup (scaled_font,
+					     scaled_font_glyph_index,
+					     CAIRO_SCALED_GLYPH_INFO_PATH,
                                              NULL, /* foreground color */
-					 &scaled_glyph);
-    _cairo_scaled_font_thaw_cache (scaled_font);
+					     &scaled_glyph);
+	_cairo_scaled_font_thaw_cache (scaled_font);
+    }
     if (_cairo_int_status_is_error (status))
         return status;
 
-    /* Type 3 glyphs (is_user and has_color) must be added to scaled subset */
-    if (subsets->type != CAIRO_SUBSETS_SCALED &&
-	has_path && !has_color && !is_user)
+    if (status == CAIRO_INT_STATUS_SUCCESS &&
+	subsets->type != CAIRO_SUBSETS_SCALED &&
+	! _cairo_font_face_is_user (scaled_font->font_face))
     {
         /* Path available. Add to unscaled subset. */
         key.is_scaled = FALSE;
@@ -922,7 +911,6 @@ _cairo_scaled_font_subsets_map_glyph (cairo_scaled_font_subsets_t	*subsets,
             font_face = cairo_scaled_font_get_font_face (scaled_font);
             cairo_matrix_init_identity (&identity);
             _cairo_font_options_init_default (&font_options);
-            cairo_scaled_font_get_font_options (scaled_font, &font_options);
             cairo_font_options_set_hint_style (&font_options, CAIRO_HINT_STYLE_NONE);
             cairo_font_options_set_hint_metrics (&font_options, CAIRO_HINT_METRICS_OFF);
             unscaled_font = cairo_scaled_font_create (font_face,
@@ -1024,12 +1012,19 @@ _cairo_scaled_font_subsets_foreach_internal (cairo_scaled_font_subsets_t        
 {
     cairo_sub_font_collection_t collection;
     cairo_sub_font_t *sub_font;
-    cairo_bool_t is_scaled;
+    cairo_bool_t is_scaled, is_user;
 
     is_scaled = FALSE;
+    is_user = FALSE;
 
-    if (type == CAIRO_SUBSETS_FOREACH_SCALED)
+    if (type == CAIRO_SUBSETS_FOREACH_USER)
+	is_user = TRUE;
+
+    if (type == CAIRO_SUBSETS_FOREACH_SCALED ||
+	type == CAIRO_SUBSETS_FOREACH_USER)
+    {
 	is_scaled = TRUE;
+    }
 
     if (is_scaled)
         collection.glyphs_size = font_subsets->max_glyphs_per_scaled_subset_used;
@@ -1065,7 +1060,9 @@ _cairo_scaled_font_subsets_foreach_internal (cairo_scaled_font_subsets_t        
 	sub_font = font_subsets->unscaled_sub_fonts_list;
 
     while (sub_font) {
-	_cairo_sub_font_collect (sub_font, &collection);
+	if (sub_font->is_user == is_user)
+	    _cairo_sub_font_collect (sub_font, &collection);
+
 	sub_font = sub_font->next;
     }
     free (collection.utf8);
@@ -1096,6 +1093,17 @@ _cairo_scaled_font_subsets_foreach_unscaled (cairo_scaled_font_subsets_t	    *fo
                                                         font_subset_callback,
                                                         closure,
 							CAIRO_SUBSETS_FOREACH_UNSCALED);
+}
+
+cairo_status_t
+_cairo_scaled_font_subsets_foreach_user (cairo_scaled_font_subsets_t		  *font_subsets,
+					 cairo_scaled_font_subset_callback_func_t  font_subset_callback,
+					 void					  *closure)
+{
+    return _cairo_scaled_font_subsets_foreach_internal (font_subsets,
+                                                        font_subset_callback,
+                                                        closure,
+							CAIRO_SUBSETS_FOREACH_USER);
 }
 
 static cairo_bool_t
@@ -1206,7 +1214,7 @@ _cairo_string_init_key (cairo_string_entry_t *key, char *s)
 static cairo_status_t
 create_string_entry (char *s, cairo_string_entry_t **entry)
 {
-    *entry = _cairo_calloc (sizeof (cairo_string_entry_t));
+    *entry = _cairo_malloc (sizeof (cairo_string_entry_t));
     if (unlikely (*entry == NULL))
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -1238,7 +1246,7 @@ _cairo_scaled_font_subset_create_glyph_names (cairo_scaled_font_subset_t *subset
     if (unlikely (names == NULL))
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    subset->glyph_names = _cairo_calloc_ab (subset->num_glyphs, sizeof (char *));
+    subset->glyph_names = calloc (subset->num_glyphs, sizeof (char *));
     if (unlikely (subset->glyph_names == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto CLEANUP_HASH;

@@ -40,9 +40,7 @@
 #else
  #define HEIGHT WIDTH
 #endif
-
-#define TEXT1   "cairo user-font."
-#define TEXT2   " zg"
+#define TEXT   "geez... cairo user-font"
 
 static cairo_user_data_key_t fallback_font_key;
 
@@ -150,16 +148,11 @@ _user_font_face_create (cairo_font_face_t **out)
 static cairo_test_status_t
 draw (cairo_t *cr, int width, int height)
 {
+    const char text[] = TEXT;
     cairo_font_extents_t font_extents;
     cairo_text_extents_t extents;
     cairo_font_face_t *font_face;
     cairo_status_t status;
-    char full_text[100];
-
-    strcpy(full_text, TEXT1);
-    strcat(full_text, TEXT2);
-    strcat(full_text, TEXT2);
-    strcat(full_text, TEXT2);
 
     cairo_set_source_rgb (cr, 1, 1, 1);
     cairo_paint (cr);
@@ -181,7 +174,7 @@ draw (cairo_t *cr, int width, int height)
     cairo_set_font_size (cr, TEXT_SIZE);
 
     cairo_font_extents (cr, &font_extents);
-    cairo_text_extents (cr, full_text, &extents);
+    cairo_text_extents (cr, text, &extents);
 
     /* logical boundaries in red */
     cairo_move_to (cr, 0, BORDER);
@@ -206,26 +199,16 @@ draw (cairo_t *cr, int width, int height)
     cairo_set_line_width (cr, 2);
     cairo_stroke (cr);
 
-
-    /* TEXT1 in black */
-    cairo_move_to (cr, BORDER, BORDER + font_extents.ascent);
+    /* text in gray */
     cairo_set_source_rgb (cr, 0, 0, 0);
-    cairo_show_text (cr, TEXT1);
+    cairo_move_to (cr, BORDER, BORDER + font_extents.ascent);
+    cairo_show_text (cr, text);
 
-    /* Draw TEXT2 three times with three different foreground colors.
-     * This checks that cairo uses the foreground color and does not cache
-     * glyph images when the foreground color changes.
-     */
-    cairo_show_text (cr, TEXT2);
-    cairo_set_source_rgb (cr, 0, 0.5, 0);
-    cairo_show_text (cr, TEXT2);
-    cairo_set_source_rgb (cr, 0.2, 0.5, 0.5);
-    cairo_show_text (cr, TEXT2);
 
     /* filled version of text in light blue */
     cairo_set_source_rgb (cr, 0, 0, 1);
     cairo_move_to (cr, BORDER, BORDER + font_extents.height + BORDER + font_extents.ascent);
-    cairo_text_path (cr, full_text);
+    cairo_text_path (cr, text);
     cairo_fill (cr);
 
     return CAIRO_TEST_SUCCESS;

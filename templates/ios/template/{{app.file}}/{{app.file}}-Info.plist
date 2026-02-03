@@ -2,12 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	::if (languages != null)::<key>CFBundleLocalizations</key>
 	<array>::foreach languages::
 		<string>::__current__::</string>::end::
 	</array>::end::
+        <key>UIFileSharingEnabled</key>
+		<true/>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>launchScreenBackground</string>
+	</dict>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<string>true</string>
+        <key>NSBluetoothAlwaysUsageDescription</key>
+        <string>To play with controller accept bluetooth permission.</string>
 	<key>CFBundleDisplayName</key>
 	<string>::APP_TITLE::</string>
 	<key>CFBundleExecutable</key>
@@ -26,6 +38,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>::APP_BUILD_NUMBER::</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+	<key>GCSupportsGameMode</key>
+	<true />
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	::if (IOS_LAUNCH_STORYBOARD != null)::<key>UILaunchStoryboardName</key>
@@ -60,5 +76,9 @@
 		<true/>::end::
 	</dict>
 	::if (IOS_NON_EXEMPT_ENCRYPTION != null)::<key>ITSAppUsesNonExemptEncryption</key><::IOS_NON_EXEMPT_ENCRYPTION:: />::end::
+	::if (IOS_INFO_PLIST_CHILDREN != null)::
+	::foreach IOS_INFO_PLIST_CHILDREN::::__current__::
+	::end::
+	::end::
 </dict>
 </plist>

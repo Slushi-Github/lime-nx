@@ -20,8 +20,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -37,10 +35,10 @@
 #define NTLM_NEEDS_NSS_INIT
 #endif
 
+#if defined(USE_OPENSSL) || defined(USE_WOLFSSL)
 #ifdef USE_WOLFSSL
 #  include <wolfssl/options.h>
-#  include <wolfssl/openssl/ssl.h>
-#elif defined(USE_OPENSSL)
+#endif
 #  include <openssl/ssl.h>
 #endif
 

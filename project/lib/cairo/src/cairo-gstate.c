@@ -66,8 +66,7 @@ _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t      *gstate,
 					   cairo_text_cluster_flags_t cluster_flags,
                                            cairo_glyph_t       *transformed_glyphs,
 					   int			*num_transformed_glyphs,
-					   cairo_text_cluster_t *transformed_clusters,
-					   cairo_bool_t          perform_early_clip);
+					   cairo_text_cluster_t *transformed_clusters);
 
 static void
 _cairo_gstate_update_device_transform (cairo_observer_t *observer,
@@ -194,7 +193,6 @@ void
 _cairo_gstate_fini (cairo_gstate_t *gstate)
 {
     _cairo_stroke_style_fini (&gstate->stroke_style);
-    _cairo_font_options_fini (&gstate->font_options);
 
     cairo_font_face_destroy (gstate->font_face);
     gstate->font_face = NULL;
@@ -243,7 +241,7 @@ _cairo_gstate_save (cairo_gstate_t **gstate, cairo_gstate_t **freelist)
 
     top = *freelist;
     if (top == NULL) {
-	top = _cairo_calloc (sizeof (cairo_gstate_t));
+	top = _cairo_malloc (sizeof (cairo_gstate_t));
 	if (unlikely (top == NULL))
 	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     } else
@@ -1147,7 +1145,7 @@ _cairo_gstate_mask (cairo_gstate_t  *gstate,
     }
     _cairo_gstate_copy_transformed_mask (gstate, &mask_pattern.base, mask);
 
-    if (source->type == CAIRO_PATTERN_TYPE_SOLID && !source->is_foreground_marker &&
+    if (source->type == CAIRO_PATTERN_TYPE_SOLID &&
 	mask_pattern.base.type == CAIRO_PATTERN_TYPE_SOLID &&
 	_cairo_operator_bounded_by_source (op))
     {
@@ -1750,12 +1748,11 @@ void
 _cairo_gstate_set_font_options (cairo_gstate_t             *gstate,
 				const cairo_font_options_t *options)
 {
-    if (_cairo_font_options_compare (options, &gstate->font_options))
+    if (memcmp (options, &gstate->font_options, sizeof (cairo_font_options_t)) == 0)
 	return;
 
     _cairo_gstate_unset_scaled_font (gstate);
 
-    _cairo_font_options_fini (&gstate->font_options);
     _cairo_font_options_init_copy (&gstate->font_options, options);
 }
 
@@ -1763,8 +1760,7 @@ void
 _cairo_gstate_get_font_options (cairo_gstate_t       *gstate,
 				cairo_font_options_t *options)
 {
-    _cairo_font_options_fini (options);
-    _cairo_font_options_init_copy (options, &gstate->font_options);
+    *options = gstate->font_options;
 }
 
 cairo_status_t
@@ -1921,8 +1917,6 @@ _cairo_gstate_ensure_scaled_font (cairo_gstate_t *gstate)
 					    &font_ctm,
 					    &options);
 
-    _cairo_font_options_fini (&options);
-
     status = cairo_scaled_font_status (scaled_font);
     if (unlikely (status))
 	return status;
@@ -2036,16 +2030,14 @@ _cairo_gstate_show_text_glyphs (cairo_gstate_t		   *gstate,
 						   info->cluster_flags,
 						   transformed_glyphs,
 						   &num_glyphs,
-						   transformed_clusters,
-						   TRUE);
+						   transformed_clusters);
     } else {
 	_cairo_gstate_transform_glyphs_to_backend (gstate,
 						   glyphs, num_glyphs,
 						   NULL, 0, 0,
 						   transformed_glyphs,
 						   &num_glyphs,
-						   NULL,
-						   TRUE);
+						   NULL);
     }
 
     if (num_glyphs == 0)
@@ -2147,7 +2139,7 @@ _cairo_gstate_glyph_path (cairo_gstate_t      *gstate,
 					       glyphs, num_glyphs,
 					       NULL, 0, 0,
 					       transformed_glyphs,
-					       &num_glyphs, NULL, FALSE);
+					       &num_glyphs, NULL);
 
     status = _cairo_scaled_font_glyph_path (gstate->scaled_font,
 					    transformed_glyphs, num_glyphs,
@@ -2201,8 +2193,7 @@ _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t	*gstate,
 					   cairo_text_cluster_flags_t cluster_flags,
                                            cairo_glyph_t	*transformed_glyphs,
 					   int			*num_transformed_glyphs,
-					   cairo_text_cluster_t *transformed_clusters,
-					   cairo_bool_t         perform_early_clip)
+					   cairo_text_cluster_t *transformed_clusters)
 {
     cairo_rectangle_int_t surface_extents;
     cairo_matrix_t *ctm = &gstate->ctm;
@@ -2213,7 +2204,7 @@ _cairo_gstate_transform_glyphs_to_backend (cairo_gstate_t	*gstate,
     int i, j, k;
 
     drop = TRUE;
-    if (!perform_early_clip || !_cairo_gstate_int_clip_extents (gstate, &surface_extents)) {
+    if (! _cairo_gstate_int_clip_extents (gstate, &surface_extents)) {
 	drop = FALSE; /* unbounded surface */
     } else {
 	double scale10 = 10 * _cairo_scaled_font_get_max_scale (gstate->scaled_font);

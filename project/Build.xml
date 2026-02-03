@@ -37,7 +37,7 @@
 	<unset name="LIME_OPENALSOFT" if="LIME_MOJOAL" />
 	<set name="LIME_OPENAL" value="1" if="LIME_OPENALSOFT" />
 	<set name="LIME_OPENAL" value="1" if="LIME_MOJOAL" />
-	<!-- Habilita LIME_OPENGL para Switch -->
+	<!-- Habilita LIME_OPENGL para Switch (antes excluido) -->
 	<set name="LIME_OPENGL" value="1" />
 	<set name="LIME_PIXMAN" value="1" />
 	<!-- Habilita LIME_PNG para Switch -->
@@ -445,7 +445,7 @@
 	</files>
 
 	<!-- Run setup now so the submodule projects can determine whether clang or GCC will be used. -->
-	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930                 ever gets resolved, use that instead. -->
+	<!-- TODO: if https://github.com/HaxeFoundation/hxcpp/issues/930                   ever gets resolved, use that instead. -->
 	<setup name="androidNdk" if="android" />
 
 	<include name="lib/cairo-files.xml" />
@@ -667,6 +667,7 @@
 				<lib name="-lmbedx509" />
 				<!-- Bibliotecas de OpenGL de escritorio -->
 				<lib name="-lGL" />
+				<!-- Esta es la biblioteca que carga funciones OpenGL de escritorio -->
 				<!-- Biblioteca Cairo (y dependencias como Pixman) -->
 				<lib name="-lcairo" />
 				<lib name="-lpixman-1" />

@@ -1,7 +1,7 @@
 # makefile for SCO OSr5  ELF and Unixware 7 with Native cc
 # Contributed by Mike Hopkirk (hops at sco.com) modified from Makefile.lnx
 #   force ELF build dynamic linking, SONAME setting in lib and RPATH in app
-# Copyright (C) 2018-2025 Cosmin Truta
+# Copyright (C) 2020-2022 Cosmin Truta
 # Copyright (C) 2002, 2006, 2010-2014 Glenn Randers-Pehrson
 # Copyright (C) 1998 Greg Roelofs
 # Copyright (C) 1996, 1997 Andreas Dilger
@@ -20,8 +20,9 @@ LIBSOMAJ=$(LIBNAME).so.$(PNGMAJ)
 
 # Utilities:
 CC=cc
-AR=ar
+AR_RC=ar rc
 RANLIB=echo
+MKDIR_P=mkdir
 LN_SF=ln -f -s
 CP=cp
 RM_F=/bin/rm -f
@@ -33,8 +34,7 @@ ZLIBLIB=../zlib
 ZLIBINC=../zlib
 
 CPPFLAGS=-I$(ZLIBINC)
-CFLAGS=-dy -belf -O3
-ARFLAGS=rc
+CFLAGS= -dy -belf -O3
 LDFLAGS=-L. -L$(ZLIBLIB) -lpng16 -lz -lm
 
 # Pre-built configuration
@@ -50,7 +50,7 @@ OBJSDLL = $(OBJS:.o=.pic.o)
 .SUFFIXES:      .c .o .pic.o
 
 .c.o:
-	$(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $*.c
+	$(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $<
 
 .c.pic.o:
 	$(CC) -c $(CPPFLAGS) $(CFLAGS) -KPIC -o $@ $*.c
@@ -61,7 +61,7 @@ pnglibconf.h: $(PNGLIBCONF_H_PREBUILT)
 	$(CP) $(PNGLIBCONF_H_PREBUILT) $@
 
 libpng.a: $(OBJS)
-	$(AR) $(ARFLAGS) $@ $(OBJS)
+	$(AR_RC) $@ $(OBJS)
 	$(RANLIB) $@
 
 $(LIBSO): $(LIBSOMAJ)

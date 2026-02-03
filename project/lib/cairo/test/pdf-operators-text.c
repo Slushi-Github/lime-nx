@@ -127,7 +127,6 @@ draw (cairo_t *cr, int width, int height)
     cairo_set_font_size (cr, FONT_SIZE);
 
     text = malloc (strlen(WORD) * NUM_WORDS + 1);
-    text[0] = '\0';
     for (i = 0; i < NUM_WORDS; i++)
 	strcat (text, WORD);
 

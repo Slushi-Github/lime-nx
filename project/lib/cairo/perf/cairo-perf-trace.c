@@ -407,11 +407,11 @@ read_excludes (cairo_perf_t *perf,
 
 	/* whitespace delimits */
 	s = line;
-	while (*s != '\0' && isspace ((unsigned char)*s))
+	while (*s != '\0' && isspace (*s))
 	    s++;
 
 	t = s;
-	while (*t != '\0' && ! isspace ((unsigned char)*t))
+	while (*t != '\0' && ! isspace (*t))
 	    t++;
 
 	if (s != t) {

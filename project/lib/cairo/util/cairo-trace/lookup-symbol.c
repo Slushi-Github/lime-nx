@@ -106,10 +106,10 @@ _symtab_init (struct symtab *symtab, const char *filename)
     if (! bfd_check_format_matches (symtab->bfd, bfd_object, &matching))
 	goto BAIL;
 
-    symcount = bfd_read_minisymbols (symtab->bfd, false, (void **) &symtab->syms, &size);
+    symcount = bfd_read_minisymbols (symtab->bfd, false, (PTR) &symtab->syms, &size);
     if (symcount == 0) {
 	symcount = bfd_read_minisymbols (symtab->bfd, true /* dynamic */ ,
-		(void **) &symtab->syms, &size);
+		(PTR) &symtab->syms, &size);
     }
     if (symcount < 0)
 	goto BAIL;

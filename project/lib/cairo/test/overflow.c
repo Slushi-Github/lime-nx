@@ -175,7 +175,7 @@ preamble (cairo_test_context_t *ctx)
     }
     /* Next check the compiler builtins (if available, otherwise the
      * fallback versions are tested again). This is to ensure the fallback version
-     * produces identical results to the compiler builtins.
+     * produces idential results to the compiler builtins.
      */
     for (i = 0; i < num_add_tests; i++) {
         const struct test_data *data = &add_data[i];

@@ -1,6 +1,3 @@
-# https://github.com/harfbuzz/harfbuzz/issues/4020
-/System/Library/Fonts/LucidaGrande.ttc;--features=-liga[3:5];U+0066,U+0066,U+0020,U+0066,U+0066,U+0066,U+0020,U+0066,U+0066;[ff=0+1443|space=2+648|f=3+753|f=4+753|f=5+753|space=6+648|ff=7+1443]
-
 # https://github.com/harfbuzz/harfbuzz/issues/1373
 /System/Library/Fonts/Supplemental/BigCaslon.ttf;;U+0107;[cacute=0+432]
 /System/Library/Fonts/Supplemental/BigCaslon.ttf;--language=pl;U+0107;[cacute.polish=0+432]
@@ -14,11 +11,11 @@
 # https://github.com/harfbuzz/harfbuzz/issues/3535
 /System/Library/Fonts/LucidaGrande.ttc;;U+20DD,U+1F174,U+1F175;[circlecmb=0+0|.notdef=1+1536|.notdef=2+1536]
 
-# https://github.com/harfbuzz/harfbuzz/issues/3008
+# https;//github.com/harfbuzz/harfbuzz/issues/3008
 /System/Library/Fonts/ヒラギノ丸ゴ\ ProN\ W4.ttc;--features=palt;U+FF11;[gid781=0@-78,0+842]
 
-# https://github.com/harfbuzz/harfbuzz/pull/2871
-/System/Library/Fonts/LucidaGrande.ttc;--font-funcs ot --show-flags;U+0041,U+0042,U+0043,U+0044;[A=0+1413#2|B=1+1178#2|C=2+1417#2|D=3+1534#2]
+# https;//github.com/harfbuzz/harfbuzz/pull/2871
+/System/Library/Fonts/LucidaGrande.ttc;--font-funcs ot --show-flags;U+0041,U+0042,U+0043,U+0044;[A=0+1413|B=1+1178|C=2+1417|D=3+1534]
 
 # 10.12.6 https;//gist.github.com/ebraminio/1704341fa16b06979e605aafd88198cf
 /System/Library/Fonts/Helvetica.dfont@c7bec2785a4c402b7809b5e35337c3d24c18e281;--font-funcs ot;U+006D,U+0300;[m=0+1706|gravecmb=0@-284,10+0]
@@ -159,12 +156,3 @@
 
 # 12.3
 /System/Library/Fonts/Apple Color Emoji.ttc@8fa6ac4564651899da0b37d310d980db4de967d6;--font-funcs ot;1FAF1,1F3FF,200D,1FAF2,1F3FC;[u1FAF1.5.L=0+800|u1FAF2.2.R=0@-800,0+0]
-
-# 15.0
-/System/Library/Fonts/GeezaPro.ttc@fec826d69594ad925665f93252d8b20daf6b0879;--font-funcs ot;U+0627,U+0644,U+0623,U+064E,U+0628,U+0652,U+062C,U+064E,U+062F,U+0650,U+064A,U+064E,U+0651,U+0629,U+0640,U+0627,U+0644,U+0639,U+064E,U+0631,U+064E,U+0628,U+0650,U+064A,U+064E,U+0651,U+0629;[u0629.final.tehMarbuta=26+713|u064e_u0651.shaddaFatha=23@0,-200+0|u064a.medial.yeh=23+656|u0650.kasra=21@80,290+80|u0628.initial.beh=21@-80,0+576|u064e.fatha=19@200,-570+200|u0631.final.reh=19@-200,0+702|u064e.fatha=17@200,-200+200|u0639.medial.ain=17@-200,0+738|u0644.initial.lam=16+515|u0627.final.alef=15+647|u0640.tatweel=14+449|u0629.final.tehMarbuta=13+713|u064e_u0651.shaddaFatha=10@0,-200+0|u064a.initial.yeh=10+656|u0650.kasra=8@80,570+80|u062f.final.dal=8@-80,0+822|u064e.fatha=6@290,-160+290|u062c.medial.jeem=6@-290,0+1069|u0652.sukun=4@0,-200+0|u0628.initial.beh=4+656|u064e.fatha=1@-372,120+-372|u0644_u0623.isolated.lamHamzaOnAlef=1@120,0+1282|u0627.alef=0+647]
-/System/Library/Fonts/GeezaPro.ttc@fec826d69594ad925665f93252d8b20daf6b0879;--font-funcs ot;U+0628,U+064A,U+064E,U+0651,U+0629;[u0629.final.tehMarbuta=4+713|u064e_u0651.shaddaFatha=1@0,-200+0|u064a.medial.yeh=1+656|u0628.initial.beh=0+656]
-/System/Library/Fonts/GeezaPro.ttc@fec826d69594ad925665f93252d8b20daf6b0879;--font-funcs ot;U+0631,U+0628;[u0628.beh=1+1415|u0631.reh=0@-202,0+700]
-/System/Library/Fonts/GeezaPro.ttc@fec826d69594ad925665f93252d8b20daf6b0879;--font-funcs ot;U+0628,U+064F;[u064f.damma=0@250,-250+250|u0628.beh=0@-250,0+1165]
-/System/Library/Fonts/GeezaPro.ttc@fec826d69594ad925665f93252d8b20daf6b0879;--font-funcs ot;U+0644,U+064E,U+0645,U+064E,U+0651,U+0627;[u0627.final.alef=5+647|u064e.fatha=0@-80,160+-80|u064e_u0651.shaddaFatha=0@490,250+490|u0644_u0645.initial.lamMeem=0@-410,0+415]
-/System/Library/Fonts/Supplemental/Courier New.ttf@88d2006ca084f04af2df1954ed714a8c71e8400f;;U+0181,U+0182,U+0183,U+0184,U+0185,U+0186,U+0187,U+0188,U+03FD,U+0674;[uni0181=0+1229|uni0182=1+1229|uni0183=2+1229|uni0184=3+1229|uni0185=4+1229|uni0186=5+1229|uni0187=6+1229|uni0188=7+1229|uni03FD=8+1229|afii57543=9+1229]
-/System/Library/Fonts/Supplemental/Courier New Bold.ttf@608e3ebb6dd1aee521cff08eb07d500a2c59df68;;U+0181,U+0182,U+0183,U+0184,U+0185,U+0186,U+0187,U+0188,U+03FD,U+0674;[uni0181=0+1229|uni0182=1+1229|uni0183=2+1229|uni0184=3+1229|uni0185=4+1229|uni0186=5+1229|uni0187=6+1229|uni0188=7+1229|uni03FD=8+1229|afii57543=9+1229]

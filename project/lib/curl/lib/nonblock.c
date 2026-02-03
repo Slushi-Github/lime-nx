@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -31,6 +29,9 @@
 #include <fcntl.h>
 #endif
 
+#if (defined(HAVE_IOCTL_FIONBIO) && defined(NETWARE))
+#include <sys/filio.h>
+#endif
 #ifdef __VMS
 #include <in.h>
 #include <inet.h>

@@ -40,7 +40,7 @@
 #include "cairo-array-private.h"
 #include "cairo-error-private.h"
 
-/*< private >
+/**
  * _cairo_array_init:
  *
  * Initialize a new #cairo_array_t object to store objects each of size
@@ -63,7 +63,7 @@ _cairo_array_init (cairo_array_t *array, unsigned int element_size)
     array->elements = NULL;
 }
 
-/*< private >
+/**
  * _cairo_array_fini:
  * @array: A #cairo_array_t
  *
@@ -77,7 +77,7 @@ _cairo_array_fini (cairo_array_t *array)
     free (array->elements);
 }
 
-/*< private >
+/**
  * _cairo_array_grow_by:
  * @array: a #cairo_array_t
  *
@@ -125,7 +125,7 @@ _cairo_array_grow_by (cairo_array_t *array, unsigned int additional)
     return CAIRO_STATUS_SUCCESS;
 }
 
-/*< private >
+/**
  * _cairo_array_truncate:
  * @array: a #cairo_array_t
  *
@@ -140,16 +140,17 @@ _cairo_array_truncate (cairo_array_t *array, unsigned int num_elements)
 	array->num_elements = num_elements;
 }
 
-/*< private >
+/**
  * _cairo_array_index:
  * @array: a #cairo_array_t
+ * Returns: A pointer to the object stored at @index.
  *
  * If the resulting value is assigned to a pointer to an object of the same
  * element_size as initially passed to _cairo_array_init() then that
  * pointer may be used for further direct indexing with []. For
  * example:
  *
- * |[<!-- language="C" -->
+ * <informalexample><programlisting>
  *	cairo_array_t array;
  *	double *values;
  *
@@ -159,9 +160,7 @@ _cairo_array_truncate (cairo_array_t *array, unsigned int num_elements)
  *	values = _cairo_array_index (&array, 0);
  *      for (i = 0; i < _cairo_array_num_elements (&array); i++)
  *	    ... use values[i] here ...
- * ]|
- *
- * Returns: A pointer to the object stored at @index.
+ * </programlisting></informalexample>
  **/
 void *
 _cairo_array_index (cairo_array_t *array, unsigned int index)
@@ -185,16 +184,17 @@ _cairo_array_index (cairo_array_t *array, unsigned int index)
     return array->elements + (size_t)index * array->element_size;
 }
 
-/*< private >
+/**
  * _cairo_array_index_const:
  * @array: a #cairo_array_t
+ * Returns: A pointer to the object stored at @index.
  *
  * If the resulting value is assigned to a pointer to an object of the same
  * element_size as initially passed to _cairo_array_init() then that
  * pointer may be used for further direct indexing with []. For
  * example:
  *
- * |[<!-- language="C" --.
+ * <informalexample><programlisting>
  *	cairo_array_t array;
  *	const double *values;
  *
@@ -204,9 +204,7 @@ _cairo_array_index (cairo_array_t *array, unsigned int index)
  *	values = _cairo_array_index_const (&array, 0);
  *      for (i = 0; i < _cairo_array_num_elements (&array); i++)
  *	    ... read values[i] here ...
- * ]|
- *
- * Returns: A pointer to the object stored at @index.
+ * </programlisting></informalexample>
  **/
 const void *
 _cairo_array_index_const (const cairo_array_t *array, unsigned int index)
@@ -230,7 +228,7 @@ _cairo_array_index_const (const cairo_array_t *array, unsigned int index)
     return array->elements + (size_t)index * array->element_size;
 }
 
-/*< private >
+/**
  * _cairo_array_copy_element:
  * @array: a #cairo_array_t
  *
@@ -245,7 +243,7 @@ _cairo_array_copy_element (const cairo_array_t *array,
     memcpy (dst, _cairo_array_index_const (array, index), array->element_size);
 }
 
-/*< private >
+/**
  * _cairo_array_append:
  * @array: a #cairo_array_t
  *
@@ -267,7 +265,7 @@ _cairo_array_append (cairo_array_t	*array,
     return _cairo_array_append_multiple (array, element, 1);
 }
 
-/*< private >
+/**
  * _cairo_array_append_multiple:
  * @array: a #cairo_array_t
  *
@@ -296,7 +294,7 @@ _cairo_array_append_multiple (cairo_array_t	*array,
     return CAIRO_STATUS_SUCCESS;
 }
 
-/*< private >
+/**
  * _cairo_array_allocate:
  * @array: a #cairo_array_t
  *
@@ -329,13 +327,12 @@ _cairo_array_allocate (cairo_array_t	 *array,
     return CAIRO_STATUS_SUCCESS;
 }
 
-/*< private >
+/**
  * _cairo_array_num_elements:
  * @array: a #cairo_array_t
+ * Returns: The number of elements stored in @array.
  *
  * This space was left intentionally blank, but gtk-doc filled it.
- *
- * Returns: The number of elements stored in @array.
  **/
 unsigned int
 _cairo_array_num_elements (const cairo_array_t *array)
@@ -343,14 +340,13 @@ _cairo_array_num_elements (const cairo_array_t *array)
     return array->num_elements;
 }
 
-/*< private >
+/**
  * _cairo_array_size:
  * @array: a #cairo_array_t
- *
- * This space was left intentionally blank, but gtk-doc filled it.
- *
  * Returns: The number of elements for which there is currently space
  * allocated in @array.
+ *
+ * This space was left intentionally blank, but gtk-doc filled it.
  **/
 unsigned int
 _cairo_array_size (const cairo_array_t *array)
@@ -358,7 +354,7 @@ _cairo_array_size (const cairo_array_t *array)
     return array->size;
 }
 
-/*< private >
+/**
  * _cairo_user_data_array_init:
  * @array: a #cairo_user_data_array_t
  *
@@ -373,7 +369,7 @@ _cairo_user_data_array_init (cairo_user_data_array_t *array)
     _cairo_array_init (array, sizeof (cairo_user_data_slot_t));
 }
 
-/*< private >
+/**
  * _cairo_user_data_array_fini:
  * @array: a #cairo_user_data_array_t
  *
@@ -400,7 +396,7 @@ _cairo_user_data_array_fini (cairo_user_data_array_t *array)
     _cairo_array_fini (array);
 }
 
-/*< private >
+/**
  * _cairo_user_data_array_get_data:
  * @array: a #cairo_user_data_array_t
  * @key: the address of the #cairo_user_data_key_t the user data was
@@ -433,7 +429,7 @@ _cairo_user_data_array_get_data (cairo_user_data_array_t     *array,
     return NULL;
 }
 
-/*< private >
+/**
  * _cairo_user_data_array_set_data:
  * @array: a #cairo_user_data_array_t
  * @key: the address of a #cairo_user_data_key_t to attach the user data to
@@ -541,40 +537,4 @@ void
 _cairo_array_sort (const cairo_array_t *array, int (*compar)(const void *, const void *))
 {
     qsort (array->elements, array->num_elements, array->element_size, compar);
-}
-
-/*< private >
- * _cairo_array_pop_element:
- * @array: a #cairo_array_t
- * Returns: A TRUE if element successfully popped, FALSE if the array is empty.
- *
- * Copy the last element out of the array from index @index into the
- * location pointed to by @dst and remove the element from the array.
- **/
-cairo_bool_t
-_cairo_array_pop_element (cairo_array_t *array, void *dst)
-{
-    if (array->num_elements > 0) {
-	_cairo_array_copy_element (array, array->num_elements - 1, dst);
-	array->num_elements--;
-	return TRUE;
-    }
-
-    return FALSE;
-}
-
-/*< private >
- * _cairo_array_top_element:
- * @array: a #cairo_array_t
- * Returns: A pointer to the last of object or NULL if array is empty.
- *
- * Get the pointer to the last element of of the array.
- **/
-void *
-_cairo_array_last_element (cairo_array_t *array)
-{
-    if (array->num_elements > 0)
-	return _cairo_array_index (array, array->num_elements - 1);
-
-    return NULL;
 }

@@ -8,7 +8,7 @@ print <<HEAD
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -20,8 +20,6 @@ print <<HEAD
  *
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
- *
- * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
 
@@ -37,67 +35,35 @@ HEAD
 
 my $lastnum=0;
 
-sub add {
-    my($opt, $type, $num)=@_;
-    my $name;
-    # remove all spaces from the type
-    $type =~ s/ //g;
-    my $ext = $type;
-
-    if($opt =~ /OBSOLETE/) {
-        # skip obsolete options
-        next;
-    }
-
-    if($opt =~ /^CURLOPT_(.*)/) {
-        $name=$1;
-    }
-    $ext =~ s/CURLOPTTYPE_//;
-    $ext =~ s/CBPOINT/CBPTR/;
-    $ext =~ s/POINT\z//;
-    $type = "CURLOT_$ext";
-
-    $opt{$name} = $opt;
-    $type{$name} = $type;
-    push @names, $name;
-    if($num < $lastnum) {
-        print STDERR "ERROR: $opt has bad number: $num < $lastnum\n";
-        exit 2;
-    }
-    else {
-        $lastnum = $num;
-    }
-}
-
-
-my $fl;
 while(<STDIN>) {
-    my $l = $_;
-    if($fl) {
-        # continued deprecation
-        if($l =~ /(.*)\),/) {
-            $fl .= $1;
-
-            # the end
-            my @p=split(/, */, $fl);
-            add($p[0], $p[1], $p[2]);
-            undef $fl;
-        }
-        else {
-            # another line to append
-            chomp $l;
-            $fl .= $l;
-        }
-    }
-
-    if(/^ *CURLOPTDEPRECATED\((.*)/) {
-        $fl = $1;
-        chomp $fl;
-    }
-
     if(/^ *CURLOPT\(([^,]*), ([^,]*), (\d+)\)/) {
         my($opt, $type, $num)=($1,$2,$3);
-        add($opt, $type, $num);
+        my $name;
+        my $ext = $type;
+
+        if($opt =~ /OBSOLETE/) {
+            # skip obsolete options
+            next;
+        }
+
+        if($opt =~ /^CURLOPT_(.*)/) {
+            $name=$1;
+        }
+        $ext =~ s/CURLOPTTYPE_//;
+        $ext =~ s/CBPOINT/CBPTR/;
+        $ext =~ s/POINT\z//;
+        $type = "CURLOT_$ext";
+
+        $opt{$name} = $opt;
+        $type{$name} = $type;
+        push @names, $name;
+        if($num < $lastnum) {
+            print STDERR "ERROR: $opt has bad number\n";
+            exit 2;
+        }
+        else {
+            $lastnum = $num;
+        }
     }
 
     # alias for an older option
@@ -135,7 +101,7 @@ for my $name (sort @names) {
 }
 
 print <<FOOT
-  {NULL, CURLOPT_LASTENTRY, CURLOT_LONG, 0} /* end of table */
+  {NULL, CURLOPT_LASTENTRY, 0, 0} /* end of table */
 };
 
 #ifdef DEBUGBUILD

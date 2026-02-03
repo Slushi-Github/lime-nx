@@ -13,8 +13,6 @@ ft-show-glyphs-positioning
 ft-text-vertical-layout-type1
 ft-text-vertical-layout-type3
 halo-transform
-huge-linear
-huge-radial
 linear-gradient-reflect
 mask
 overlapping-glyphs

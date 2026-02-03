@@ -940,7 +940,7 @@ _cairo_svg_surface_add_source_surface (cairo_svg_surface_t *surface,
 	unique_id_length = 0;
     }
 
-    cairo_svg_source_surface_t *source_surface_entry = _cairo_calloc (sizeof (cairo_svg_source_surface_t));
+    cairo_svg_source_surface_t *source_surface_entry = malloc (sizeof (cairo_svg_source_surface_t));
     if (source_surface_entry == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail;
@@ -1060,7 +1060,7 @@ _cairo_svg_surface_create_for_document (cairo_svg_document_t *document,
     cairo_surface_t *paginated;
     cairo_status_t status;
 
-    surface = _cairo_calloc (sizeof (cairo_svg_surface_t));
+    surface = _cairo_malloc (sizeof (cairo_svg_surface_t));
     if (unlikely (surface == NULL)) {
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
@@ -1142,6 +1142,7 @@ _cairo_svg_surface_create_for_stream_internal (cairo_output_stream_t	*stream,
     surface = _cairo_svg_surface_create_for_document (document, CAIRO_CONTENT_COLOR_ALPHA,
 						      width, height, TRUE);
     if (surface->status) {
+	status = _cairo_svg_document_destroy (document);
 	return surface;
     }
 
@@ -1459,7 +1460,7 @@ _cairo_svg_document_emit_bitmap_glyph_data (cairo_svg_document_t *document,
     }
     _cairo_svg_stream_printf (&document->xml_node_glyphs, "/>\n");
 
-    cairo_svg_paint_t *paint_entry = _cairo_calloc (sizeof (cairo_svg_paint_t));
+    cairo_svg_paint_t *paint_entry = malloc (sizeof (cairo_svg_paint_t));
     if (paint_entry == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto cleanup;
@@ -1555,6 +1556,14 @@ _cairo_svg_document_emit_font_subsets (cairo_svg_document_t *document)
     status = _cairo_scaled_font_subsets_foreach_scaled (document->font_subsets,
                                                         _cairo_svg_document_emit_font_subset,
                                                         document);
+    if (unlikely (status))
+	goto FAIL;
+
+    status = _cairo_scaled_font_subsets_foreach_user (document->font_subsets,
+						      _cairo_svg_document_emit_font_subset,
+						      document);
+
+  FAIL:
     _cairo_scaled_font_subsets_destroy (document->font_subsets);
     document->font_subsets = NULL;
 
@@ -2110,28 +2119,24 @@ _cairo_svg_surface_emit_surface (cairo_svg_document_t *document,
     assert (is_bounded);
 
     _cairo_svg_stream_printf (&document->xml_node_defs,
-			      "<image id=\"source-%d\" x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\"",
+			      "<image id=\"source-%d\" x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" xlink:href=\"",
 			      source_id,
 			      extents.x, extents.y,
 			      extents.width, extents.height);
 
-    if (extents.width != 0 && extents.height != 0) {
-	_cairo_svg_stream_printf (&document->xml_node_defs, " xlink:href=\"");
-	cairo_surface_get_mime_data (surface, CAIRO_MIME_TYPE_URI,
-				     &uri, &uri_len);
-	if (uri != NULL) {
-	    _cairo_svg_surface_emit_attr_value (&document->xml_node_defs,
-						uri, uri_len);
-	} else {
-	    status = _cairo_surface_base64_encode (surface,
-						   &document->xml_node_defs);
-	    if (unlikely (status))
-		return status;
-	}
-    _cairo_svg_stream_printf (&document->xml_node_defs, "\"");
+    cairo_surface_get_mime_data (surface, CAIRO_MIME_TYPE_URI,
+				 &uri, &uri_len);
+    if (uri != NULL) {
+	_cairo_svg_surface_emit_attr_value (&document->xml_node_defs,
+					    uri, uri_len);
+    } else {
+	status = _cairo_surface_base64_encode (surface,
+					       &document->xml_node_defs);
+	if (unlikely (status))
+	    return status;
     }
 
-    _cairo_svg_stream_printf (&document->xml_node_defs, "/>\n");
+    _cairo_svg_stream_printf (&document->xml_node_defs, "\"/>\n");
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -2392,7 +2397,7 @@ _cairo_svg_surface_emit_composite_recording_pattern (cairo_svg_stream_t *output,
 	}
 
 	if (source_surface->transitive_paint_used) {
-	    cairo_svg_paint_t *paint_entry = _cairo_calloc (sizeof (cairo_svg_paint_t));
+	    cairo_svg_paint_t *paint_entry = malloc (sizeof (cairo_svg_paint_t));
 	    if (paint_entry == NULL) {
 		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	    }
@@ -4175,7 +4180,7 @@ _cairo_svg_document_create (cairo_output_stream_t *output_stream,
 	return output_stream->status;
     }
 
-    document = _cairo_calloc (sizeof (cairo_svg_document_t));
+    document = _cairo_malloc (sizeof (cairo_svg_document_t));
     if (unlikely (document == NULL)) {
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
@@ -4316,7 +4321,7 @@ _cairo_svg_document_finish (cairo_svg_document_t *document)
 	}
 
 	if (surface->transitive_paint_used) {
-	    cairo_svg_paint_t *paint_entry = _cairo_calloc (sizeof (cairo_svg_paint_t));
+	    cairo_svg_paint_t *paint_entry = malloc (sizeof (cairo_svg_paint_t));
 	    if (paint_entry == NULL) {
 		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	    }

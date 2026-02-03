@@ -19,8 +19,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 
 # Display changes done in the repository from [tag] until now.
@@ -59,20 +57,8 @@ $bcontribs = `git show $start:docs/THANKS | grep -c '^[^ ]'`;
 $contribs = $acontribs - $bcontribs;
 
 # number of setops:
-sub setopts {
-    my ($f)=@_;
-    open(H, "$f");
-    my $opts;
-    while(<H>) {
-        if(/^  CURLOPT(|DEPRECATED)\(/ && ($_ !~ /OBSOLETE/))  {
-            $opts++;
-        }
-    }
-    close(H);
-    return $opts;
-}
-$asetopts = setopts("<include/curl/curl.h");
-$bsetopts = setopts("git show $start:include/curl/curl.h|");
+$asetopts=`grep '^  CURLOPT(' include/curl/curl.h  | grep -cv OBSOLETE`;
+$bsetopts=`git show $start:include/curl/curl.h | grep '^  CURLOPT(' | grep -cv OBSOLETE`;
 $nsetopts = $asetopts - $bsetopts;
 
 # Number of command line options:

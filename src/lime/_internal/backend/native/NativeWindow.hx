@@ -1,5 +1,6 @@
 package lime._internal.backend.native;
 
+import lime.ui.WindowVSyncMode;
 import haxe.io.Bytes;
 import lime._internal.backend.native.NativeCFFI;
 import lime.app.Application;
@@ -23,12 +24,6 @@ import lime.system.System;
 import lime.ui.MouseCursor;
 import lime.ui.Window;
 import lime.utils.UInt8Array;
-
-// #if switch
-// import switchLib.applets.Error;
-// import switchLib.applets.Error.ErrorApplicationConfig;
-// import switchLib.applets.Error.ResultType;
-// #end
 
 #if !lime_debug
 @:fileXml('tags="haxe,release"')
@@ -82,11 +77,7 @@ class NativeWindow
 
 		#if (cairo || (!lime_opengl && !lime_opengles))
 		contextAttributes.type = CAIRO;
-		#elseif switch
-		contextAttributes.type = OPENGL;
-		contextAttributes.hardware = true;
 		#end
-
 		if (Reflect.hasField(contextAttributes, "type") && contextAttributes.type == CAIRO) contextAttributes.hardware = false;
 
 		if (Reflect.hasField(attributes, "allowHighDPI") && attributes.allowHighDPI) flags |= cast WindowFlags.WINDOW_FLAG_ALLOW_HIGHDPI;
@@ -194,26 +185,6 @@ class NativeWindow
 
 	public function alert(message:String, title:String):Void
 	{
-		// #if switch
-		// if (dialogMessage == null || dialogMessage == "") {
-        //     dialogMessage = "An error has occurred. (no message specified)";
-        // }
-        // if (fullMessage == null || fullMessage == "") {
-        //     fullMessage = null; // No full message
-        // }
-        // if (errorNumber == null || errorNumber < 0) {
-        //     errorNumber = 0;
-        // }
-
-        // var config:ErrorApplicationConfig = new ErrorApplicationConfig();
-        // var result:ResultType = Error.errorApplicationCreate(Pointer.addressOf(config), dialogMessage, fullMessage);
-
-        // if (Result.R_SUCCEEDED(result)) {
-        //     Error.errorApplicationSetNumber(Pointer.addressOf(config), errorNumber);
-        //     Error.errorApplicationShow(Pointer.addressOf(config));
-        // }
-		// #end
-
 		if (handle != null)
 		{
 			#if (!macro && lime_cffi)
@@ -274,6 +245,18 @@ class NativeWindow
 		}
 	}
 
+	public function setVSyncMode(mode:WindowVSyncMode):Bool
+	{
+		if (handle != null)
+		{
+			#if (!macro && lime_cffi)
+			return NativeCFFI.lime_window_set_vsync_mode(handle, mode);
+			#end
+		}
+
+		return false;
+	}
+
 	public function getCursor():MouseCursor
 	{
 		return cursor;
@@ -290,6 +273,18 @@ class NativeWindow
 			{
 				return System.getDisplay(index);
 			}
+			#end
+		}
+
+		return null;
+	}
+
+	public function getNativeHandle():Dynamic
+	{
+		if (handle != null)
+		{
+			#if (!macro && lime_cffi)
+			return NativeCFFI.lime_window_get_handle(handle);
 			#end
 		}
 

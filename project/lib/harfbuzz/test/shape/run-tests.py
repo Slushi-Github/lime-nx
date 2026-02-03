@@ -20,13 +20,10 @@ if not args or args[0].find('hb-shape') == -1 or not os.path.exists (args[0]):
 	sys.exit ("""First argument does not seem to point to usable hb-shape.""")
 hb_shape, args = args[0], args[1:]
 
-env = os.environ.copy()
-env['LC_ALL'] = 'C'
 process = subprocess.Popen ([hb_shape, '--batch'],
 			    stdin=subprocess.PIPE,
 			    stdout=subprocess.PIPE,
-			    stderr=sys.stdout,
-			    env=env)
+			    stderr=sys.stdout)
 
 passes = 0
 fails = 0

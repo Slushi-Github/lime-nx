@@ -9,6 +9,7 @@ bug-spline
 clip-device-offset
 clip-fill-rule-pixel-aligned
 clip-operator
+clip-unbounded
 coverage-column-triangles
 coverage-intersecting-quads
 coverage-intersecting-triangles

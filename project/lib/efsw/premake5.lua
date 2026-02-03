@@ -1,5 +1,6 @@
 newoption { trigger = "verbose", description = "Build efsw with verbose mode." }
 newoption { trigger = "strip-symbols", description = "Strip debugging symbols in other file ( only for relwithdbginfo configuration )." }
+newoption { trigger = "no-atomics", description = "Build efsw without atomics" }
 newoption { trigger = "thread-sanitizer", description ="Compile with ThreadSanitizer" }
 
 efsw_major_version	= "1"
@@ -120,7 +121,7 @@ workspace "efsw"
 	location("./make/" .. os.target() .. "/")
 	targetdir("./bin")
 	configurations { "debug", "release", "relwithdbginfo" }
-	platforms { "x86_64", "x86", "ARM", "ARM64" }
+	platforms { "x86_64", "x86" }
 
 	if os.istarget("windows") then
 		osfiles = "src/efsw/platform/win/*.cpp"
@@ -133,7 +134,10 @@ workspace "efsw"
 		defines { "EFSW_VERBOSE" }
 	end
 
-	cppdialect "C++11"
+	if not _OPTIONS["no-atomics"] then
+		cppdialect "C++11"
+		defines { "EFSW_USE_CXX11" }
+	end
 
 	objdir("obj/" .. os.target() .. "/")
 
@@ -142,12 +146,6 @@ workspace "efsw"
 
 	filter "platforms:x86_64"
 		architecture "x86_64"
-
-	filter "platforms:arm"
-		architecture "ARM"
-
-	filter "platforms:arm64"
-		architecture "ARM64"
 
 	project "efsw-static-lib"
 		kind "StaticLib"

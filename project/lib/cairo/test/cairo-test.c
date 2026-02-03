@@ -185,7 +185,7 @@ _cairo_test_init (cairo_test_context_t *ctx,
 	ctx->own_targets = FALSE;
 
 	ctx->srcdir = parent->srcdir;
-	ctx->refdir = xstrdup (parent->refdir);
+	ctx->refdir = parent->refdir;
     } else {
 	int tmp_num_targets;
 	cairo_bool_t tmp_limited_targets;
@@ -196,18 +196,10 @@ _cairo_test_init (cairo_test_context_t *ctx,
 	ctx->own_targets = TRUE;
 
 	ctx->srcdir = getenv ("srcdir");
-	if (ctx->srcdir == NULL) {
-            ctx->srcdir = ".";
-#if HAVE_SYS_STAT_H
-            struct stat st;
-            if (stat ("srcdir", &st) == 0 && (st.st_mode & S_IFDIR))
-                ctx->srcdir = "srcdir";
-#endif
-        }
+	if (ctx->srcdir == NULL)
+	    ctx->srcdir = ".";
 
-	ctx->refdir = xstrdup (getenv ("CAIRO_REF_DIR"));
-        if (ctx->refdir == NULL)
-            xasprintf (&ctx->refdir, "%s/reference", ctx->srcdir);
+	ctx->refdir = getenv ("CAIRO_REF_DIR");
     }
 
 #ifdef HAVE_UNISTD_H
@@ -249,7 +241,6 @@ cairo_test_fini (cairo_test_context_t *ctx)
 	fclose (ctx->log_file);
     ctx->log_file = NULL;
 
-    free (ctx->refdir);
     free (ctx->ref_name);
     cairo_surface_destroy (ctx->ref_image);
     cairo_surface_destroy (ctx->ref_image_flattened);
@@ -1828,71 +1819,4 @@ cairo_test_status_from_status (const cairo_test_context_t *ctx,
 	return CAIRO_TEST_NO_MEMORY;
 
     return CAIRO_TEST_FAILURE;
-}
-
-#if CAIRO_HAS_FT_FONT
-
-#include "cairo-ft.h"
-
-static void
-_free_face (void *face)
-{
-    FT_Done_Face ((FT_Face) face);
-}
-
-static FT_Library ft_library = NULL;
-
-#endif
-
-static const cairo_user_data_key_t ft_font_key;
-
-cairo_test_status_t
-cairo_test_ft_select_font_from_file (cairo_t      *cr,
-                                     const char   *filename)
-{
-    const cairo_test_context_t *ctx = cairo_test_get_context (cr);
-#if CAIRO_HAS_FT_FONT
-    FT_Face face;
-    cairo_font_face_t *font_face;
-    char *srcdir_filename = NULL;
-
-    if (access (filename, F_OK) != 0) {
-	if (ctx->srcdir) {
-	    xasprintf (&srcdir_filename, "%s/%s", ctx->srcdir, filename);
-            filename = srcdir_filename;
-	}
-    }
-
-    if (access (filename, F_OK) != 0) {
-        cairo_test_log (ctx, "Could not find font file: %s\n", filename);
-        return CAIRO_TEST_FAILURE;
-    }
-
-    if (!ft_library) {
-        if (FT_Init_FreeType (&ft_library))
-            return CAIRO_TEST_FAILURE;
-    }
-
-    if (FT_New_Face (ft_library, filename, 0, &face)) {
-        cairo_test_log (ctx, "FT_New_Face failed loading font file: %s\n", filename);
-        return CAIRO_TEST_FAILURE;
-    }
-
-    free (srcdir_filename);
-    font_face = cairo_ft_font_face_create_for_ft_face (face, 0);
-    if (cairo_font_face_status (font_face))
-        return CAIRO_TEST_FAILURE;
-
-    cairo_font_face_set_user_data (font_face, &ft_font_key, face, _free_face);
-    cairo_set_font_face (cr, font_face);
-    if (cairo_status (cr))
-        return CAIRO_TEST_FAILURE;
-
-    cairo_font_face_destroy (font_face);
-
-    return CAIRO_TEST_SUCCESS;
-#else
-    cairo_test_log (ctx, "cairo_test_ft_select_font_from_file() requires the FreeType backend\n");
-    return CAIRO_TEST_FAILURE;
-#endif
 }

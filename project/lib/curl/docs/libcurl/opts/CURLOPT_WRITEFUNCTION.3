@@ -5,7 +5,7 @@
 .\" *                            | (__| |_| |  _ <| |___
 .\" *                             \___|\___/|_| \_\_____|
 .\" *
-.\" * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+.\" * Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
 .\" *
 .\" * This software is licensed as described in the file COPYING, which
 .\" * you should have received as part of this distribution. The terms
@@ -17,8 +17,6 @@
 .\" *
 .\" * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 .\" * KIND, either express or implied.
-.\" *
-.\" * SPDX-License-Identifier: curl
 .\" *
 .\" **************************************************************************
 .\"
@@ -62,8 +60,6 @@ Your callback should return the number of bytes actually taken care of. If
 that amount differs from the amount passed to your callback function, it will
 signal an error condition to the library. This will cause the transfer to get
 aborted and the libcurl function used will return \fICURLE_WRITE_ERROR\fP.
-
-You can also abort the transfer by returning CURL_WRITEFUNC_ERROR. (7.87.0)
 
 If your callback function returns CURL_WRITEFUNC_PAUSE it will cause this
 transfer to become paused.  See \fIcurl_easy_pause(3)\fP for further details.

@@ -76,7 +76,9 @@ _hb_fc_get_font_funcs ()
 {
   static const hb_font_funcs_t *fc_ffuncs;
 
-  if (!fc_ffuncs)
+  const hb_font_funcs_t *ffuncs;
+
+  if (!(ffuncs = fc_ffuncs))
   {
     hb_font_funcs_t *newfuncs = hb_font_funcs_create ();
 
@@ -86,7 +88,7 @@ _hb_fc_get_font_funcs ()
     if (fc_ffuncs)
       hb_font_funcs_destroy (newfuncs);
     else
-      fc_ffuncs = newfuncs;
+      fc_ffuncs = ffuncs = newfuncs;
   }
 
   return const_cast<hb_font_funcs_t *> (fc_ffuncs);

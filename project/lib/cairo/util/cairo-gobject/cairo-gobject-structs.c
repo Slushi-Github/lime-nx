@@ -92,9 +92,3 @@ CAIRO_DEFINE_BOXED ("CairoRectangle", cairo_gobject_rectangle,
 COPY_FUNC (rectangle_int)
 CAIRO_DEFINE_BOXED ("CairoRectangleInt", cairo_gobject_rectangle_int, 
                     cairo_gobject_cairo_rectangle_int_copy, g_free);
-COPY_FUNC (glyph)
-CAIRO_DEFINE_BOXED ("CairoGlyph", cairo_gobject_glyph,
-                    cairo_gobject_cairo_glyph_copy, g_free);
-COPY_FUNC (text_cluster)
-CAIRO_DEFINE_BOXED ("CairoTextCluster", cairo_gobject_text_cluster,
-                    cairo_gobject_cairo_text_cluster_copy, g_free);

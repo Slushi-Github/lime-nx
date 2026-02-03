@@ -18,7 +18,7 @@ typedef DisplaySetting = {
 	framerate : Int
 }
 
-@:enum abstract DisplayMode(Int) {
+enum abstract DisplayMode(Int) {
 	var Windowed = 0;
 	var Fullscreen = 1;
 	var Borderless = 2;
@@ -50,6 +50,7 @@ class Window {
 	public var displaySetting : DisplaySetting;
 	public var selectedMonitor : MonitorHandle;
 	public var vsync : Bool;
+	public var dragAndDropEnabled(default, set) : Bool;
 
 	public function new( title : String, width : Int, height : Int, x : Int = CW_USEDEFAULT, y : Int = CW_USEDEFAULT, windowFlags : Int = RESIZABLE ) {
 		win = winCreateEx(x, y, width, height, windowFlags);
@@ -102,6 +103,22 @@ class Window {
 	public function setPosition( x : Int, y : Int ) {
 		winSetPosition(win, x, y);
 	}
+	
+	public function setCursorPosition( x : Int, y : Int ) {
+		return winSetCursorPos(win, x, y);
+	}
+	
+	public static function setCursorPositionGlobal( x : Int, y : Int ) {
+		return setCursorPos(x, y);
+	}
+	
+	public function setRelativeMouseMode( enabled : Bool ) : Bool {
+		return winSetRelativeMouseMode(win, enabled);
+	}
+	
+	public function getRelativeMouseMode() : Bool {
+		return winGetRelativeMouseMode();
+	}
 
 	public function center( centerPrimary : Bool = true ) {
 		winCenter(win, centerPrimary);
@@ -130,7 +147,7 @@ class Window {
 	}
 
 	public function clipCursor( enable : Bool ) : Void {
-		winClipCursor(enable ? win : null);
+		winClipCursor(win, enable);
 	}
 
 	public static function getDisplaySettings(monitor : MonitorHandle) : Array<DisplaySetting> {
@@ -227,6 +244,11 @@ class Window {
 		winSetOpacity(win, v);
 		return v;
 	}
+	
+	function set_dragAndDropEnabled(v) {
+		winSetDragAcceptFiles(win, v);
+		return dragAndDropEnabled = v;
+	}
 
 	@:hlNative("?directx", "win_get_display_settings")
 	static function winGetDisplaySettings(monitor : hl.Bytes) : hl.NativeArray<Dynamic> {
@@ -320,7 +342,27 @@ class Window {
 		return false;
 	}
 
-	static function winClipCursor( win : WinPtr ) : Void {
+	static function winClipCursor( win : WinPtr, enable : Bool ) : Void {
+	}
+	
+	static function setCursorPos( x : Int, y : Int ) : Bool {
+		return false;
+	}
+	
+	static function winSetCursorPos( win : WinPtr, x : Int, y : Int ) : Bool {
+		return false;
+	}
+	
+	static function winSetRelativeMouseMode( win : WinPtr, enable : Bool ) : Bool {
+		return false;
+	}
+	
+	static function winGetRelativeMouseMode() : Bool { 
+		return false;
+	}
+	
+	@:hlNative("?directx", "win_set_drag_accept_files")
+	static function winSetDragAcceptFiles( win : WinPtr, enable: Bool ) : Void {
 	}
 
 }

@@ -1,3 +1,4 @@
+
 /* symbols.c - find all exported symbols
  *
  * Copyright (c) 2011-2014 Glenn Randers-Pehrson

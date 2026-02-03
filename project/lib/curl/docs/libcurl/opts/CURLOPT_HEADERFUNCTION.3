@@ -18,8 +18,6 @@
 .\" * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 .\" * KIND, either express or implied.
 .\" *
-.\" * SPDX-License-Identifier: curl
-.\" *
 .\" **************************************************************************
 .\"
 .TH CURLOPT_HEADERFUNCTION 3 "17 Jun 2014" "libcurl 7.37.0" "curl_easy_setopt options"
@@ -51,12 +49,10 @@ the header line is null-terminated!
 The pointer named \fIuserdata\fP is the one you set with the
 \fICURLOPT_HEADERDATA(3)\fP option.
 
-Your callback should return the number of bytes actually taken care of. If
-that amount differs from the amount passed to your callback function, it will
-signal an error condition to the library. This will cause the transfer to get
-aborted and the libcurl function used will return \fICURLE_WRITE_ERROR\fP.
-
-You can also abort the transfer by returning CURL_WRITEFUNC_ERROR. (7.87.0)
+This callback function must return the number of bytes actually taken care of.
+If that amount differs from the amount passed in to your function, it will signal
+an error to the library. This will cause the transfer to get aborted and the
+libcurl function in progress will return \fICURLE_WRITE_ERROR\fP.
 
 A complete HTTP header that is passed to this function can be up to
 \fICURL_MAX_HTTP_HEADER\fP (100K) bytes and includes the final line terminator.

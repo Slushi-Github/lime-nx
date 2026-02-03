@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "server_setup.h"
 
@@ -85,8 +83,6 @@ static bool is_proxy = FALSE;
 
 #define REQBUFSIZ (2*1024*1024)
 
-#define MAX_SLEEP_TIME_MS 250
-
 static long prevtestno = -1;    /* previous test number we served */
 static long prevpartno = -1;    /* previous part number we served */
 static bool prevbounce = FALSE; /* instructs the server to increase the part
@@ -112,7 +108,7 @@ struct httprequest {
   size_t cl;      /* Content-Length of the incoming request */
   bool digest;    /* Authorization digest header found */
   bool ntlm;      /* Authorization ntlm header found */
-  int writedelay; /* if non-zero, delay this number of milliseconds between
+  int writedelay; /* if non-zero, delay this number of seconds between
                      writes in the response */
   int skip;       /* if non-zero, the server is instructed to not read this
                      many bytes from a PUT/POST request. Ie the client sends N
@@ -124,7 +120,7 @@ struct httprequest {
   bool skipall;   /* skip all incoming data */
   bool noexpect;  /* refuse Expect: (don't read the body) */
   bool connmon;   /* monitor the state of the connection, log disconnects */
-  bool upgrade;   /* test case allows upgrade */
+  bool upgrade;   /* test case allows upgrade to http2 */
   bool upgrade_request; /* upgrade request found and allowed */
   bool close;     /* similar to swsclose in response: close connection after
                      response is sent */
@@ -182,7 +178,7 @@ const char *cmdfile = DEFAULT_CMDFILE;
    proper point - like with NTLM */
 #define CMD_CONNECTIONMONITOR "connection-monitor"
 
-/* upgrade to http2/websocket/xxxx */
+/* upgrade to http2 */
 #define CMD_UPGRADE "upgrade"
 
 /* close connection */
@@ -311,7 +307,7 @@ static int parse_servercmd(struct httprequest *req)
         req->connmon = TRUE;
       }
       else if(!strncmp(CMD_UPGRADE, cmd, strlen(CMD_UPGRADE))) {
-        logmsg("enabled upgrade");
+        logmsg("enabled upgrade to http2");
         req->upgrade = TRUE;
       }
       else if(!strncmp(CMD_SWSCLOSE, cmd, strlen(CMD_SWSCLOSE))) {
@@ -327,7 +323,7 @@ static int parse_servercmd(struct httprequest *req)
         req->noexpect = TRUE;
       }
       else if(1 == sscanf(cmd, "writedelay: %d", &num)) {
-        logmsg("instructed to delay %d msecs between packets", num);
+        logmsg("instructed to delay %d secs between packets", num);
         req->writedelay = num;
       }
       else {
@@ -362,9 +358,9 @@ static int ProcessRequest(struct httprequest *req)
   char *line = &req->reqbuf[req->checkindex];
   bool chunked = FALSE;
   static char request[REQUEST_KEYWORD_SIZE];
+  static char doc[MAXDOCNAMELEN];
   char logbuf[456];
-  int prot_major = 0;
-  int prot_minor = 0;
+  int prot_major, prot_minor;
   char *end = strstr(line, end_of_headers);
 
   req->callcount++;
@@ -383,168 +379,175 @@ static int ProcessRequest(struct httprequest *req)
     return 1; /* done */
   }
 
-  else if(req->testno == DOCNUMBER_NOTHING) {
-    char *http;
-    bool fine = FALSE;
-    char *httppath = NULL;
-    size_t npath = 0; /* httppath length */
+  else if((req->testno == DOCNUMBER_NOTHING) &&
+     sscanf(line,
+            "%" REQUEST_KEYWORD_SIZE_TXT"s %" MAXDOCNAMELEN_TXT "s HTTP/%d.%d",
+            request,
+            doc,
+            &prot_major,
+            &prot_minor) == 4) {
+    char *ptr;
 
-    if(sscanf(line,
-              "%" REQUEST_KEYWORD_SIZE_TXT"s ", request)) {
-      http = strstr(line + strlen(request), "HTTP/");
+    req->prot_version = prot_major*10 + prot_minor;
 
-      if(http && sscanf(http, "HTTP/%d.%d",
-                        &prot_major,
-                        &prot_minor) == 2) {
-        /* between the request keyword and HTTP/ there's a path */
-        httppath = line + strlen(request);
-        npath = http - httppath;
+    /* find the last slash */
+    ptr = strrchr(doc, '/');
 
-        /* trim leading spaces */
-        while(npath && ISSPACE(*httppath)) {
-          httppath++;
-          npath--;
-        }
-        /* trim ending spaces */
-        while(npath && ISSPACE(httppath[npath - 1])) {
-          npath--;
-        }
-        if(npath)
-          fine = TRUE;
-      }
-    }
+    /* get the number after it */
+    if(ptr) {
+      if((strlen(doc) + strlen(request)) < 400)
+        msnprintf(logbuf, sizeof(logbuf), "Got request: %s %s HTTP/%d.%d",
+                  request, doc, prot_major, prot_minor);
+      else
+        msnprintf(logbuf, sizeof(logbuf), "Got a *HUGE* request HTTP/%d.%d",
+                  prot_major, prot_minor);
+      logmsg("%s", logbuf);
 
-    if(fine) {
-      char *ptr;
-
-      req->prot_version = prot_major*10 + prot_minor;
-
-      /* find the last slash */
-      ptr = &httppath[npath];
-      while(ptr >= httppath) {
-        if(*ptr == '/')
-          break;
-        ptr--;
+      if(!strncmp("/verifiedserver", ptr, 15)) {
+        logmsg("Are-we-friendly question received");
+        req->testno = DOCNUMBER_WERULEZ;
+        return 1; /* done */
       }
 
-      /* get the number after it */
-      if(*ptr == '/') {
-        if((npath + strlen(request)) < 400)
-          msnprintf(logbuf, sizeof(logbuf), "Got request: %s %.*s HTTP/%d.%d",
-                    request, npath, httppath, prot_major, prot_minor);
-        else
-          msnprintf(logbuf, sizeof(logbuf), "Got a *HUGE* request HTTP/%d.%d",
-                    prot_major, prot_minor);
-        logmsg("%s", logbuf);
-
-        if(!strncmp("/verifiedserver", ptr, 15)) {
-          logmsg("Are-we-friendly question received");
-          req->testno = DOCNUMBER_WERULEZ;
-          return 1; /* done */
-        }
-
-        if(!strncmp("/quit", ptr, 5)) {
-          logmsg("Request-to-quit received");
-          req->testno = DOCNUMBER_QUIT;
-          return 1; /* done */
-        }
-
-        ptr++; /* skip the slash */
-
-        req->testno = strtol(ptr, &ptr, 10);
-
-        if(req->testno > 10000) {
-          req->partno = req->testno % 10000;
-          req->testno /= 10000;
-        }
-        else
-          req->partno = 0;
-
-        if(req->testno) {
-
-          msnprintf(logbuf, sizeof(logbuf), "Serve test number %ld part %ld",
-                    req->testno, req->partno);
-          logmsg("%s", logbuf);
-        }
-        else {
-          logmsg("No test number in path");
-          req->testno = DOCNUMBER_NOTHING;
-        }
-
+      if(!strncmp("/quit", ptr, 5)) {
+        logmsg("Request-to-quit received");
+        req->testno = DOCNUMBER_QUIT;
+        return 1; /* done */
       }
 
-      if(req->testno == DOCNUMBER_NOTHING) {
-        /* didn't find any in the first scan, try alternative test case
-           number placements */
-        static char doc[MAXDOCNAMELEN];
-        if(sscanf(req->reqbuf, "CONNECT %" MAXDOCNAMELEN_TXT "s HTTP/%d.%d",
-                  doc, &prot_major, &prot_minor) == 3) {
-          char *portp = NULL;
+      ptr++; /* skip the slash */
 
-          msnprintf(logbuf, sizeof(logbuf),
-                    "Received a CONNECT %s HTTP/%d.%d request",
-                    doc, prot_major, prot_minor);
-          logmsg("%s", logbuf);
+      /* skip all non-numericals following the slash */
+      while(*ptr && !ISDIGIT(*ptr))
+        ptr++;
 
-          req->connect_request = TRUE;
+      req->testno = strtol(ptr, &ptr, 10);
 
-          if(req->prot_version == 10)
-            req->open = FALSE; /* HTTP 1.0 closes connection by default */
-
-          if(doc[0] == '[') {
-            char *p = &doc[1];
-            unsigned long part = 0;
-            /* scan through the hexgroups and store the value of the last group
-               in the 'part' variable and use as test case number!! */
-            while(*p && (ISXDIGIT(*p) || (*p == ':') || (*p == '.'))) {
-              char *endp;
-              part = strtoul(p, &endp, 16);
-              if(ISXDIGIT(*p))
-                p = endp;
-              else
-                p++;
-            }
-            if(*p != ']')
-              logmsg("Invalid CONNECT IPv6 address format");
-            else if(*(p + 1) != ':')
-              logmsg("Invalid CONNECT IPv6 port format");
-            else
-              portp = p + 1;
-
-            req->testno = part;
-          }
-          else
-            portp = strchr(doc, ':');
-
-          if(portp && (*(portp + 1) != '\0') && ISDIGIT(*(portp + 1))) {
-            unsigned long ulnum = strtoul(portp + 1, NULL, 10);
-            if(!ulnum || (ulnum > 65535UL))
-              logmsg("Invalid CONNECT port received");
-            else
-              req->connect_port = curlx_ultous(ulnum);
-
-          }
-          logmsg("Port number: %d, test case number: %ld",
-                 req->connect_port, req->testno);
-        }
-      }
-
-      if(req->testno == DOCNUMBER_NOTHING)
-        /* might get the test number */
-        parse_cmdfile(req);
-
-      if(req->testno == DOCNUMBER_NOTHING) {
-        logmsg("Did not find test number in PATH");
-        req->testno = DOCNUMBER_404;
+      if(req->testno > 10000) {
+        req->partno = req->testno % 10000;
+        req->testno /= 10000;
       }
       else
-        parse_servercmd(req);
+        req->partno = 0;
+
+      if(req->testno) {
+
+        msnprintf(logbuf, sizeof(logbuf), "Requested test number %ld part %ld",
+                  req->testno, req->partno);
+        logmsg("%s", logbuf);
+      }
+      else {
+        logmsg("No test number");
+        req->testno = DOCNUMBER_NOTHING;
+      }
+
     }
-    else if((req->offset >= 3)) {
-      unsigned char *l = (unsigned char *)line;
-      logmsg("** Unusual request. Starts with %02x %02x %02x (%c%c%c)",
-             l[0], l[1], l[2], l[0], l[1], l[2]);
+
+    if(req->testno == DOCNUMBER_NOTHING) {
+      /* didn't find any in the first scan, try alternative test case
+         number placements */
+
+      if(sscanf(req->reqbuf, "CONNECT %" MAXDOCNAMELEN_TXT "s HTTP/%d.%d",
+                doc, &prot_major, &prot_minor) == 3) {
+        char *portp = NULL;
+
+        msnprintf(logbuf, sizeof(logbuf),
+                  "Received a CONNECT %s HTTP/%d.%d request",
+                  doc, prot_major, prot_minor);
+        logmsg("%s", logbuf);
+
+        req->connect_request = TRUE;
+
+        if(req->prot_version == 10)
+          req->open = FALSE; /* HTTP 1.0 closes connection by default */
+
+        if(doc[0] == '[') {
+          char *p = &doc[1];
+          unsigned long part = 0;
+          /* scan through the hexgroups and store the value of the last group
+             in the 'part' variable and use as test case number!! */
+          while(*p && (ISXDIGIT(*p) || (*p == ':') || (*p == '.'))) {
+            char *endp;
+            part = strtoul(p, &endp, 16);
+            if(ISXDIGIT(*p))
+              p = endp;
+            else
+              p++;
+          }
+          if(*p != ']')
+            logmsg("Invalid CONNECT IPv6 address format");
+          else if(*(p + 1) != ':')
+            logmsg("Invalid CONNECT IPv6 port format");
+          else
+            portp = p + 1;
+
+          req->testno = part;
+        }
+        else
+          portp = strchr(doc, ':');
+
+        if(portp && (*(portp + 1) != '\0') && ISDIGIT(*(portp + 1))) {
+          unsigned long ulnum = strtoul(portp + 1, NULL, 10);
+          if(!ulnum || (ulnum > 65535UL))
+            logmsg("Invalid CONNECT port received");
+          else
+            req->connect_port = curlx_ultous(ulnum);
+
+        }
+        logmsg("Port number: %d, test case number: %ld",
+               req->connect_port, req->testno);
+      }
     }
+
+    if(req->testno == DOCNUMBER_NOTHING) {
+      /* Still no test case number. Try to get the number off the last dot
+         instead, IE we consider the TLD to be the test number. Test 123 can
+         then be written as "example.com.123". */
+
+      /* find the last dot */
+      ptr = strrchr(doc, '.');
+
+      /* get the number after it */
+      if(ptr) {
+        long num;
+        ptr++; /* skip the dot */
+
+        num = strtol(ptr, &ptr, 10);
+
+        if(num) {
+          req->testno = num;
+          if(req->testno > 10000) {
+            req->partno = req->testno % 10000;
+            req->testno /= 10000;
+
+            logmsg("found test %d in requested host name", req->testno);
+
+          }
+          else
+            req->partno = 0;
+        }
+
+        if(req->testno != DOCNUMBER_NOTHING) {
+          logmsg("Requested test number %ld part %ld (from host name)",
+                 req->testno, req->partno);
+        }
+      }
+    }
+
+    if(req->testno == DOCNUMBER_NOTHING)
+      /* might get the test number */
+      parse_cmdfile(req);
+
+    if(req->testno == DOCNUMBER_NOTHING) {
+      logmsg("Did not find test number in PATH");
+      req->testno = DOCNUMBER_404;
+    }
+    else
+      parse_servercmd(req);
+  }
+  else if((req->offset >= 3) && (req->testno == DOCNUMBER_NOTHING)) {
+    logmsg("** Unusual request. Starts with %02x %02x %02x (%c%c%c)",
+           line[0], line[1], line[2], line[0], line[1], line[2]);
   }
 
   if(!end) {
@@ -602,10 +605,10 @@ static int ProcessRequest(struct httprequest *req)
 
   /* **** Persistence ****
    *
-   * If the request is an HTTP/1.0 one, we close the connection unconditionally
+   * If the request is a HTTP/1.0 one, we close the connection unconditionally
    * when we're done.
    *
-   * If the request is an HTTP/1.1 one, we MUST check for a "Connection:"
+   * If the request is a HTTP/1.1 one, we MUST check for a "Connection:"
    * header that might say "close". If it does, we close a connection when
    * this request is processed. Otherwise, we keep the connection alive for X
    * seconds.
@@ -764,9 +767,8 @@ static int ProcessRequest(struct httprequest *req)
 
   if(req->upgrade && strstr(req->reqbuf, "Upgrade:")) {
     /* we allow upgrade and there was one! */
-    logmsg("Found Upgrade: in request and allow it");
+    logmsg("Found Upgrade: in request and allows it");
     req->upgrade_request = TRUE;
-    return 0; /* not done */
   }
 
   if(req->cl > 0) {
@@ -859,8 +861,6 @@ static void init_httprequest(struct httprequest *req)
   req->upgrade_request = 0;
 }
 
-static int send_doc(curl_socket_t sock, struct httprequest *req);
-
 /* returns 1 if the connection should be serviced again immediately, 0 if there
    is no data waiting, or < 0 if it should be closed */
 static int get_request(curl_socket_t sock, struct httprequest *req)
@@ -870,57 +870,6 @@ static int get_request(curl_socket_t sock, struct httprequest *req)
   ssize_t got = 0;
   int overflow = 0;
 
-  if(req->upgrade_request) {
-    /* upgraded connection, work it differently until end of connection */
-    logmsg("Upgraded connection, this is a no longer HTTP/1");
-    send_doc(sock, req);
-
-    /* dump the request received so far to the external file */
-    reqbuf[req->offset] = '\0';
-    storerequest(reqbuf, req->offset);
-    req->offset = 0;
-
-    /* read websocket traffic */
-    if(req->open)
-      do {
-
-      got = sread(sock, reqbuf + req->offset, REQBUFSIZ - req->offset);
-      if(got > 0)
-        req->offset += got;
-
-      if((got == -1) && ((EAGAIN == errno) || (EWOULDBLOCK == errno))) {
-        int rc;
-        fd_set input;
-        fd_set output;
-        struct timeval timeout = {1, 0}; /* 1000 ms */
-
-        logmsg("Got EAGAIN from sread");
-        FD_ZERO(&input);
-        FD_ZERO(&output);
-        got = 0;
-        FD_SET(sock, &input);
-        do {
-          logmsg("Wait until readable");
-          rc = select((int)sock + 1, &input, &output, NULL, &timeout);
-        } while(rc < 0 && errno == EINTR && !got_exit_signal);
-        logmsg("readable %d", rc);
-        if(rc)
-          got = 1;
-      }
-    } while(got > 0);
-
-    if(req->offset) {
-      logmsg("log the websocket traffic");
-      /* dump the incoming websocket traffic to the external file */
-      reqbuf[req->offset] = '\0';
-      storerequest(reqbuf, req->offset);
-      req->offset = 0;
-    }
-    init_httprequest(req);
-
-    return -1;
-  }
-
   if(req->offset >= REQBUFSIZ-1) {
     /* buffer is already full; do nothing */
     overflow = 1;
@@ -928,7 +877,7 @@ static int get_request(curl_socket_t sock, struct httprequest *req)
   else {
     if(req->skip)
       /* we are instructed to not read the entire thing, so we make sure to
-         only read what we're supposed to and NOT read the entire thing the
+         only read what we're supposed to and NOT read the enire thing the
          client wants to send! */
       got = sread(sock, reqbuf + req->offset, req->cl);
     else
@@ -1177,18 +1126,11 @@ static int send_doc(curl_socket_t sock, struct httprequest *req)
     buffer += written;
 
     if(req->writedelay) {
-      int msecs_left = req->writedelay;
-      int intervals = msecs_left / MAX_SLEEP_TIME_MS;
-      if(msecs_left%MAX_SLEEP_TIME_MS)
-        intervals++;
-      logmsg("Pausing %d milliseconds after writing %d bytes",
-         msecs_left, written);
-      while((intervals > 0) && !got_exit_signal) {
-        int sleep_time = msecs_left > MAX_SLEEP_TIME_MS ?
-          MAX_SLEEP_TIME_MS : msecs_left;
-        intervals--;
-        wait_ms(sleep_time);
-        msecs_left -= sleep_time;
+      int quarters = req->writedelay * 4;
+      logmsg("Pausing %d seconds", req->writedelay);
+      while((quarters > 0) && !got_exit_signal) {
+        quarters--;
+        wait_ms(250);
       }
     }
   } while((count > 0) && !got_exit_signal);
@@ -1763,10 +1705,10 @@ http_connect_cleanup:
   *infdp = CURL_SOCKET_BAD;
 }
 
-static void http_upgrade(struct httprequest *req)
+static void http2(struct httprequest *req)
 {
   (void)req;
-  logmsg("Upgraded to ... %u", req->upgrade_request);
+  logmsg("switched to http2");
   /* left to implement */
 }
 
@@ -1907,9 +1849,9 @@ static int service_connection(curl_socket_t msgsock, struct httprequest *req,
   }
 
   if(req->upgrade_request) {
-    /* an upgrade request, switch to another protocol here */
-    http_upgrade(req);
-    return 1;
+    /* an upgrade request, switch to http2 here */
+    http2(req);
+    return -1;
   }
 
   /* if we got a CONNECT, loop and get another request as well! */
@@ -1917,9 +1859,6 @@ static int service_connection(curl_socket_t msgsock, struct httprequest *req,
   if(req->open) {
     logmsg("=> persistent connection request ended, awaits new request\n");
     return 1;
-  }
-  else {
-    logmsg("=> NOT a persistent connection, close close CLOSE\n");
   }
 
   return -1;
@@ -2331,7 +2270,7 @@ int main(int argc, char *argv[])
           }
 
           /* Reset the request, unless we're still in the middle of reading */
-          if(rc && !req->upgrade_request)
+          if(rc)
             init_httprequest(req);
         } while(rc > 0);
       }

@@ -16,11 +16,12 @@ package sdl;
 	public var value : Int;
 	public var fingerId : Int;
 	public var joystick : Int;
+	public var dropFile: hl.Bytes;
 	public function new() {
 	}
 }
 
-@:enum abstract EventType(Int) {
+enum abstract EventType(Int) {
 	var Quit		= 0;
 	var MouseMove	= 1;
 	var MouseLeave	= 2;
@@ -46,9 +47,13 @@ package sdl;
 	var JoystickButtonUp	= 304;
 	var JoystickAdded		= 305;
 	var JoystickRemoved		= 306;
+	var DropStart = 400;
+	var DropFile = 401;
+	var DropText = 402;
+	var DropEnd = 403;
 }
 
-@:enum abstract WindowStateChange(Int) {
+enum abstract WindowStateChange(Int) {
 	var Show	= 0;
 	var Hide	= 1;
 	var Expose	= 2;

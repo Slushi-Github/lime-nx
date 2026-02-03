@@ -18,8 +18,6 @@
 .\" * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 .\" * KIND, either express or implied.
 .\" *
-.\" * SPDX-License-Identifier: curl
-.\" *
 .\" **************************************************************************
 .TH CURLSHOPT_UNLOCKFUNC 3 "8 Aug 2003" "libcurl 7.10.7" "libcurl Manual"
 .SH NAME
@@ -44,6 +42,8 @@ is released.
 
 The \fIdata\fP argument tells what kind of data libcurl wants to unlock. Make
 sure that the callback uses a different lock for each kind of data.
+
+\fIaccess\fP defines what access type libcurl wants, shared or single.
 
 \fIuserptr\fP is the private pointer you set with \fICURLSHOPT_USERDATA\fP.
 This pointer is not used by libcurl itself.

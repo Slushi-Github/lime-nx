@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "test.h"
@@ -34,7 +32,6 @@ static const char *show[]={
   "location",
   "set-cookie",
   "silly-thing",
-  "fold",
   NULL
 };
 

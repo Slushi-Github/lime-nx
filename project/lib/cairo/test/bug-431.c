@@ -53,10 +53,6 @@ draw (cairo_t *cr, int width, int height)
     cairo_mask(cr, mask_pattern);
     cairo_restore(cr);
 
-    cairo_surface_destroy (png_surface);
-    cairo_pattern_destroy (png_pattern);
-    cairo_pattern_destroy (mask_pattern);
-
     return CAIRO_TEST_SUCCESS;
 }
 

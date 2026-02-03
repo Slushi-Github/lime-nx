@@ -1,6 +1,5 @@
 tests = [
   'basics',
-  'preprocess',
   'full-font',
   'cff-full-font',
   'japanese',
@@ -34,7 +33,6 @@ tests = [
   'layout.duplicate_features',
   'layout.unsorted_featurelist',
   'layout.drop_feature',
-  'no_layout_closure',
   'cmap',
   'cmap14',
   'sbix',
@@ -42,51 +40,20 @@ tests = [
   'colr_glyphs',
   'math',
   'math_coverage_offset',
-  'subset_base',
   # TODO: re-enable once colrv1 subsetting is stabilized.
   # 'colrv1.notoemoji',
   'colrv1',
-  'colrv1_subset_varstore',
   'colr_with_components',
   'cbdt',
   'variable',
   'glyph_names',
-  'glyph_map',
   'post',
   '32bit_var_store',
   'pin_all_at_default',
-  'instantiate_base',
-  'instantiate_colrv1',
   'instantiate_glyf',
-  'instantiate_cff2',
   'full_instance',
   'instance_feature_variations',
-  'instance_no_double_free',
-  'mvar_full_instance',
-  'instance_comp_glyph_empty_child',
-  'post_apply_mvar_delta',
-  'apply_cvar_delta',
-  'collect_name_ids',
-  'instantiate_cff2_update_metrics',
-  'layout.empty_ligature_offset',
-  'glyf_partial_instancing',
-  'mvar_partial_instance',
-  'update_def_wght',
-  'feature_variations_partial_instance',
-  'gdef_partial_instance',
-  'value_format_partial_instance',
-  'feature_variation_instance_collect_lookups',
-  'sync_vmetrics',
-  'empty_region_vardata',
-  'colrv1_partial_instance',
-  'instantiate_gvar_padding',
 ]
-
-if get_option('experimental_api')
-  tests += [
-    'iftb_requirements',
-  ]
-endif
 
 repack_tests = [
   'basic',

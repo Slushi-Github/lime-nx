@@ -18,15 +18,9 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include <time.h>
-
-#if !defined(LIB670) && !defined(LIB671)
-#define CURL_DISABLE_DEPRECATION  /* Using and testing the form api */
-#endif
 
 #include "test.h"
 

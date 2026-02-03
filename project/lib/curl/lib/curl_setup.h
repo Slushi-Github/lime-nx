@@ -20,17 +20,10 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #if defined(BUILDING_LIBCURL) && !defined(CURL_NO_OLDIES)
 #define CURL_NO_OLDIES
-#endif
-
-/* define mingw version macros, eg __MINGW{32,64}_{MINOR,MAJOR}_VERSION */
-#ifdef __MINGW32__
-#include <_mingw.h>
 #endif
 
 /*
@@ -92,7 +85,7 @@
 #  endif
 #endif
 
-#ifdef macintosh
+#if defined(macintosh) && defined(__MRC__)
 #  include "config-mac.h"
 #endif
 
@@ -110,10 +103,6 @@
 
 #ifdef __PLAN9__
 #  include "config-plan9.h"
-#endif
-
-#ifdef MSDOS
-#  include "config-dos.h"
 #endif
 
 #endif /* HAVE_CONFIG_H */
@@ -161,6 +150,8 @@
 /*  If you need to include a system header file for your platform,  */
 /*  please, do it beyond the point further indicated in this file.  */
 /* ================================================================ */
+
+#include <curl/curl.h>
 
 /*
  * Disable other protocols when http is the only one desired.
@@ -221,7 +212,7 @@
 
 /* ================================================================ */
 /* No system header file shall be included in this file before this */
-/* point.                                                           */
+/* point. The only allowed ones are those included from curl/system.h */
 /* ================================================================ */
 
 /*
@@ -247,8 +238,6 @@
 #ifdef HAVE_WINDOWS_H
 #  include "setup-win32.h"
 #endif
-
-#include <curl/system.h>
 
 /*
  * Use getaddrinfo to resolve the IPv4 address literal. If the current network
@@ -278,41 +267,14 @@
 #endif
 
 #ifdef __AMIGA__
-#  ifdef __amigaos4__
-#    define __USE_INLINE__
-     /* use our own resolver which uses runtime feature detection */
-#    define CURLRES_AMIGA
-     /* getaddrinfo() currently crashes bsdsocket.library, so disable */
-#    undef HAVE_GETADDRINFO
-#    if !(defined(__NEWLIB__) || \
-          (defined(__CLIB2__) && defined(__THREAD_SAFE)))
-       /* disable threaded resolver with clib2 - requires newlib or clib-ts */
-#      undef USE_THREADS_POSIX
-#    endif
-#  endif
 #  include <exec/types.h>
 #  include <exec/execbase.h>
 #  include <proto/exec.h>
 #  include <proto/dos.h>
 #  include <unistd.h>
-#  if defined(HAVE_PROTO_BSDSOCKET_H) && \
-    (!defined(__amigaos4__) || defined(USE_AMISSL))
-     /* use bsdsocket.library directly, instead of libc networking functions */
-#    include <proto/bsdsocket.h>
-#    ifdef __amigaos4__
-       int Curl_amiga_select(int nfds, fd_set *readfds, fd_set *writefds,
-                             fd_set *errorfds, struct timeval *timeout);
-#      define select(a,b,c,d,e) Curl_amiga_select(a,b,c,d,e)
-#    else
-#      define select(a,b,c,d,e) WaitSelect(a,b,c,d,e,0)
-#    endif
-     /* must not use libc's fcntl() on bsdsocket.library sockfds! */
-#    undef HAVE_FCNTL
-#    undef HAVE_FCNTL_O_NONBLOCK
-#  else
-     /* use libc networking and hence close() and fnctl() */
-#    undef HAVE_CLOSESOCKET_CAMEL
-#    undef HAVE_IOCTLSOCKET_CAMEL
+#  ifdef HAVE_PROTO_BSDSOCKET_H
+#    include <proto/bsdsocket.h> /* ensure bsdsocket.library use */
+#    define select(a,b,c,d,e) WaitSelect(a,b,c,d,e,0)
 #  endif
 /*
  * In clib2 arpa/inet.h warns that some prototypes may clash
@@ -322,12 +284,12 @@
 #endif
 
 #include <stdio.h>
+#ifdef HAVE_ASSERT_H
 #include <assert.h>
+#endif
 
-#ifdef __TANDEM /* for ns*-tandem-nsk systems */
-# if ! defined __LP64
-#  include <floss.h> /* FLOSS is only used for 32-bit builds. */
-# endif
+#ifdef __TANDEM /* for nsr-tandem-nsk systems */
+#include <floss.h>
 #endif
 
 #ifndef STDC_HEADERS /* no standard C headers! */
@@ -594,6 +556,7 @@
 /* now undef the stock libc functions just to avoid them being used */
 #  undef HAVE_GETADDRINFO
 #  undef HAVE_FREEADDRINFO
+#  undef HAVE_GETHOSTBYNAME
 #elif defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
 #  define CURLRES_ASYNCH
 #  define CURLRES_THREADED
@@ -695,7 +658,7 @@
 #  define UNUSED_PARAM __attribute__((__unused__))
 #  define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 #else
-#  define UNUSED_PARAM /* NOTHING */
+#  define UNUSED_PARAM /*NOTHING*/
 #  define WARN_UNUSED_RESULT
 #endif
 
@@ -744,12 +707,12 @@
 #define SHUT_RDWR 0x02
 #endif
 
-/* Define S_ISREG if not defined by system headers, e.g. MSVC */
+/* Define S_ISREG if not defined by system headers, f.e. MSVC */
 #if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
 #define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
 #endif
 
-/* Define S_ISDIR if not defined by system headers, e.g. MSVC */
+/* Define S_ISDIR if not defined by system headers, f.e. MSVC */
 #if !defined(S_ISDIR) && defined(S_IFMT) && defined(S_IFDIR)
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
@@ -833,7 +796,6 @@ int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf,
 
 #if defined(USE_NGTCP2) || defined(USE_QUICHE) || defined(USE_MSH3)
 #define ENABLE_QUIC
-#define USE_HTTP3
 #endif
 
 #if defined(USE_UNIX_SOCKETS) && defined(WIN32)

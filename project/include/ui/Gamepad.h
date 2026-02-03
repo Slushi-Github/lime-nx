@@ -12,7 +12,6 @@ namespace lime {
 			static void AddMapping (const char* content);
 			static const char* GetDeviceGUID (int id);
 			static const char* GetDeviceName (int id);
-
 	};
 
 

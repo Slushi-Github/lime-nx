@@ -85,6 +85,21 @@ struct mono_scan_converter {
 
 #define I(x) _cairo_fixed_integer_round_down(x)
 
+/* Compute the floored division a/b. Assumes / and % perform symmetric
+ * division. */
+inline static struct quorem
+floored_divrem(int a, int b)
+{
+    struct quorem qr;
+    qr.quo = a/b;
+    qr.rem = a%b;
+    if ((a^b)<0 && qr.rem) {
+	qr.quo -= 1;
+	qr.rem += b;
+    }
+    return qr;
+}
+
 /* Compute the floored division (x*a)/b. Assumes / and % perform symmetric
  * division. */
 static struct quorem
@@ -362,6 +377,15 @@ row (struct mono_scan_converter *c, unsigned int mask)
     }
 }
 
+inline static void dec (struct edge *e, int h)
+{
+    e->height_left -= h;
+    if (e->height_left == 0) {
+	e->prev->next = e->next;
+	e->next->prev = e->prev;
+    }
+}
+
 static cairo_status_t
 _mono_scan_converter_init(struct mono_scan_converter *c,
 			  int xmin, int ymin,
@@ -379,6 +403,7 @@ _mono_scan_converter_init(struct mono_scan_converter *c,
 	c->spans = _cairo_malloc_ab (max_num_spans,
 				     sizeof (cairo_half_open_span_t));
 	if (unlikely (c->spans == NULL)) {
+	    polygon_fini (c->polygon);
 	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	}
     } else
@@ -562,7 +587,7 @@ _cairo_mono_scan_converter_create (int			xmin,
     cairo_mono_scan_converter_t *self;
     cairo_status_t status;
 
-    self = _cairo_calloc (sizeof(struct _cairo_mono_scan_converter));
+    self = _cairo_malloc (sizeof(struct _cairo_mono_scan_converter));
     if (unlikely (self == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto bail_nomem;

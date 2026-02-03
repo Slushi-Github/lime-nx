@@ -20,7 +20,7 @@ struct SimpleGlyph
     FLAG_X_SAME         = 0x10,
     FLAG_Y_SAME         = 0x20,
     FLAG_OVERLAP_SIMPLE = 0x40,
-    FLAG_CUBIC          = 0x80
+    FLAG_RESERVED2      = 0x80
   };
 
   const GlyphHeader &header;
@@ -33,11 +33,6 @@ struct SimpleGlyph
 
   unsigned int length (unsigned int instruction_len) const
   { return instruction_len_offset () + 2 + instruction_len; }
-
-  bool has_instructions_length () const
-  {
-    return instruction_len_offset () + 2 <= bytes.length;
-  }
 
   unsigned int instructions_length () const
   {
@@ -99,7 +94,6 @@ struct SimpleGlyph
   /* zero instruction length */
   void drop_hints ()
   {
-    if (!has_instructions_length ()) return;
     GlyphHeader &glyph_header = const_cast<GlyphHeader &> (header);
     (HBUINT16 &) StructAtOffset<HBUINT16> (&glyph_header, instruction_len_offset ()) = 0;
   }
@@ -124,7 +118,7 @@ struct SimpleGlyph
   }
 
   static bool read_flags (const HBUINT8 *&p /* IN/OUT */,
-			  hb_array_t<contour_point_t> points_ /* IN/OUT */,
+			  contour_point_vector_t &points_ /* IN/OUT */,
 			  const HBUINT8 *end)
   {
     unsigned count = points_.length;
@@ -146,7 +140,7 @@ struct SimpleGlyph
   }
 
   static bool read_points (const HBUINT8 *&p /* IN/OUT */,
-			   hb_array_t<contour_point_t> points_ /* IN/OUT */,
+			   contour_point_vector_t &points_ /* IN/OUT */,
 			   const HBUINT8 *end,
 			   float contour_point_t::*m,
 			   const simple_glyph_flag_t short_flag,
@@ -154,9 +148,10 @@ struct SimpleGlyph
   {
     int v = 0;
 
-    for (auto &point : points_)
+    unsigned count = points_.length;
+    for (unsigned i = 0; i < count; i++)
     {
-      unsigned flag = point.flag;
+      unsigned flag = points_[i].flag;
       if (flag & short_flag)
       {
 	if (unlikely (p + 1 > end)) return false;
@@ -174,27 +169,23 @@ struct SimpleGlyph
 	  p += HBINT16::static_size;
 	}
       }
-      point.*m = v;
+      points_.arrayZ[i].*m = v;
     }
     return true;
   }
 
-  bool get_contour_points (contour_point_vector_t &points /* OUT */,
+  bool get_contour_points (contour_point_vector_t &points_ /* OUT */,
 			   bool phantom_only = false) const
   {
     const HBUINT16 *endPtsOfContours = &StructAfter<HBUINT16> (header);
     int num_contours = header.numberOfContours;
-    assert (num_contours > 0);
+    assert (num_contours);
     /* One extra item at the end, for the instruction-count below. */
     if (unlikely (!bytes.check_range (&endPtsOfContours[num_contours]))) return false;
     unsigned int num_points = endPtsOfContours[num_contours - 1] + 1;
 
-    unsigned old_length = points.length;
-    points.alloc (points.length + num_points + 4, true); // Allocate for phantom points, to avoid a possible copy
-    if (unlikely (!points.resize (points.length + num_points, false))) return false;
-    auto points_ = points.as_array ().sub_array (old_length);
-    if (!phantom_only)
-      hb_memset (points_.arrayZ, 0, sizeof (contour_point_t) * num_points);
+    points_.alloc (num_points + 4); // Allocate for phantom points, to avoid a possible copy
+    if (!points_.resize (num_points)) return false;
     if (phantom_only) return true;
 
     for (int i = 0; i < num_contours; i++)
@@ -217,7 +208,7 @@ struct SimpleGlyph
   }
 
   static void encode_coord (int value,
-                            unsigned &flag,
+                            uint8_t &flag,
                             const simple_glyph_flag_t short_flag,
                             const simple_glyph_flag_t same_flag,
                             hb_vector_t<uint8_t> &coords /* OUT */)
@@ -242,9 +233,9 @@ struct SimpleGlyph
     }
   }
 
-  static void encode_flag (unsigned flag,
-                           unsigned &repeat,
-                           unsigned lastflag,
+  static void encode_flag (uint8_t &flag,
+                           uint8_t &repeat,
+                           uint8_t lastflag,
                            hb_vector_t<uint8_t> &flags /* OUT */)
   {
     if (flag == lastflag && repeat != 255)
@@ -265,7 +256,7 @@ struct SimpleGlyph
     else
     {
       repeat = 0;
-      flags.arrayZ[flags.length++] = flag;
+      flags.push (flag);
     }
   }
 
@@ -281,17 +272,17 @@ struct SimpleGlyph
     unsigned num_points = all_points.length - 4;
 
     hb_vector_t<uint8_t> flags, x_coords, y_coords;
-    if (unlikely (!flags.alloc (num_points, true))) return false;
-    if (unlikely (!x_coords.alloc (2*num_points, true))) return false;
-    if (unlikely (!y_coords.alloc (2*num_points, true))) return false;
+    if (unlikely (!flags.alloc (num_points))) return false;
+    if (unlikely (!x_coords.alloc (2*num_points))) return false;
+    if (unlikely (!y_coords.alloc (2*num_points))) return false;
 
-    unsigned lastflag = 255, repeat = 0;
+    uint8_t lastflag = 255, repeat = 0;
     int prev_x = 0, prev_y = 0;
 
     for (unsigned i = 0; i < num_points; i++)
     {
-      unsigned flag = all_points.arrayZ[i].flag;
-      flag &= FLAG_ON_CURVE | FLAG_OVERLAP_SIMPLE | FLAG_CUBIC;
+      uint8_t flag = all_points.arrayZ[i].flag;
+      flag &= FLAG_ON_CURVE + FLAG_OVERLAP_SIMPLE;
 
       int cur_x = roundf (all_points.arrayZ[i].x);
       int cur_y = roundf (all_points.arrayZ[i].y);

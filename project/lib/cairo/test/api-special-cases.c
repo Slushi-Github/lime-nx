@@ -63,6 +63,9 @@
 
 #include "cairo-test.h"
 
+#if CAIRO_HAS_GL_SURFACE
+#include <cairo-gl.h>
+#endif
 #if CAIRO_HAS_PDF_SURFACE
 #include <cairo-pdf.h>
 #endif
@@ -1309,6 +1312,38 @@ test_cairo_tee_surface_index (cairo_surface_t *surface)
 
 #endif /* CAIRO_HAS_TEE_SURFACE */
 
+#if CAIRO_HAS_GL_SURFACE
+
+static cairo_test_status_t
+test_cairo_gl_surface_set_size (cairo_surface_t *surface)
+{
+    cairo_gl_surface_set_size (surface, 5, 5);
+    return CAIRO_TEST_SUCCESS;
+}
+
+static cairo_test_status_t
+test_cairo_gl_surface_get_width (cairo_surface_t *surface)
+{
+    unsigned int width = cairo_gl_surface_get_width (surface);
+    return width == 0 || surface_has_type (surface, CAIRO_SURFACE_TYPE_GL) ? CAIRO_TEST_SUCCESS : CAIRO_TEST_ERROR;
+}
+
+static cairo_test_status_t
+test_cairo_gl_surface_get_height (cairo_surface_t *surface)
+{
+    unsigned int height = cairo_gl_surface_get_height (surface);
+    return height == 0 || surface_has_type (surface, CAIRO_SURFACE_TYPE_GL) ? CAIRO_TEST_SUCCESS : CAIRO_TEST_ERROR;
+}
+
+static cairo_test_status_t
+test_cairo_gl_surface_swapbuffers (cairo_surface_t *surface)
+{
+    cairo_gl_surface_swapbuffers (surface);
+    return CAIRO_TEST_SUCCESS;
+}
+
+#endif /* CAIRO_HAS_GL_SURFACE */
+
 #if CAIRO_HAS_PDF_SURFACE
 
 static cairo_test_status_t
@@ -1639,6 +1674,12 @@ struct {
     TEST (cairo_tee_surface_add, CAIRO_SURFACE_TYPE_TEE, TRUE),
     TEST (cairo_tee_surface_remove, CAIRO_SURFACE_TYPE_TEE, TRUE),
     TEST (cairo_tee_surface_index, CAIRO_SURFACE_TYPE_TEE, FALSE),
+#endif
+#if CAIRO_HAS_GL_SURFACE
+    TEST (cairo_gl_surface_set_size, CAIRO_SURFACE_TYPE_GL, TRUE),
+    TEST (cairo_gl_surface_get_width, CAIRO_SURFACE_TYPE_GL, FALSE),
+    TEST (cairo_gl_surface_get_height, CAIRO_SURFACE_TYPE_GL, FALSE),
+    TEST (cairo_gl_surface_swapbuffers, CAIRO_SURFACE_TYPE_GL, TRUE),
 #endif
 #if CAIRO_HAS_PDF_SURFACE
     TEST (cairo_pdf_surface_restrict_to_version, CAIRO_SURFACE_TYPE_PDF, TRUE),

@@ -13,6 +13,10 @@ cairo_boilerplate_feature_sources = {
   'cairo-ps': ['cairo-boilerplate-ps.c'],
   'cairo-svg': ['cairo-boilerplate-svg.c'],
   'cairo-script': ['cairo-boilerplate-script.c'],
+  # All tests crash with FPE
+  # 'cairo-egl': ['cairo-boilerplate-egl.c'],
+  # cairo-glx: ['cairo-boilerplate-glx.c'],
+  'cairo-wgl': ['cairo-boilerplate-wgl.c'],
 }
 
 foreach feature: built_features
@@ -28,7 +32,6 @@ cairo_boilerplate_constructors = custom_target('cairo-boilerplate-constructors.c
 libcairoboilerplate = static_library('cairoboilerplate', cairo_boilerplate_sources + [cairo_boilerplate_constructors],
   include_directories: [incbase],
   dependencies: deps + [libcairo_dep],
-  c_args: ['-DCAIRO_COMPILATION'],
   install: false,
   build_by_default: false,
 )

@@ -419,6 +419,43 @@ SDL_LoadLaunchImageNamed(NSString *name, int screenh)
                         SDL_IdleTimerDisabledChanged, NULL);
 
     SDL_SetMainReady();
+
+    // Kill me
+    NSArray<NSString *> *launchOptionKeys = @[
+        UIApplicationLaunchOptionsURLKey,
+        UIApplicationLaunchOptionsSourceApplicationKey,
+        UIApplicationLaunchOptionsAnnotationKey,
+        UIApplicationLaunchOptionsRemoteNotificationKey,
+        UIApplicationLaunchOptionsLocalNotificationKey,
+        UIApplicationLaunchOptionsLocationKey,
+        UIApplicationLaunchOptionsBluetoothCentralsKey,
+        UIApplicationLaunchOptionsBluetoothPeripheralsKey,
+        UIApplicationLaunchOptionsNewsstandDownloadsKey,
+        UIApplicationLaunchOptionsShortcutItemKey,
+        UIApplicationLaunchOptionsUserActivityDictionaryKey
+    ];
+
+    for (NSString *key in launchOptionKeys) {
+        id value = launchOptions[key];
+
+        NSString *hintKey = [NSString stringWithFormat:@"SDL_IOS_%@", [key description]];
+        NSString *hintValue;
+
+        SDL_SetHint([hintKey UTF8String], nil);
+
+        if ([value isKindOfClass:[NSURL class]]) {
+            hintValue = [(NSURL *)value absoluteString];
+        } else if ([value isKindOfClass:[NSString class]]) {
+            hintValue = (NSString *)value;
+        } else {
+            hintValue = [value description];
+        }
+
+        if (hintKey && hintValue) {
+            SDL_SetHint([hintKey UTF8String], [hintValue UTF8String]);
+        }
+    }
+
     [self performSelector:@selector(postFinishLaunch) withObject:nil afterDelay:0.0];
 
     return YES;
@@ -497,6 +534,11 @@ SDL_LoadLaunchImageNamed(NSString *name, int screenh)
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey,id> *)options
 {
     /* TODO: Handle options */
+
+    if (url) {
+        SDL_SetHint("SDL_IOS_UIApplicationLaunchOptionsURLKey", [[url absoluteString] UTF8String]);
+    }
+
     [self sendDropFileForURL:url];
     return YES;
 }
@@ -505,6 +547,10 @@ SDL_LoadLaunchImageNamed(NSString *name, int screenh)
 
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
+    if (url) {
+        SDL_SetHint("SDL_IOS_UIApplicationLaunchOptionsURLKey", [[url absoluteString] UTF8String]);
+    }
+
     [self sendDropFileForURL:url];
     return YES;
 }

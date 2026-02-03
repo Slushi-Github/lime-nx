@@ -51,9 +51,6 @@ blablabla
 
 # Client-side
 <client>
-<features>
-Mime
-</features>
 <server>
 http
 </server>

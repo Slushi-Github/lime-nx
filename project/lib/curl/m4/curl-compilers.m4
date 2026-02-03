@@ -18,8 +18,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 #***************************************************************************
 
 # File version for 'aclocal' use. Keep it a single number.
@@ -107,7 +105,7 @@ AC_DEFUN([CURL_CHECK_COMPILER_CLANG], [
     compiler_num=`(expr $clangvhi "*" 100 + $clangvlo) 2>/dev/null`
     flags_dbg_yes="-g"
     flags_opt_all="-O -O0 -O1 -O2 -Os -O3 -O4"
-    flags_opt_yes="-O2"
+    flags_opt_yes="-Os"
     flags_opt_off="-O0"
   else
     AC_MSG_RESULT([no])
@@ -567,14 +565,12 @@ AC_DEFUN([CURL_SET_COMPILER_BASIC_OPTS], [
         dnl #147: declaration is incompatible with 'previous one'
         dnl #165: too few arguments in function call
         dnl #266: function declared implicitly
-        tmp_CPPFLAGS="$tmp_CPPFLAGS -diag-error 140,147,165,266"
+        tmp_CPPFLAGS="$tmp_CPPFLAGS -we140,147,165,266"
         dnl Disable some remarks
         dnl #279: controlling expression is constant
         dnl #981: operands are evaluated in unspecified order
-        dnl #1025: zero extending result of unary operation
         dnl #1469: "cc" clobber ignored
-        dnl #2259: non-pointer conversion from X to Y may lose significant bits
-        tmp_CPPFLAGS="$tmp_CPPFLAGS -diag-disable 279,981,1025,1469,2259"
+        tmp_CPPFLAGS="$tmp_CPPFLAGS -wd279,981,1469"
         ;;
         #
       INTEL_WINDOWS_C)
@@ -860,7 +856,6 @@ AC_DEFUN([CURL_SET_COMPILER_WARNING_OPTS], [
       GNU_C)
         #
         if test "$want_warnings" = "yes"; then
-          tmp_CFLAGS="$tmp_CFLAGS -std=gnu89"
           #
           dnl Do not enable -pedantic when cross-compiling with a gcc older
           dnl than 3.0, to avoid warnings from third party system headers.

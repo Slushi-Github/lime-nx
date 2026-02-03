@@ -7,7 +7,7 @@
  - range "globbing" support: [0-13], {one,two,three}
  - multiple file upload on a single command line
  - custom maximum transfer rate
- - redirect stderr
+ - redirectable stderr
  - parallel transfers
 
 ## libcurl
@@ -31,7 +31,7 @@
  - replaceable memory functions (malloc, free, realloc, etc)
  - asynchronous name resolving (6)
  - both a push and a pull style interface
- - international domain names (10)
+ - international domain names (11)
 
 ## HTTP
 
@@ -62,7 +62,7 @@
  - retrieve file modification date
  - Content-Encoding support for deflate and gzip
  - "Transfer-Encoding: chunked" support in uploads
- - automatic data compression (11)
+ - automatic data compression (12)
 
 ## HTTPS (1)
 
@@ -78,7 +78,7 @@
 
  - download
  - authentication
- - Kerberos 5 (12)
+ - Kerberos 5 (13)
  - active/passive using PORT, EPRT, PASV or EPSV
  - single file size information (compare to HTTP HEAD)
  - 'type=' URL support
@@ -174,7 +174,7 @@
 ## POP3S (1)
 
  - implicit `pop3s://` support
- - explicit `STLS` usage to "upgrade" plain `pop3://` connections to use SSL
+ - explicit "STLS" usage to "upgrade" plain `pop3://` connections to use SSL
  - via http-proxy
 
 ## IMAP
@@ -183,7 +183,7 @@
  - SASL based authentication: Plain, Login, CRAM-MD5, Digest-MD5, NTLM (9),
    Kerberos 5 (4) and External.
  - list the folders of a mailbox
- - select a mailbox with support for verifying the `UIDVALIDITY`
+ - select a mailbox with support for verifying the UIDVALIDITY
  - fetch emails with support for specifying the UID and SECTION
  - upload emails via the append command
  - enhanced command support for: EXAMINE, CREATE, DELETE, RENAME, STATUS,
@@ -212,8 +212,9 @@
   6. requires c-ares
   7. requires libssh2, libssh or wolfSSH
   8. requires libssh2 or libssh
-  9. requires OpenSSL, GnuTLS, mbedTLS, NSS, Secure Transport or SSPI
+  9. requires OpenSSL, GnuTLS, mbedTLS, NSS, yassl, Secure Transport or SSPI
      (native Windows)
-  10. requires libidn2 or Windows
-  11. requires libz, brotli and/or zstd
-  12. requires a GSS-API implementation (such as Heimdal or MIT Kerberos)
+  10. -
+  11. requires libidn2 or Windows
+  12. requires libz, brotli and/or zstd
+  13. requires a GSS-API implementation (such as Heimdal or MIT Kerberos)

@@ -16,10 +16,10 @@ struct _draw_data_t
 
 #include <cstdio>
 static void
-_move_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
+_move_to (hb_draw_funcs_t *dfuncs, void *draw_data_,
 	  hb_draw_state_t *st,
 	  float to_x, float to_y,
-	  void *user_data HB_UNUSED)
+	  void *user_data)
 {
   _draw_data_t *draw_data = (_draw_data_t *) draw_data_;
   assert (!st->path_open);
@@ -28,10 +28,10 @@ _move_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
 }
 
 static void
-_line_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
+_line_to (hb_draw_funcs_t *dfuncs, void *draw_data_,
 	  hb_draw_state_t *st,
 	  float to_x, float to_y,
-	  void *user_data HB_UNUSED)
+	  void *user_data)
 {
   _draw_data_t *draw_data = (_draw_data_t *) draw_data_;
   assert (st->path_open);
@@ -41,11 +41,11 @@ _line_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
 }
 
 static void
-_quadratic_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
+_quadratic_to (hb_draw_funcs_t *dfuncs, void *draw_data_,
 	       hb_draw_state_t *st,
-	       float control_x HB_UNUSED, float control_y HB_UNUSED,
+	       float control_x, float control_y,
 	       float to_x, float to_y,
-	       void *user_data HB_UNUSED)
+	       void *user_data)
 {
   _draw_data_t *draw_data = (_draw_data_t *) draw_data_;
   assert (st->path_open);
@@ -55,12 +55,12 @@ _quadratic_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
 }
 
 static void
-_cubic_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
+_cubic_to (hb_draw_funcs_t *dfuncs, void *draw_data_,
 	   hb_draw_state_t *st,
-	   float control1_x HB_UNUSED, float control1_y HB_UNUSED,
-	   float control2_x HB_UNUSED, float control2_y HB_UNUSED,
+	   float control1_x, float control1_y,
+	   float control2_x, float control2_y,
 	   float to_x, float to_y,
-	   void *user_data HB_UNUSED)
+	   void *user_data)
 {
   _draw_data_t *draw_data = (_draw_data_t *) draw_data_;
   assert (st->path_open);
@@ -70,9 +70,9 @@ _cubic_to (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
 }
 
 static void
-_close_path (hb_draw_funcs_t *dfuncs HB_UNUSED, void *draw_data_,
+_close_path (hb_draw_funcs_t *dfuncs, void *draw_data_,
 	     hb_draw_state_t *st,
-	     void *user_data HB_UNUSED)
+	     void *user_data)
 {
   _draw_data_t *draw_data = (_draw_data_t *) draw_data_;
   assert (st->path_open && draw_data->path_len != 0);
@@ -151,7 +151,7 @@ extern "C" int LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)
   hb_set_t *set = hb_set_create ();
   for (unsigned gid = 0; gid < glyph_count; ++gid)
   {
-    hb_font_draw_glyph (font, gid, funcs, &draw_data);
+    hb_font_get_glyph_shape (font, gid, funcs, &draw_data);
 
     /* Glyph extents also may practices the similar path, call it now that is related */
     hb_glyph_extents_t extents;

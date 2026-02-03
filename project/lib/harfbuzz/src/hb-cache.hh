@@ -30,19 +30,7 @@
 #include "hb.hh"
 
 
-/* Implements a lockfree cache for int->int functions.
- *
- * The cache is a fixed-size array of 16-bit or 32-bit integers.
- * The key is split into two parts: the cache index and the rest.
- *
- * The cache index is used to index into the array.  The rest is used
- * to store the key and the value.
- *
- * The value is stored in the least significant bits of the integer.
- * The key is stored in the most significant bits of the integer.
- * The key is shifted by cache_bits to the left to make room for the
- * value.
- */
+/* Implements a lockfree cache for int->int functions. */
 
 template <unsigned int key_bits=16,
 	 unsigned int value_bits=8 + 32 - key_bits,
@@ -51,9 +39,7 @@ template <unsigned int key_bits=16,
 struct hb_cache_t
 {
   using item_t = typename std::conditional<thread_safe,
-					   typename std::conditional<key_bits + value_bits - cache_bits <= 16,
-								     hb_atomic_short_t,
-								     hb_atomic_int_t>::type,
+					   hb_atomic_int_t,
 					   typename std::conditional<key_bits + value_bits - cache_bits <= 16,
 								     short,
 								     int>::type
@@ -62,12 +48,13 @@ struct hb_cache_t
   static_assert ((key_bits >= cache_bits), "");
   static_assert ((key_bits + value_bits <= cache_bits + 8 * sizeof (item_t)), "");
 
-  hb_cache_t () { clear (); }
+  void init () { clear (); }
+  void fini () {}
 
   void clear ()
   {
-    for (auto &v : values)
-      v = -1;
+    for (unsigned i = 0; i < ARRAY_LENGTH (values); i++)
+      values[i] = -1;
   }
 
   bool get (unsigned int key, unsigned int *value) const

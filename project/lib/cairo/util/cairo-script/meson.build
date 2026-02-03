@@ -27,11 +27,9 @@ csi_trace_sources = [
 libcairoscript = library('cairo-script-interpreter',
   cairoscript_interpreter_sources,
   include_directories: [incbase],
-  dependencies: deps + [libcairo_dep, lzo_dep],
+  dependencies: deps + [libcairo_dep],
   soversion: cairo_version_sonum,
   version: cairo_libversion,
-  c_args: ['-DCAIRO_COMPILATION'],
-  link_args: extra_link_args,
   install: true,
 )
 

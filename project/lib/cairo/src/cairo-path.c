@@ -294,7 +294,7 @@ _cairo_path_create_in_error (cairo_status_t status)
     if (status == CAIRO_STATUS_NO_MEMORY)
 	return (cairo_path_t*) &_cairo_path_nil;
 
-    path = _cairo_calloc (sizeof (cairo_path_t));
+    path = _cairo_malloc (sizeof (cairo_path_t));
     if (unlikely (path == NULL)) {
 	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_path_t*) &_cairo_path_nil;
@@ -314,7 +314,7 @@ _cairo_path_create_internal (cairo_path_fixed_t *path_fixed,
 {
     cairo_path_t *path;
 
-    path = _cairo_calloc (sizeof (cairo_path_t));
+    path = _cairo_malloc (sizeof (cairo_path_t));
     if (unlikely (path == NULL)) {
 	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_path_t*) &_cairo_path_nil;
@@ -372,6 +372,7 @@ cairo_path_destroy (cairo_path_t *path)
 
     free (path);
 }
+slim_hidden_def (cairo_path_destroy);
 
 /**
  * _cairo_path_create:

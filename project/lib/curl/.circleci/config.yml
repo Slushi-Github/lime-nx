@@ -18,8 +18,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 
 # View these jobs in the browser: https://app.circleci.com/pipelines/github/curl/curl
@@ -83,7 +81,7 @@ commands:
             cd wolfssl-5.1.1-stable
             ./autogen.sh
             ./configure --enable-tls13 --enable-all --enable-harden --prefix=$HOME/wssl
-            make install
+            make && make install
 
   install-wolfssh:
     steps:
@@ -94,7 +92,7 @@ commands:
             cd wolfssh-1.4.8-stable
             ./autogen.sh
             ./configure --with-wolfssl=$HOME/wssl --prefix=$HOME/wssh --enable-scp --enable-sftp --disable-examples
-            make install
+            make && make install
 
   configure-cares:
     steps:

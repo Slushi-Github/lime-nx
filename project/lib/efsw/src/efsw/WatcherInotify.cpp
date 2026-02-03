@@ -2,13 +2,27 @@
 
 namespace efsw {
 
-WatcherInotify::WatcherInotify() : Watcher(), Parent( NULL ) {}
+WatcherInotify::WatcherInotify() :
+	Watcher(),
+	Parent( NULL )
+{
+}
 
-bool WatcherInotify::inParentTree( WatcherInotify* parent ) {
-	WatcherInotify* tNext = Parent;
+WatcherInotify::WatcherInotify( WatchID id, std::string directory, FileWatchListener * listener, bool recursive, WatcherInotify * parent ) :
+	Watcher( id, directory, listener, recursive ),
+	Parent( parent ),
+	DirInfo( directory )
+{
+}
 
-	while ( NULL != tNext ) {
-		if ( tNext == parent ) {
+bool WatcherInotify::inParentTree( WatcherInotify * parent )
+{
+	WatcherInotify * tNext = Parent;
+
+	while ( NULL != tNext )
+	{
+		if ( tNext == parent )
+		{
 			return true;
 		}
 
@@ -17,5 +31,5 @@ bool WatcherInotify::inParentTree( WatcherInotify* parent ) {
 
 	return false;
 }
-
-} // namespace efsw
+	
+} 

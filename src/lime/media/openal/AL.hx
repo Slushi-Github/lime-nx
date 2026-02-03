@@ -203,8 +203,7 @@ class AL
 	public static inline var EFFECT_VOCAL_MORPHER:Int = 0x0007;
 	public static inline var EFFECT_PITCH_SHIFTER:Int = 0x0008;
 	public static inline var EFFECT_RING_MODULATOR:Int = 0x0009;
-	public static inline var FFECT_AUTOWAH:Int = 0x000A; // TODO: deprecate and remove
-	public static inline var EFFECT_AUTOWAH:Int = 0x000A;
+	public static inline var FFECT_AUTOWAH:Int = 0x000A;
 	public static inline var EFFECT_COMPRESSOR:Int = 0x000B;
 	public static inline var EFFECT_EQUALIZER:Int = 0x000C;
 	/* Auxiliary Effect Slot properties. */
@@ -233,6 +232,15 @@ class AL
 	public static inline var FILTER_LOWPASS:Int = 0x0001;
 	public static inline var FILTER_HIGHPASS:Int = 0x0002;
 	public static inline var FILTER_BANDPASS:Int = 0x0003;
+
+	public static inline var STOP_SOURCES_ON_DISCONNECT_SOFT:Int = 0x19AB;
+
+	public static inline var DEVICE_CLOCK_SOFT:Int = 0x1600;
+	public static inline var DEVICE_LATENCY_SOFT:Int = 0x1601;
+	public static inline var DEVICE_CLOCK_LATENCY_SOFT:Int = 0x1602;
+
+	public static inline var SEC_OFFSET_LATENCY_SOFT:Int = 0x1201;
+	public static inline var SEC_OFFSET_CLOCK_SOFT:Int = 0x1203;
 
 	public static function removeDirectFilter(source:ALSource)
 	{

@@ -20,8 +20,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -43,6 +41,32 @@ int Curl_blockread_all(struct Curl_easy *data,
                        ssize_t buffersize,
                        ssize_t *n);
 
+int Curl_SOCKS_getsock(struct connectdata *conn,
+                       curl_socket_t *sock,
+                       int sockindex);
+/*
+ * This function logs in to a SOCKS4(a) proxy and sends the specifics to the
+ * final destination server.
+ */
+CURLproxycode Curl_SOCKS4(const char *proxy_name,
+                          const char *hostname,
+                          int remote_port,
+                          int sockindex,
+                          struct Curl_easy *data,
+                          bool *done);
+
+/*
+ * This function logs in to a SOCKS5 proxy and sends the specifics to the
+ * final destination server.
+ */
+CURLproxycode Curl_SOCKS5(const char *proxy_name,
+                          const char *proxy_password,
+                          const char *hostname,
+                          int remote_port,
+                          int sockindex,
+                          struct Curl_easy *data,
+                          bool *done);
+
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
 /*
  * This function handles the SOCKS5 GSS-API negotiation and initialization
@@ -50,10 +74,6 @@ int Curl_blockread_all(struct Curl_easy *data,
 CURLcode Curl_SOCKS5_gssapi_negotiate(int sockindex,
                                       struct Curl_easy *data);
 #endif
-
-CURLcode Curl_conn_socks_proxy_add(struct Curl_easy *data,
-                                   struct connectdata *conn,
-                                   int sockindex);
 
 #endif /* CURL_DISABLE_PROXY */
 

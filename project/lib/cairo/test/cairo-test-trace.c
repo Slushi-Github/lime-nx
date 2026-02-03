@@ -552,11 +552,7 @@ spawn_shm (const char *shm_path)
 
     base = mmap (NULL, DATA_SIZE,
 		 PROT_READ | PROT_WRITE,
-#ifdef MAP_NORESERVE
 		 MAP_SHARED | MAP_NORESERVE,
-#else
-		 MAP_SHARED,
-#endif
 		 fd, 0);
     close (fd);
 
@@ -1519,11 +1515,11 @@ read_excludes (test_trace_t *test, const char *filename)
 
 	/* whitespace delimits */
 	s = line;
-	while (*s != '\0' && isspace ((unsigned char)*s))
+	while (*s != '\0' && isspace (*s))
 	    s++;
 
 	t = s;
-	while (*t != '\0' && ! isspace ((unsigned char)*t))
+	while (*t != '\0' && ! isspace (*t))
 	    t++;
 
 	if (s != t) {

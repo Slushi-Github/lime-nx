@@ -50,6 +50,12 @@
 #include "cairo-surface-backend-private.h"
 #include "cairo-compositor-private.h"
 
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_proto (cairo_xcb_surface_create);
+slim_hidden_proto (cairo_xcb_surface_create_for_bitmap);
+slim_hidden_proto (cairo_xcb_surface_create_with_xrender_format);
+#endif
+
 /**
  * SECTION:cairo-xcb
  * @Title: XCB Surfaces
@@ -1069,7 +1075,7 @@ _cairo_xcb_surface_create_internal (cairo_xcb_screen_t		*screen,
 {
     cairo_xcb_surface_t *surface;
 
-    surface = _cairo_calloc (sizeof (cairo_xcb_surface_t));
+    surface = _cairo_malloc (sizeof (cairo_xcb_surface_t));
     if (unlikely (surface == NULL))
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
@@ -1230,6 +1236,9 @@ cairo_xcb_surface_create (xcb_connection_t  *connection,
 					       xrender_format,
 					       width, height);
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_surface_create);
+#endif
 
 /**
  * cairo_xcb_surface_create_for_bitmap:
@@ -1278,6 +1287,9 @@ cairo_xcb_surface_create_for_bitmap (xcb_connection_t	*connection,
 					       cairo_xcb_screen->connection->standard_formats[CAIRO_FORMAT_A1],
 					       width, height);
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_surface_create_for_bitmap);
+#endif
 
 /**
  * cairo_xcb_surface_create_with_xrender_format:
@@ -1367,6 +1379,9 @@ cairo_xcb_surface_create_with_xrender_format (xcb_connection_t	    *connection,
 					       format->id,
 					       width, height);
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_surface_create_with_xrender_format);
+#endif
 
 /* This does the necessary fixup when a surface's drawable or size changed. */
 static void
@@ -1436,6 +1451,9 @@ cairo_xcb_surface_set_size (cairo_surface_t *abstract_surface,
     surface->width  = width;
     surface->height = height;
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_surface_set_size);
+#endif
 
 /**
  * cairo_xcb_surface_set_drawable:
@@ -1508,3 +1526,6 @@ cairo_xcb_surface_set_drawable (cairo_surface_t *abstract_surface,
     surface->width  = width;
     surface->height = height;
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_surface_set_drawable);
+#endif

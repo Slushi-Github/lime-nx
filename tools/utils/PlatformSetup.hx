@@ -816,6 +816,11 @@ class PlatformSetup
 			setupHaxelib(new Haxelib("lime"));
 		}
 
+		if (System.hostPlatform == MAC)
+		{
+			ConfigHelper.writeConfigValue("MAC_USE_CURRENT_SDK", "1");
+		}
+
 		if (targetFlags.exists("noalias"))
 		{
 			return;
@@ -875,16 +880,13 @@ class PlatformSetup
 			var installedCommand = false;
 			var answer = YES;
 
-			if (!(targetFlags.exists("alias") || targetFlags.exists("cli")))
+			if (targetFlags.exists("y"))
 			{
-				if (targetFlags.exists("y"))
-				{
-					Sys.println("Do you want to install the \"lime\" command? [y/n/a] y");
-				}
-				else
-				{
-					answer = CLIHelper.ask("Do you want to install the \"lime\" command?");
-				}
+				Sys.println("Do you want to install the \"lime\" command? [y/n/a] y");
+			}
+			else
+			{
+				answer = CLIHelper.ask("Do you want to install the \"lime\" command?");
 			}
 
 			if (answer == YES || answer == ALWAYS)
@@ -1077,6 +1079,11 @@ class PlatformSetup
 			setupHaxelib(new Haxelib("openfl"));
 		}
 
+		if (System.hostPlatform == MAC)
+		{
+			ConfigHelper.writeConfigValue("MAC_USE_CURRENT_SDK", "1");
+		}
+
 		if (targetFlags.exists("noalias"))
 		{
 			return;
@@ -1126,16 +1133,13 @@ class PlatformSetup
 			var installedCommand = false;
 			var answer = YES;
 
-			if (!(targetFlags.exists("alias") || targetFlags.exists("cli")))
+			if (targetFlags.exists("y"))
 			{
-				if (targetFlags.exists("y"))
-				{
-					Sys.println("Do you want to install the \"openfl\" command? [y/n/a] y");
-				}
-				else
-				{
-					answer = CLIHelper.ask("Do you want to install the \"openfl\" command?");
-				}
+				Sys.println("Do you want to install the \"openfl\" command? [y/n/a] y");
+			}
+			else
+			{
+				answer = CLIHelper.ask("Do you want to install the \"openfl\" command?");
 			}
 
 			if (answer == YES || answer == ALWAYS)
@@ -1238,8 +1242,6 @@ class PlatformSetup
 		var message = "Absolute path to a custom version of HashLink.";
 		if (ConfigHelper.getConfigValue("HL_PATH") == null) {
 			message += " Leave empty to use Lime's default bundled version.";
-		} else {
-			message += " Leave empty to keep the currently configured version. To restore Lime's default bundled version, run the command: lime config remove HL_PATH";
 		}
 		getDefineValue("HL_PATH", message);
 		if (System.hostPlatform == MAC)

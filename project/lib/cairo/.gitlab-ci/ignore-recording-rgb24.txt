@@ -11,6 +11,7 @@ clear-source
 clip-device-offset
 clip-fill-rule-pixel-aligned
 clip-text
+clip-unbounded
 coverage-rectangles
 culled-glyphs
 dash-zero-length

@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 /*
 By default wolfSSL has a very conservative configuration that can result in
@@ -301,7 +299,7 @@ extern "C" {
 
 
 #ifdef __cplusplus
-} /* end of extern "C" */
+}
 #endif
 
 

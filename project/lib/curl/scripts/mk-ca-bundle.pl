@@ -19,8 +19,6 @@
 # * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # * KIND, either express or implied.
 # *
-# * SPDX-License-Identifier: curl
-# *
 # ***************************************************************************
 # This Perl script creates a fresh ca-bundle.crt file for use with libcurl.
 # It downloads certdata.txt from Mozilla's source tree (see URL below),

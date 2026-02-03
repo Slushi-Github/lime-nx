@@ -19,8 +19,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 #
 
@@ -95,7 +93,7 @@ sub scan_docs {
     my $line = 0;
     while(<F>) {
         $line++;
-        if(/^## `(CURL_DISABLE_[A-Z_]+)/g) {
+        if(/^## (CURL_DISABLE_[A-Z_]+)/g) {
             my ($sym)=($1);
             $docs{$sym} = $line;
         }

@@ -26,41 +26,7 @@
 
 #include "cairo-boilerplate-private.h"
 
-#include <cairo-quartz-private.h>
-
-#include <dlfcn.h>
-
-#ifndef RTLD_DEFAULT
-#define RTLD_DEFAULT ((void *) 0)
-#endif
-
-/*
- * macOS Private functions
- */
-typedef enum {
-    kCGContextTypeUnknown,
-    kCGContextTypePDF,
-    kCGContextTypePostScript,
-    kCGContextTypeWindow,
-    kCGContextTypeBitmap,
-    kCGContextTypeGL,
-    kCGContextTypeDisplayList,
-    kCGContextTypeKSeparation,
-    kCGContextTypeIOSurface,
-    kCGContextTypeCount
-} CGContextType;
-
-
-static unsigned int (*CGContextGetTypePtr) (CGContextRef) = NULL;
-static void
-quartz_ensure_symbols (void)
-{
-    static cairo_bool_t symbol_lookup_done = FALSE;
-    if (!symbol_lookup_done) {
-	CGContextGetTypePtr = dlsym (RTLD_DEFAULT, "CGContextGetType");
-	symbol_lookup_done = TRUE;
-    }
-}
+#include <cairo-quartz.h>
 
 static cairo_surface_t *
 _cairo_boilerplate_quartz_create_surface (const char		    *name,
@@ -81,48 +47,6 @@ _cairo_boilerplate_quartz_create_surface (const char		    *name,
     return cairo_quartz_surface_create (format, width, height);
 }
 
-static bool
-cg_context_is_bitmap (CGContextRef context)
-{
-    quartz_ensure_symbols ();
-
-    if (likely (CGContextGetTypePtr)) {
-	return CGContextGetTypePtr (context) == kCGContextTypeBitmap;
-    }
-
-    return CGBitmapContextGetBitsPerPixel (context) != 0;
-}
-
-static cairo_status_t
-_cairo_boilerplate_quartz_surface_to_png (cairo_surface_t *surface,
-                                          const char      *dest)
-{
-    CGContextRef context = cairo_quartz_surface_get_cg_context (surface);
-    if (!context || !cg_context_is_bitmap (context)) {
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
-    }
-
-    CGImageRef image = CGBitmapContextCreateImage (context);
-    CFStringRef png_utti = CFSTR("public.png");
-    CFStringRef path;
-    CFURLRef url;
-
-    CGImageDestinationRef image_dest;
-
-    path = CFStringCreateWithCString (NULL, dest, kCFStringEncodingUTF8);
-    url = CFURLCreateWithFileSystemPath (NULL, path, kCFURLPOSIXPathStyle, FALSE);
-    image_dest = CGImageDestinationCreateWithURL (url, png_utti, 1, NULL);
-
-    CGImageDestinationAddImage (image_dest, image, NULL);
-    CGImageDestinationFinalize (image_dest);
-
-    CFRelease (url);
-    CFRelease (path);
-
-    CGImageRelease (image);
-    return CAIRO_STATUS_SUCCESS;
-}
-
 static const cairo_boilerplate_target_t targets[] = {
     {
 	"quartz", "quartz", NULL, NULL,
@@ -132,7 +56,7 @@ static const cairo_boilerplate_target_t targets[] = {
 	cairo_surface_create_similar,
 	NULL, NULL,
 	_cairo_boilerplate_get_image_surface,
-	_cairo_boilerplate_quartz_surface_to_png,
+	cairo_surface_write_to_png,
 	NULL, NULL, NULL,
 	TRUE, FALSE, FALSE
     },
@@ -144,7 +68,7 @@ static const cairo_boilerplate_target_t targets[] = {
 	cairo_surface_create_similar,
 	NULL, NULL,
 	_cairo_boilerplate_get_image_surface,
-	_cairo_boilerplate_quartz_surface_to_png,
+	cairo_surface_write_to_png,
 	NULL, NULL, NULL,
         FALSE, FALSE, FALSE
     },

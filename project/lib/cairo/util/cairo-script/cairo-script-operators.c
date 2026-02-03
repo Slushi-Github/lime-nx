@@ -6799,9 +6799,6 @@ _integer_constants[] = {
     { "RGB16_565",		CAIRO_FORMAT_RGB16_565 },
     { "RGB24",			CAIRO_FORMAT_RGB24 },
     { "ARGB32",			CAIRO_FORMAT_ARGB32 },
-    { "RGB30",			CAIRO_FORMAT_RGB30 },
-    { "RGB96F",			CAIRO_FORMAT_RGB96F },
-    { "RGBA128F",		CAIRO_FORMAT_RGBA128F },
     { "INVALID",		CAIRO_FORMAT_INVALID },
 
     { NULL, 0 }

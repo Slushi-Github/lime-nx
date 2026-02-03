@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -626,7 +624,8 @@ CURLcode FindWin32CACert(struct OperationConfig *config,
    * ignored. We allow setting CA location for schannel only when explicitly
    * specified by the user via CURLOPT_CAINFO / --cacert.
    */
-  if(feature_ssl && backend != CURLSSLBACKEND_SCHANNEL) {
+  if((curlinfo->features & CURL_VERSION_SSL) &&
+     backend != CURLSSLBACKEND_SCHANNEL) {
 
     DWORD res_len;
     TCHAR buf[PATH_MAX];

@@ -25,8 +25,6 @@
  * Authors: Chris Wilson <chris@chris-wilson.co.uk>
  */
 
-#define GLIB_DISABLE_DEPRECATION_WARNINGS
-
 #include "cairo-perf.h"
 #include "cairo-perf-graph.h"
 

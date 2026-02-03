@@ -64,11 +64,8 @@ import sys.FileSystem;
 			#else
 			rootPath = "./";
 			#end
-		}
 
-		#if switch
-		rootPath = "romfs:/";
-		#end
+		}
 
 		#if (openfl && !flash && !display)
 		::if (assets != null)::::foreach assets::::if (type == "font")::openfl.text.Font.registerFont (__ASSET__OPENFL__::flatName::);

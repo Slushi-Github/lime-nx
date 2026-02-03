@@ -70,7 +70,6 @@
  4.7 STAT for LIST without data connection
 
  5. HTTP
- 5.1 Provide the error body from a CONNECT response
  5.2 Set custom client ip when using haproxy protocol
  5.3 Rearrange request header order
  5.4 Allow SAN names in HTTP/2 server push
@@ -121,7 +120,6 @@
  13.9 TLS record padding
  13.10 Support Authority Information Access certificate extension (AIA)
  13.11 Support intermediate & root pinning for PINNEDPUBLICKEY
- 13.12 Reduce CA certificate bundle reparsing
  13.13 Make sure we forbid TLS 1.3 post-handshake authentication
  13.14 Support the clienthello extension
 
@@ -151,6 +149,7 @@
  18.4 --proxycommand
  18.5 UTF-8 filenames in Content-Disposition
  18.6 Option to make -Z merge lined based outputs on stdout
+ 18.7 at least N milliseconds between requests
  18.8 Consider convenience options for JSON and XML?
  18.9 Choose the name of file in braces for complex URLs
  18.10 improve how curl works in a windows console window
@@ -566,15 +565,6 @@
 
 5. HTTP
 
-5.1 Provide the error body from a CONNECT response
-
- When curl receives a body response from a CONNECT request to a proxy, it will
- always just read and ignore it. It would make some users happy if curl
- instead optionally would be able to make that responsible available. Via a new
- callback? Through some other means?
-
- See https://github.com/curl/curl/issues/9513
-
 5.2 Set custom client ip when using haproxy protocol
 
  This would allow testing servers with different client ip addresses (without
@@ -855,15 +845,6 @@
  Adding this feature would make curls pinning 100% compatible to HPKP and
  allow more flexible pinning.
 
-13.12 Reduce CA certificate bundle reparsing
-
- When using the OpenSSL backend, curl will load and reparse the CA bundle at
- the creation of the "SSL context" when it sets up a connection to do a TLS
- handshake. A more effective way would be to somehow cache the CA bundle to
- avoid it having to be repeatedly reloaded and reparsed.
-
- See https://github.com/curl/curl/issues/9379
-
 13.13 Make sure we forbid TLS 1.3 post-handshake authentication
 
  RFC 8740 explains how using HTTP/2 must forbid the use of TLS 1.3
@@ -1017,6 +998,17 @@
  partial lines from several sources.
 
  https://github.com/curl/curl/issues/5175
+
+18.7 at least N milliseconds between requests
+
+ Allow curl command lines issue a lot of request against services that limit
+ users to no more than N requests/second or similar. Could be implemented with
+ an option asking that at least a certain time has elapsed since the previous
+ request before the next one will be performed. Example:
+
+    $ curl "https://example.com/api?input=[1-1000]" -d yadayada --after 500
+
+ See https://github.com/curl/curl/issues/3920
 
 18.8 Consider convenience options for JSON and XML?
 

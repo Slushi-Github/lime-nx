@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 #include "tool_help.h"
@@ -197,7 +195,7 @@ const struct helptxt helptext[] = {
    CURLHELP_HTTP | CURLHELP_UPLOAD},
   {"    --form-escape",
    "Escape multipart form field/file names using backslash",
-   CURLHELP_HTTP | CURLHELP_UPLOAD},
+   CURLHELP_HTTP | CURLHELP_POST},
   {"    --form-string <name=string>",
    "Specify multipart MIME data",
    CURLHELP_HTTP | CURLHELP_UPLOAD},
@@ -251,7 +249,7 @@ const struct helptxt helptext[] = {
    CURLHELP_HTTP | CURLHELP_FTP | CURLHELP_FILE},
   {"-H, --header <header/@file>",
    "Pass custom header(s) to server",
-   CURLHELP_HTTP | CURLHELP_IMAP | CURLHELP_SMTP},
+   CURLHELP_HTTP},
   {"-h, --help <category>",
    "Get help for commands",
    CURLHELP_IMPORTANT | CURLHELP_CURL},
@@ -561,9 +559,6 @@ const struct helptxt helptext[] = {
   {"-r, --range <range>",
    "Retrieve only the bytes within RANGE",
    CURLHELP_HTTP | CURLHELP_FTP | CURLHELP_SFTP | CURLHELP_FILE},
-  {"    --rate <max request rate>",
-   "Request rate for serial transfers",
-   CURLHELP_CONNECTION},
   {"    --raw",
    "Do HTTP \"raw\"; no transfer decoding",
    CURLHELP_HTTP},
@@ -593,7 +588,7 @@ const struct helptxt helptext[] = {
    CURLHELP_HTTP},
   {"    --resolve <[+]host:port:addr[,addr]...>",
    "Resolve the host+port to this address",
-   CURLHELP_CONNECTION | CURLHELP_DNS},
+   CURLHELP_CONNECTION},
   {"    --retry <num>",
    "Retry request if transient problems occur",
    CURLHELP_CURL},
@@ -756,9 +751,6 @@ const struct helptxt helptext[] = {
   {"    --url <url>",
    "URL to work with",
    CURLHELP_CURL},
-  {"    --url-query <data>",
-   "Add a URL query part",
-   CURLHELP_HTTP | CURLHELP_POST | CURLHELP_UPLOAD},
   {"-B, --use-ascii",
    "Use ASCII/text transfer",
    CURLHELP_MISC},

@@ -17,6 +17,7 @@ clip-shape
 clip-stroke
 clip-stroke-unbounded
 clip-text
+clip-unbounded
 close-path-current-point
 coverage-column-triangles
 coverage-intersecting-quads

@@ -41,21 +41,13 @@
 
 #if _CAIRO_MUTEX_IMPL_USE_STATIC_INITIALIZER || _CAIRO_MUTEX_IMPL_USE_STATIC_FINALIZER
 
-#define _CAIRO_MUTEX_UNINITIALIZED 0
-#define _CAIRO_MUTEX_INITIALIZING  1
-#define _CAIRO_MUTEX_INITIALIZED   2
-
 # if _CAIRO_MUTEX_IMPL_USE_STATIC_INITIALIZER
-#  define _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE _CAIRO_MUTEX_UNINITIALIZED
+#  define _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE FALSE
 # else
-#  define _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE _CAIRO_MUTEX_INITIALIZED
+#  define _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE TRUE
 # endif
 
-#if HAS_ATOMIC_OPS
-cairo_atomic_int_t _cairo_mutex_initialized = _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE;
-#else
-int _cairo_mutex_initialized = _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE;
-#endif
+cairo_bool_t _cairo_mutex_initialized = _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE;
 
 # undef _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE
 
@@ -64,47 +56,24 @@ int _cairo_mutex_initialized = _CAIRO_MUTEX_IMPL_INITIALIZED_DEFAULT_VALUE;
 #if _CAIRO_MUTEX_IMPL_USE_STATIC_INITIALIZER
 void _cairo_mutex_initialize (void)
 {
-#if HAS_ATOMIC_OPS
-    int old_value;
-    do {
-        old_value = _cairo_atomic_int_cmpxchg_return_old (&_cairo_mutex_initialized,
-                                                          _CAIRO_MUTEX_UNINITIALIZED,
-                                                          _CAIRO_MUTEX_INITIALIZING);
-        if (old_value == _CAIRO_MUTEX_INITIALIZED)
-            return;
-
-    } while (old_value == _CAIRO_MUTEX_INITIALIZING);
-#else
-    if (_cairo_mutex_initialized == _CAIRO_MUTEX_INITIALIZED)
+    if (_cairo_mutex_initialized)
         return;
 
-    _cairo_mutex_initialized = _CAIRO_MUTEX_INITIALIZED;
-#endif
+    _cairo_mutex_initialized = TRUE;
 
 #define  CAIRO_MUTEX_DECLARE(mutex) CAIRO_MUTEX_INIT (mutex);
 #include "cairo-mutex-list-private.h"
 #undef   CAIRO_MUTEX_DECLARE
-
-#if HAS_ATOMIC_OPS
-    _cairo_atomic_int_set_relaxed (&_cairo_mutex_initialized, _CAIRO_MUTEX_INITIALIZED);
-#endif
 }
 #endif
 
 #if _CAIRO_MUTEX_IMPL_USE_STATIC_FINALIZER
 void _cairo_mutex_finalize (void)
 {
-#if HAS_ATOMIC_OPS
-    if (!_cairo_atomic_int_cmpxchg (&_cairo_mutex_initialized,
-                                    _CAIRO_MUTEX_INITIALIZED,
-                                    _CAIRO_MUTEX_UNINITIALIZED))
-        return;
-#else
-    if (_cairo_mutex_initialized != _CAIRO_MUTEX_INITIALIZED)
+    if (!_cairo_mutex_initialized)
         return;
 
-    _cairo_mutex_initialized = _CAIRO_MUTEX_UNINITIALIZED;
-#endif
+    _cairo_mutex_initialized = FALSE;
 
 #define  CAIRO_MUTEX_DECLARE(mutex) CAIRO_MUTEX_FINI (mutex);
 #include "cairo-mutex-list-private.h"

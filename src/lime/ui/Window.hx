@@ -37,6 +37,7 @@ class Window
 	#if (!lime_doc_gen || (js && html5))
 	public var element(default, null):#if (js && html5) Element #else Dynamic #end;
 	#end
+	public var nativeHandle(get, null):Dynamic;
 
 	/**
 	 * The current frame rate (measured in frames-per-second) of the window.
@@ -67,68 +68,27 @@ class Window
 	public var onFocusOut(default, null) = new Event<Void->Void>();
 	public var onFullscreen(default, null) = new Event<Void->Void>();
 	public var onHide(default, null) = new Event<Void->Void>();
-
-	/**
-		Fired when the user presses a key down when this window has focus.
-	**/
 	public var onKeyDown(default, null) = new Event<KeyCode->KeyModifier->Void>();
-
-	/**
-		Fired when the user releases a key that was down.
-	**/
 	public var onKeyUp(default, null) = new Event<KeyCode->KeyModifier->Void>();
-
+	public var onKeyDownPrecise(default, null) = new Event<KeyCode->KeyModifier->haxe.Int64->Void>();
+	public var onKeyUpPrecise(default, null) = new Event<KeyCode->KeyModifier->haxe.Int64->Void>();
 	public var onLeave(default, null) = new Event<Void->Void>();
-
-	/**
-		Fired when the window is maximized.
-	**/
 	public var onMaximize(default, null) = new Event<Void->Void>();
-
-	/**
-		Fired when the window is minimized.
-	**/
 	public var onMinimize(default, null) = new Event<Void->Void>();
-
-	/**
-		Fired when the user pressed a mouse button down.
-	**/
 	public var onMouseDown(default, null) = new Event<Float->Float->MouseButton->Void>();
-
-	/**
-		Fired when the mouse is moved over the window.
-	**/
 	public var onMouseMove(default, null) = new Event<Float->Float->Void>();
 	public var onMouseMoveRelative(default, null) = new Event<Float->Float->Void>();
-
-	/**
-		Fired when the user releases a mouse button that was pressed down.
-	**/
 	public var onMouseUp(default, null) = new Event<Float->Float->Int->Void>();
-
-	/**
-		Fired when the user interacts with the mouse wheel.
-	**/
 	public var onMouseWheel(default, null) = new Event<Float->Float->MouseWheelMode->Void>();
-
-	/**
-		Fired when the window is moved to a new position.
-	**/
 	public var onMove(default, null) = new Event<Float->Float->Void>();
 	public var onRender(default, null) = new Event<RenderContext->Void>();
 	public var onRenderContextLost(default, null) = new Event<Void->Void>();
 	public var onRenderContextRestored(default, null) = new Event<RenderContext->Void>();
-
-	/**
-		Fired when the window is resized with new dimensions.
-	**/
 	public var onResize(default, null) = new Event<Int->Int->Void>();
-
 	public var onRestore(default, null) = new Event<Void->Void>();
 	public var onShow(default, null) = new Event<Void->Void>();
 	public var onTextEdit(default, null) = new Event<String->Int->Int->Void>();
 	public var onTextInput(default, null) = new Event<String->Void>();
-
 	public var opacity(get, set):Float;
 	public var parameters:Dynamic;
 	public var resizable(get, set):Bool;
@@ -438,6 +398,15 @@ class Window
 		__backend.focus();
 	}
 
+	/**
+	 * Sets the swap interval for the current window.
+	 * @return `false` if the swap interval could not be set
+	**/
+	public function setVSyncMode(mode:WindowVSyncMode):Bool
+	{
+		return __backend.setVSyncMode(mode);
+	}
+
 	public function move(x:Int, y:Int):Void
 	{
 		__backend.move(x, y);
@@ -542,6 +511,11 @@ class Window
 	@:noCompletion private function set_displayMode(value:DisplayMode):DisplayMode
 	{
 		return __backend.setDisplayMode(value);
+	}
+
+	@:noCompletion private function get_nativeHandle():Dynamic
+	{
+		return __backend.getNativeHandle();
 	}
 
 	@:noCompletion private inline function get_borderless():Bool

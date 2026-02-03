@@ -13,6 +13,7 @@ clip-fill-rule-pixel-aligned
 clip-operator
 clip-stroke-unbounded
 clip-text
+clip-unbounded
 culled-glyphs
 dash-zero-length
 degenerate-path
@@ -58,6 +59,7 @@ pixman-rotate
 ps-surface-source
 radial-gradient-mask-source
 radial-gradient-source
+record1414x-fill-alpha
 record1414x-paint
 record1414x-paint-alpha
 record1414x-paint-alpha-clip
@@ -106,4 +108,3 @@ tighten-bounds
 unbounded-operator
 xcb-surface-source
 xlib-surface-source
-user-font-color

@@ -26,8 +26,6 @@
 #ifndef HB_CFF_INTERP_COMMON_HH
 #define HB_CFF_INTERP_COMMON_HH
 
-extern HB_INTERNAL const unsigned char *endchar_str;
-
 namespace CFF {
 
 using namespace OT;
@@ -338,6 +336,8 @@ struct byte_str_ref_t
   hb_ubytes_t       str;
 };
 
+using byte_str_array_t = hb_vector_t<hb_ubytes_t>;
+
 /* stack */
 template <typename ELEM, int LIMIT>
 struct cff_stack_t
@@ -488,7 +488,7 @@ struct op_str_t
 
   const unsigned char *ptr = nullptr;
 
-  op_code_t  op = OpCode_Invalid;
+  op_code_t  op;
 
   uint8_t length = 0;
 };
@@ -522,10 +522,20 @@ struct parsed_values_t
 
   void alloc (unsigned n)
   {
-    values.alloc (n, true);
+    values.alloc (n);
   }
 
-  void add_op (op_code_t op, const byte_str_ref_t& str_ref = byte_str_ref_t (), const VAL &v = VAL ())
+  void add_op (op_code_t op, const byte_str_ref_t& str_ref = byte_str_ref_t ())
+  {
+    VAL *val = values.push ();
+    val->op = op;
+    auto arr = str_ref.sub_array (opStart, str_ref.get_offset () - opStart);
+    val->ptr = arr.arrayZ;
+    val->length = arr.length;
+    opStart = str_ref.get_offset ();
+  }
+
+  void add_op (op_code_t op, const byte_str_ref_t& str_ref, const VAL &v)
   {
     VAL *val = values.push (v);
     val->op = op;
@@ -624,6 +634,7 @@ struct opset_t
 	} else {
 	  /* invalid unknown operator */
 	  env.clear_args ();
+	  env.set_error ();
 	}
 	break;
     }

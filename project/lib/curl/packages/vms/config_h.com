@@ -28,7 +28,7 @@ $!
 $! This procedure may not guess the options correctly for all architectures,
 $! and is a work in progress.
 $!
-$! Copyright 2013 - 2022, John Malmberg
+$! Copyright 2011 - 2021, John Malmberg
 $!
 $! Permission to use, copy, modify, and/or distribute this software for any
 $! purpose with or without fee is hereby granted, provided that the above
@@ -41,8 +41,6 @@ $! ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 $! WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 $! ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 $! OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-$!
-$! SPDX-License-Identifier: ISC
 $!
 $! 15-Jan-2001	J. Malmberg	Original
 $! 29-Apr-2001	J. Malmberg	Also look for config.*in* in a [.include]
@@ -797,6 +795,14 @@ $	    write tf "#endif"
 $	    goto cfgh_in_loop1
 $	endif
 $!
+$	if key2 .eqs. "HAVE_LIBDL"
+$	then
+$	    write tf "#ifndef ''key2'"
+$	    write tf "#define ''key2' 1"
+$	    write tf "#endif"
+$	    goto cfgh_in_loop1
+$	endif
+$!
 $	if key2b .eqs. "RAND" .and. key2c .nes. "" .and. key2d .eqs. ""
 $	then
 $	    if (key2c .eqs. "EGD") .or. -
@@ -1539,6 +1545,13 @@ $		    write tf "#endif"
 $		endif
 $		goto cfgh_in_loop1
 $	    endif
+$	    if key2b .eqs. "SHORT"
+$	    then
+$		write tf "#ifndef SIZEOF_SHORT"
+$		write tf "#define SIZEOF_SHORT 2"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
 $	    write tf "/* ", xline, " */"
 $	    goto cfgh_in_loop1
 $	endif
@@ -1646,6 +1659,117 @@ $		write tf "#endif"
 $		goto cfgh_in_loop1
 $	    endif
 $	    if key2 .eqs. "RECV_TYPE_RETV"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	endif
+$!
+$!
+$!	Process RECVFROM directives
+$!-------------------------------------
+$	if key2a .eqs. "RECVFROM"
+$	then
+$	    if key2 .eqs. "RECVFROM_QUAL_ARG5"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2'"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG1"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG2"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' void *"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG3"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' size_t"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG4"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG5"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' struct sockaddr"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_ARG6"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' unsigned int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "RECVFROM_TYPE_RETV"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	endif
+$!
+$!	Process SELECT directives
+$!-------------------------------------
+$	if key2a .eqs. "SELECT"
+$	then
+$	    if key2 .eqs. "SELECT_QUAL_ARG5"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' const"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "SELECT_TYPE_ARG1"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' int"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "SELECT_TYPE_ARG2"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' void *"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "SELECT_TYPE_ARG234"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' fd_set *"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "SELECT_TYPE_ARG5"
+$	    then
+$		write tf "#ifndef ''key2'"
+$		write tf "#define ''key2' struct timeval *"
+$		write tf "#endif"
+$		goto cfgh_in_loop1
+$	    endif
+$	    if key2 .eqs. "SELECT_TYPE_RETV"
 $	    then
 $		write tf "#ifndef ''key2'"
 $		write tf "#define ''key2' int"

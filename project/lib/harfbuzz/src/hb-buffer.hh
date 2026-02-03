@@ -35,6 +35,26 @@
 #include "hb-set-digest.hh"
 
 
+#ifndef HB_BUFFER_MAX_LEN_FACTOR
+#define HB_BUFFER_MAX_LEN_FACTOR 64
+#endif
+#ifndef HB_BUFFER_MAX_LEN_MIN
+#define HB_BUFFER_MAX_LEN_MIN 16384
+#endif
+#ifndef HB_BUFFER_MAX_LEN_DEFAULT
+#define HB_BUFFER_MAX_LEN_DEFAULT 0x3FFFFFFF /* Shaping more than a billion chars? Let us know! */
+#endif
+
+#ifndef HB_BUFFER_MAX_OPS_FACTOR
+#define HB_BUFFER_MAX_OPS_FACTOR 1024
+#endif
+#ifndef HB_BUFFER_MAX_OPS_MIN
+#define HB_BUFFER_MAX_OPS_MIN 16384
+#endif
+#ifndef HB_BUFFER_MAX_OPS_DEFAULT
+#define HB_BUFFER_MAX_OPS_DEFAULT 0x1FFFFFFF /* Shaping more than a billion operations? Let us know! */
+#endif
+
 static_assert ((sizeof (hb_glyph_info_t) == 20), "");
 static_assert ((sizeof (hb_glyph_info_t) == sizeof (hb_glyph_position_t)), "");
 
@@ -52,7 +72,6 @@ enum hb_buffer_scratch_flags_t {
   HB_BUFFER_SCRATCH_FLAG_HAS_CGJ			= 0x00000010u,
   HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS		= 0x00000020u,
   HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE		= 0x00000040u,
-  HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK= 0x00000080u,
 
   /* Reserved for shapers' internal use. */
   HB_BUFFER_SCRATCH_FLAG_SHAPER0			= 0x01000000u,
@@ -81,7 +100,6 @@ struct hb_buffer_t
   hb_codepoint_t replacement; /* U+FFFD or something else. */
   hb_codepoint_t invisible; /* 0 or something else. */
   hb_codepoint_t not_found; /* 0 or something else. */
-  hb_codepoint_t not_found_variation_selector; /* HB_CODEPOINT_INVALID or something else. */
 
   /*
    * Buffer contents
@@ -118,7 +136,6 @@ struct hb_buffer_t
 
   uint8_t allocated_var_bits;
   uint8_t serial;
-  uint32_t random_state;
   hb_buffer_scratch_flags_t scratch_flags; /* Have space-fallback, etc. */
   unsigned int max_len; /* Maximum allowed len. */
   int max_ops; /* Maximum allowed operations. */
@@ -467,16 +484,13 @@ struct hb_buffer_t
 		      start, end,
 		      true);
   }
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   void unsafe_to_concat (unsigned int start = 0, unsigned int end = -1)
   {
     if (likely ((flags & HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT) == 0))
       return;
     _set_glyph_flags (HB_GLYPH_FLAG_UNSAFE_TO_CONCAT,
 		      start, end,
-		      false);
+		      true);
   }
   void unsafe_to_break_from_outbuffer (unsigned int start = 0, unsigned int end = -1)
   {
@@ -484,9 +498,6 @@ struct hb_buffer_t
 		      start, end,
 		      true, true);
   }
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   void unsafe_to_concat_from_outbuffer (unsigned int start = 0, unsigned int end = -1)
   {
     if (likely ((flags & HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT) == 0))
@@ -502,13 +513,6 @@ struct hb_buffer_t
 
   HB_NODISCARD HB_INTERNAL bool enlarge (unsigned int size);
 
-  HB_NODISCARD bool resize (unsigned length)
-  {
-    assert (!have_output);
-    if (unlikely (!ensure (length))) return false;
-    len = length;
-    return true;
-  }
   HB_NODISCARD bool ensure (unsigned int size)
   { return likely (!size || size < allocated) ? true : enlarge (size); }
 
@@ -569,7 +573,7 @@ struct hb_buffer_t
   bool message (hb_font_t *font, const char *fmt, ...) HB_PRINTF_FUNC(3, 4)
   {
 #ifdef HB_NO_BUFFER_MESSAGE
-    return true;
+   return true;
 #else
     if (likely (!messaging ()))
       return true;
@@ -597,59 +601,21 @@ struct hb_buffer_t
 			  unsigned int cluster,
 			  hb_mask_t mask)
   {
-    if (unlikely (start == end))
-      return;
-
-    unsigned cluster_first = infos[start].cluster;
-    unsigned cluster_last = infos[end - 1].cluster;
-
-    if (cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS ||
-	(cluster != cluster_first && cluster != cluster_last))
-    {
-      for (unsigned int i = start; i < end; i++)
-	if (cluster != infos[i].cluster)
-	{
-	  scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
-	  infos[i].mask |= mask;
-	}
-      return;
-    }
-
-    /* Monotone clusters */
-
-    if (cluster == cluster_first)
-    {
-      for (unsigned int i = end; start < i && infos[i - 1].cluster != cluster_first; i--)
-      {
-	scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
-	infos[i - 1].mask |= mask;
-      }
-    }
-    else /* cluster == cluster_last */
-    {
-      for (unsigned int i = start; i < end && infos[i].cluster != cluster_last; i++)
+    for (unsigned int i = start; i < end; i++)
+      if (cluster != infos[i].cluster)
       {
 	scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
 	infos[i].mask |= mask;
       }
-    }
   }
-  unsigned
+  static unsigned
   _infos_find_min_cluster (const hb_glyph_info_t *infos,
 			   unsigned start, unsigned end,
 			   unsigned cluster = UINT_MAX)
   {
-    if (unlikely (start == end))
-      return cluster;
-
-    if (cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS)
-    {
-      for (unsigned int i = start; i < end; i++)
-	cluster = hb_min (cluster, infos[i].cluster);
-      return cluster;
-    }
-
-    return hb_min (cluster, hb_min (infos[start].cluster, infos[end - 1].cluster));
+    for (unsigned int i = start; i < end; i++)
+      cluster = hb_min (cluster, infos[i].cluster);
+    return cluster;
   }
 
   void clear_glyph_flags (hb_mask_t mask = 0)

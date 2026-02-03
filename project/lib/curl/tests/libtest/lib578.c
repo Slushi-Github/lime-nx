@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "test.h"
 
@@ -78,10 +76,10 @@ int test(char *URL)
   test_setopt(curl, CURLOPT_POSTFIELDS, data);
 
   /* we want to use our own progress function */
-  CURL_IGNORE_DEPRECATION(
-    test_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    test_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_callback);
-  )
+  test_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+  test_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_callback);
+
+  /* pointer to pass to our read function */
 
   /* get verbose debug output please */
   test_setopt(curl, CURLOPT_VERBOSE, 1L);

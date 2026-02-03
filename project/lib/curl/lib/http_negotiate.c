@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -84,7 +82,7 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
 
   /* Obtain the input token, if any */
   header += strlen("Negotiate");
-  while(*header && ISBLANK(*header))
+  while(*header && ISSPACE(*header))
     header++;
 
   len = strlen(header);

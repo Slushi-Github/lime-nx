@@ -9,8 +9,6 @@ if [ ! -e "${pdiff}" ]; then
     exit 128
 fi
 
-exit_code=0
-
 for file in *.ref.png; do
     test=$(echo $file | cut -d'.' -f1)
     target=$(echo $file | cut -d'.' -f2)
@@ -50,7 +48,6 @@ for file in *.ref.png; do
     if [ -e $ref ]; then
 	if cmp --silent "$ref" "$file" ; then
 	    printf "redundant: %s and %s are byte-by-byte identical files\n" $file $ref
-	    exit_code=1
 	else
             # Run perceptualdiff with minimum threshold
             pdiff_output=$($pdiff $ref $file -threshold 1)
@@ -58,12 +55,9 @@ for file in *.ref.png; do
             notes=$(echo "${pdiff_output#*: }" | tail -n 1)
             if [ "$result" = "PASS" ] && [ "$notes" = "Images are binary identical" ]; then
 		printf "redundant: %s and %s are pixel equivalent images\n" $file $ref
-		exit_code=1
 		notes=""
             fi
 	fi
     fi
 
 done
-
-exit $exit_code

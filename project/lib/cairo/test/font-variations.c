@@ -117,11 +117,15 @@ test_variation (cairo_test_context_t *ctx,
         return CAIRO_TEST_FAILURE;
     }
 
+#ifdef HAVE_FT_GET_VAR_DESIGN_COORDINATES
     ret = FT_Get_Var_Design_Coordinates (ft_face, 20, coords);
     if (ret != 0) {
         cairo_test_log (ctx, "Failed to get coords");
         return CAIRO_TEST_FAILURE;
     }
+#else
+    return CAIRO_TEST_UNTESTED;
+#endif
 
     for (i = 0; i < ft_mm_var->num_axis; i++) {
         FT_Var_Axis *axis = &ft_mm_var->axis[i];

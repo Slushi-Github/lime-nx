@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -164,6 +162,14 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
   intptr_t fhnd;
 #endif
 
+  /*
+   * Once that libcurl has called back tool_write_cb() the returned value
+   * is checked against the amount that was intended to be written, if
+   * it does not match then it fails with CURLE_WRITE_ERROR. So at this
+   * point returning a value different from sz*nmemb indicates failure.
+   */
+  const size_t failure = bytes ? 0 : 1;
+
 #ifdef DEBUGBUILD
   {
     char *tty = curlx_getenv("CURL_ISATTY");
@@ -177,13 +183,13 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
     if(bytes > (size_t)CURL_MAX_HTTP_HEADER) {
       warnf(config->global, "Header data size exceeds single call write "
             "limit!\n");
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
     }
   }
   else {
     if(bytes > (size_t)CURL_MAX_WRITE_SIZE) {
       warnf(config->global, "Data size exceeds single call write limit!\n");
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
     }
   }
 
@@ -212,13 +218,13 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
     }
     if(check_fails) {
       warnf(config->global, "Invalid output struct data for write callback\n");
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
     }
   }
 #endif
 
   if(!outs->stream && !tool_create_output_file(outs, per->config))
-    return CURL_WRITEFUNC_ERROR;
+    return failure;
 
   if(is_tty && (outs->bytes < 2000) && !config->terminal_binary_ok) {
     /* binary output to terminal? */
@@ -226,8 +232,8 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
       warnf(config->global, "Binary output can mess up your terminal. "
             "Use \"--output -\" to tell curl to output it to your terminal "
             "anyway, or consider \"--output <FILE>\" to save to a file.\n");
-      config->synthetic_error = TRUE;
-      return CURL_WRITEFUNC_ERROR;
+      config->synthetic_error = ERR_BINARY_TERMINAL;
+      return failure;
     }
   }
 
@@ -243,13 +249,13 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
     wc_len = MultiByteToWideChar(CP_UTF8, 0, buffer, in_len,  NULL, 0);
     wc_buf = (wchar_t*) malloc(wc_len * sizeof(wchar_t));
     if(!wc_buf)
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
 
     /* calculate buffer size for multi-byte characters */
     wc_len = MultiByteToWideChar(CP_UTF8, 0, buffer, in_len, wc_buf, wc_len);
     if(!wc_len) {
       free(wc_buf);
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
     }
 
     if(!WriteConsoleW(
@@ -259,7 +265,7 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
         &wc_len,
         NULL)) {
       free(wc_buf);
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
     }
     free(wc_buf);
     rc = bytes;
@@ -281,7 +287,7 @@ size_t tool_write_cb(char *buffer, size_t sz, size_t nmemb, void *userdata)
     /* output buffering disabled */
     int res = fflush(outs->stream);
     if(res)
-      return CURL_WRITEFUNC_ERROR;
+      return failure;
   }
 
   return rc;

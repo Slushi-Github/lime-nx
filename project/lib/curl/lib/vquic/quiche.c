@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -80,7 +78,7 @@ static int quiche_getsock(struct Curl_easy *data,
 
   socks[0] = conn->sock[FIRSTSOCKET];
 
-  /* in an HTTP/2 connection we can basically always get a frame so we should
+  /* in a HTTP/2 connection we can basically always get a frame so we should
      always be ready for one */
   bitmap |= GETSOCK_READSOCK(FIRSTSOCKET);
 
@@ -203,31 +201,23 @@ static SSL_CTX *quic_ssl_ctx(struct Curl_easy *data)
 
   {
     struct connectdata *conn = data->conn;
+    const char * const ssl_cafile = conn->ssl_config.CAfile;
+    const char * const ssl_capath = conn->ssl_config.CApath;
+
     if(conn->ssl_config.verifypeer) {
-      const char * const ssl_cafile = conn->ssl_config.CAfile;
-      const char * const ssl_capath = conn->ssl_config.CApath;
-      if(ssl_cafile || ssl_capath) {
-        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
-        /* tell OpenSSL where to find CA certificates that are used to verify
-           the server's certificate. */
-        if(!SSL_CTX_load_verify_locations(ssl_ctx, ssl_cafile, ssl_capath)) {
-          /* Fail if we insist on successfully verifying the server. */
-          failf(data, "error setting certificate verify locations:"
-                "  CAfile: %s CApath: %s",
-                ssl_cafile ? ssl_cafile : "none",
-                ssl_capath ? ssl_capath : "none");
-          return NULL;
-        }
-        infof(data, " CAfile: %s", ssl_cafile ? ssl_cafile : "none");
-        infof(data, " CApath: %s", ssl_capath ? ssl_capath : "none");
+      SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+      /* tell OpenSSL where to find CA certificates that are used to verify
+         the server's certificate. */
+      if(!SSL_CTX_load_verify_locations(ssl_ctx, ssl_cafile, ssl_capath)) {
+        /* Fail if we insist on successfully verifying the server. */
+        failf(data, "error setting certificate verify locations:"
+              "  CAfile: %s CApath: %s",
+              ssl_cafile ? ssl_cafile : "none",
+              ssl_capath ? ssl_capath : "none");
+        return NULL;
       }
-#ifdef CURL_CA_FALLBACK
-      else {
-        /* verifying the peer without any CA certificates won't work so
-           use openssl's built-in default as fallback */
-        SSL_CTX_set_default_verify_paths(ssl_ctx);
-      }
-#endif
+      infof(data, " CAfile: %s", ssl_cafile ? ssl_cafile : "none");
+      infof(data, " CApath: %s", ssl_capath ? ssl_capath : "none");
     }
   }
   return ssl_ctx;
@@ -258,7 +248,6 @@ CURLcode Curl_quic_connect(struct Curl_easy *data,
   struct quicsocket *qs = &conn->hequic[sockindex];
   char ipbuf[40];
   int port;
-  int rv;
 
 #ifdef DEBUG_QUICHE
   /* initialize debug log callback only once */
@@ -304,16 +293,8 @@ CURLcode Curl_quic_connect(struct Curl_easy *data,
   if(result)
     return result;
 
-  qs->local_addrlen = sizeof(qs->local_addr);
-  rv = getsockname(sockfd, (struct sockaddr *)&qs->local_addr,
-                   &qs->local_addrlen);
-  if(rv == -1)
-    return CURLE_QUIC_CONNECT_ERROR;
-
   qs->conn = quiche_conn_new_with_tls((const uint8_t *) qs->scid,
-                                      sizeof(qs->scid), NULL, 0,
-                                      (struct sockaddr *)&qs->local_addr,
-                                      qs->local_addrlen, addr, addrlen,
+                                      sizeof(qs->scid), NULL, 0, addr, addrlen,
                                       qs->cfg, qs->ssl, false);
   if(!qs->conn) {
     failf(data, "can't create quiche connection");
@@ -347,6 +328,9 @@ CURLcode Curl_quic_connect(struct Curl_easy *data,
         sockfd, ipbuf, port);
 
   Curl_persistconninfo(data, conn, NULL, -1);
+
+  /* for connection reuse purposes: */
+  conn->ssl[FIRSTSOCKET].state = ssl_connection_complete;
 
   {
     unsigned char alpn_protocols[] = QUICHE_H3_APPLICATION_PROTOCOL;
@@ -413,10 +397,6 @@ static CURLcode quiche_has_connected(struct Curl_easy *data,
     qs->cfg = NULL;
     qs->conn = NULL;
   }
-  if(data->set.ssl.certinfo)
-    /* asked to gather certificate info */
-    (void)Curl_ossl_certchain(data, qs->ssl);
-
   return CURLE_OK;
   fail:
   quiche_h3_config_free(qs->h3config);
@@ -488,8 +468,6 @@ static CURLcode process_ingress(struct Curl_easy *data, int sockfd,
 
     recv_info.from = (struct sockaddr *) &from;
     recv_info.from_len = from_len;
-    recv_info.to = (struct sockaddr *) &qs->local_addr;
-    recv_info.to_len = qs->local_addrlen;
 
     recvd = quiche_conn_recv(qs->conn, buf, recvd, &recv_info);
     if(recvd == QUICHE_ERR_DONE)
@@ -876,17 +854,6 @@ bool Curl_quic_data_pending(const struct Curl_easy *data)
 {
   (void)data;
   return FALSE;
-}
-
-/*
- * Called from transfer.c:Curl_readwrite when neither HTTP level read
- * nor write is performed. It is a good place to handle timer expiry
- * for QUIC transport.
- */
-CURLcode Curl_quic_idle(struct Curl_easy *data)
-{
-  (void)data;
-  return CURLE_OK;
 }
 
 #endif

@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -71,6 +69,7 @@
 #include "mime.h"
 #include "amigaos.h"
 #include "warnless.h"
+#include "multiif.h"
 #include "sigpipe.h"
 #include "vssh/ssh.h"
 #include "setopt.h"
@@ -81,8 +80,6 @@
 #include "altsvc.h"
 #include "hsts.h"
 
-#include "easy_lock.h"
-
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
@@ -91,19 +88,6 @@
 /* true globals -- for curl_global_init() and curl_global_cleanup() */
 static unsigned int  initialized;
 static long          init_flags;
-
-#ifdef GLOBAL_INIT_IS_THREADSAFE
-
-static curl_simple_lock s_lock = CURL_SIMPLE_LOCK_INIT;
-#define global_init_lock() curl_simple_lock_lock(&s_lock)
-#define global_init_unlock() curl_simple_lock_unlock(&s_lock)
-
-#else
-
-#define global_init_lock()
-#define global_init_unlock()
-
-#endif
 
 /*
  * strdup (and other memory functions) is redefined in complicated
@@ -177,7 +161,7 @@ static CURLcode global_init(long flags, bool memoryfuncs)
 #endif
 
 #ifdef __AMIGA__
-  if(Curl_amiga_init()) {
+  if(!Curl_amiga_init()) {
     DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
     goto fail;
   }
@@ -223,14 +207,7 @@ static CURLcode global_init(long flags, bool memoryfuncs)
  */
 CURLcode curl_global_init(long flags)
 {
-  CURLcode result;
-  global_init_lock();
-
-  result = global_init(flags, TRUE);
-
-  global_init_unlock();
-
-  return result;
+  return global_init(flags, TRUE);
 }
 
 /*
@@ -241,20 +218,15 @@ CURLcode curl_global_init_mem(long flags, curl_malloc_callback m,
                               curl_free_callback f, curl_realloc_callback r,
                               curl_strdup_callback s, curl_calloc_callback c)
 {
-  CURLcode result;
-
   /* Invalid input, return immediately */
   if(!m || !f || !r || !s || !c)
     return CURLE_FAILED_INIT;
-
-  global_init_lock();
 
   if(initialized) {
     /* Already initialized, don't do it again, but bump the variable anyway to
        work like curl_global_init() and require the same amount of cleanup
        calls. */
     initialized++;
-    global_init_unlock();
     return CURLE_OK;
   }
 
@@ -267,11 +239,7 @@ CURLcode curl_global_init_mem(long flags, curl_malloc_callback m,
   Curl_ccalloc = c;
 
   /* Call the actual init function, but without setting */
-  result = global_init(flags, FALSE);
-
-  global_init_unlock();
-
-  return result;
+  return global_init(flags, FALSE);
 }
 
 /**
@@ -280,17 +248,11 @@ CURLcode curl_global_init_mem(long flags, curl_malloc_callback m,
  */
 void curl_global_cleanup(void)
 {
-  global_init_lock();
-
-  if(!initialized) {
-    global_init_unlock();
+  if(!initialized)
     return;
-  }
 
-  if(--initialized) {
-    global_init_unlock();
+  if(--initialized)
     return;
-  }
 
   Curl_ssl_cleanup();
   Curl_resolver_global_cleanup();
@@ -311,25 +273,6 @@ void curl_global_cleanup(void)
 #endif
 
   init_flags  = 0;
-
-  global_init_unlock();
-}
-
-/*
- * curl_global_sslset() globally initializes the SSL backend to use.
- */
-CURLsslset curl_global_sslset(curl_sslbackend id, const char *name,
-                              const curl_ssl_backend ***avail)
-{
-  CURLsslset rc;
-
-  global_init_lock();
-
-  rc = Curl_init_sslset_nolock(id, name, avail);
-
-  global_init_unlock();
-
-  return rc;
 }
 
 /*
@@ -342,18 +285,14 @@ struct Curl_easy *curl_easy_init(void)
   struct Curl_easy *data;
 
   /* Make sure we inited the global SSL stuff */
-  global_init_lock();
-
   if(!initialized) {
-    result = global_init(CURL_GLOBAL_DEFAULT, TRUE);
+    result = curl_global_init(CURL_GLOBAL_DEFAULT);
     if(result) {
       /* something in the global init failed, return nothing */
       DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      global_init_unlock();
       return NULL;
     }
   }
-  global_init_unlock();
 
   /* We use curl_open() with undefined URL so far */
   result = Curl_open(&data);
@@ -568,23 +507,19 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
 
     /* wait for activity or timeout */
     pollrc = Curl_poll(fds, numfds, ev->ms);
-    if(pollrc < 0)
-      return CURLE_UNRECOVERABLE_POLL;
 
     after = Curl_now();
 
     ev->msbump = FALSE; /* reset here */
 
-    if(!pollrc) {
+    if(0 == pollrc) {
       /* timeout! */
       ev->ms = 0;
       /* fprintf(stderr, "call curl_multi_socket_action(TIMEOUT)\n"); */
       mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
                                        &ev->running_handles);
     }
-    else {
-      /* here pollrc is > 0 */
-
+    else if(pollrc > 0) {
       /* loop over the monitored sockets to see which ones had activity */
       for(i = 0; i< numfds; i++) {
         if(fds[i].revents) {
@@ -610,6 +545,8 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
         }
       }
     }
+    else
+      return CURLE_RECV_ERROR;
 
     if(mcode)
       return CURLE_URL_MALFORMAT;
@@ -725,7 +662,7 @@ static CURLcode easy_perform(struct Curl_easy *data, bool events)
   else {
     /* this multi handle will only ever have a single easy handled attached
        to it, so make it use minimal hashes */
-    multi = Curl_multi_handle(1, 3, 7);
+    multi = Curl_multi_handle(1, 3);
     if(!multi)
       return CURLE_OUT_OF_MEMORY;
     data->multi_easy = multi;
@@ -828,7 +765,7 @@ static CURLcode dupset(struct Curl_easy *dst, struct Curl_easy *src)
   /* Copy src->set into dst->set first, then deal with the strings
      afterwards */
   dst->set = src->set;
-  Curl_mime_initpart(&dst->set.mimepost);
+  Curl_mime_initpart(&dst->set.mimepost, dst);
 
   /* clear all string pointers first */
   memset(dst->set.str, 0, STRING_LAST * sizeof(char *));
@@ -862,7 +799,7 @@ static CURLcode dupset(struct Curl_easy *dst, struct Curl_easy *src)
   }
 
   /* Duplicate mime data. */
-  result = Curl_mime_duppart(dst, &dst->set.mimepost, &src->set.mimepost);
+  result = Curl_mime_duppart(&dst->set.mimepost, &src->set.mimepost);
 
   if(src->set.resolve)
     dst->state.resolve = dst->set.resolve;
@@ -901,7 +838,6 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
   outcurl->progress.flags    = data->progress.flags;
   outcurl->progress.callback = data->progress.callback;
 
-#ifndef CURL_DISABLE_COOKIES
   if(data->cookies) {
     /* If cookies are enabled in the parent handle, we enable them
        in the clone as well! */
@@ -920,7 +856,6 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
     if(!outcurl->state.cookielist)
       goto fail;
   }
-#endif
 
   if(data->state.url) {
     outcurl->state.url = strdup(data->state.url);
@@ -943,7 +878,7 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
       goto fail;
   }
 
-#ifndef CURL_DISABLE_ALTSVC
+#ifdef USE_ALTSVC
   if(data->asi) {
     outcurl->asi = Curl_altsvc_init();
     if(!outcurl->asi)
@@ -1002,10 +937,8 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
   fail:
 
   if(outcurl) {
-#ifndef CURL_DISABLE_COOKIES
     curl_slist_free_all(outcurl->state.cookielist);
     outcurl->state.cookielist = NULL;
-#endif
     Curl_safefree(outcurl->state.buffer);
     Curl_dyn_free(&outcurl->state.headerb);
     Curl_safefree(outcurl->state.url);
@@ -1132,16 +1065,6 @@ CURLcode curl_easy_pause(struct Curl_easy *data, int action)
     }
   }
 
-#ifdef USE_HYPER
-  if(!(newstate & KEEP_SEND_PAUSE)) {
-    /* need to wake the send body waker */
-    if(data->hyp.send_body_waker) {
-      hyper_waker_wake(data->hyp.send_body_waker);
-      data->hyp.send_body_waker = NULL;
-    }
-  }
-#endif
-
   /* if there's no error and we're not pausing both directions, we want
      to have this handle checked soon */
   if((newstate & (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) !=
@@ -1170,7 +1093,8 @@ CURLcode curl_easy_pause(struct Curl_easy *data, int action)
 }
 
 
-static CURLcode easy_connection(struct Curl_easy *data, curl_socket_t *sfd,
+static CURLcode easy_connection(struct Curl_easy *data,
+                                curl_socket_t *sfd,
                                 struct connectdata **connp)
 {
   if(!data)
@@ -1229,18 +1153,20 @@ CURLcode curl_easy_recv(struct Curl_easy *data, void *buffer, size_t buflen,
 }
 
 /*
- * Sends data over the connected socket.
- *
- * This is the private internal version of curl_easy_send()
+ * Sends data over the connected socket. Use after successful
+ * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
  */
-CURLcode Curl_senddata(struct Curl_easy *data, const void *buffer,
-                       size_t buflen, ssize_t *n)
+CURLcode curl_easy_send(struct Curl_easy *data, const void *buffer,
+                        size_t buflen, size_t *n)
 {
   curl_socket_t sfd;
   CURLcode result;
   ssize_t n1;
   struct connectdata *c = NULL;
   SIGPIPE_VARIABLE(pipe_st);
+
+  if(Curl_is_in_callback(data))
+    return CURLE_RECURSIVE_API_CALL;
 
   result = easy_connection(data, &sfd, &c);
   if(result)
@@ -1263,25 +1189,8 @@ CURLcode Curl_senddata(struct Curl_easy *data, const void *buffer,
   if(!result && !n1)
     return CURLE_AGAIN;
 
-  *n = n1;
+  *n = (size_t)n1;
 
-  return result;
-}
-
-/*
- * Sends data over the connected socket. Use after successful
- * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
- */
-CURLcode curl_easy_send(struct Curl_easy *data, const void *buffer,
-                        size_t buflen, size_t *n)
-{
-  ssize_t written = 0;
-  CURLcode result;
-  if(Curl_is_in_callback(data))
-    return CURLE_RECURSIVE_API_CALL;
-
-  result = Curl_senddata(data, buffer, buflen, &written);
-  *n = (size_t)written;
   return result;
 }
 

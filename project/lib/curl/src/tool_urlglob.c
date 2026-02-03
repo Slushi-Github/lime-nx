@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "tool_setup.h"
 
@@ -350,7 +348,7 @@ static bool peek_ipv6(const char *str, size_t *skip)
   memcpy(hostname, str, hlen);
   hostname[hlen] = 0;
 
-  /* ask to "guess scheme" as then it works without an https:// prefix */
+  /* ask to "guess scheme" as then it works without a https:// prefix */
   rc = curl_url_set(u, CURLUPART_URL, hostname, CURLU_GUESS_SCHEME);
 
   curl_url_cleanup(u);

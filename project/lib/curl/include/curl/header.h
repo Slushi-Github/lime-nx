@@ -20,13 +20,7 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
-
-#ifdef  __cplusplus
-extern "C" {
-#endif
 
 struct curl_header {
   char *name;    /* this might not use the same case */
@@ -66,9 +60,5 @@ CURL_EXTERN struct curl_header *curl_easy_nextheader(CURL *easy,
                                                      unsigned int origin,
                                                      int request,
                                                      struct curl_header *prev);
-
-#ifdef __cplusplus
-} /* end of extern "C" */
-#endif
 
 #endif /* CURLINC_HEADER_H */

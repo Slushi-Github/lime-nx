@@ -186,7 +186,6 @@
 --quote (-Q)                         5.3
 --random-file                        7.7
 --range (-r)                         4.0
---rate                               7.84.0
 --raw                                7.16.2
 --referer (-e)                       4.0
 --remote-header-name (-J)            7.20.0
@@ -251,7 +250,6 @@
 --unix-socket                        7.40.0
 --upload-file (-T)                   4.0
 --url                                7.5
---url-query                          7.87.0
 --use-ascii (-B)                     5.0
 --user (-u)                          4.0
 --user-agent (-A)                    4.5.1

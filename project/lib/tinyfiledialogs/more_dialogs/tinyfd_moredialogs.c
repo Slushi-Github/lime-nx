@@ -1,9 +1,7 @@
-/* SPDX-License-Identifier: ZLIB
-Copyright (c) 2014 - 2023 Guillaume Vareille http://ysengrin.com
-  _________
- /         \ tinyfiledialogs v3.9.0 [Nov 3, 2022] zlib licence
- |tiny file|
- | dialogs |
+/*_________
+ /         \ tinyfiledialogs v3.8.8 [Apr 22, 2021] zlib licence
+ |tiny file| 
+ | dialogs | Copyright (c) 2014 - 2021 Guillaume Vareille http://ysengrin.com
  \____  ___/ http://tinyfiledialogs.sourceforge.net
       \|     git clone http://git.code.sf.net/p/tinyfiledialogs/code tinyfd
 
@@ -36,7 +34,7 @@ https://stackoverflow.com/a/47651444
 #include <stdlib.h>
 #include <string.h>
 
-#include "../tinyfiledialogs.h"
+#include "tinyfiledialogs.h"
 
 #define MAX_PATH_OR_CMD 1024 /* _MAX_PATH or MAX_PATH */
 int tfd_quoteDetected(char const * aString);

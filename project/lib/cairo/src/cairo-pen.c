@@ -289,12 +289,7 @@ _cairo_pen_vertices_needed (double	    tolerance,
     } else if (tolerance >= major_axis) {
 	num_vertices = 4;
     } else {
-	double divisor = acos (1 - tolerance / major_axis);
-
-	if (divisor == 0.0)
-	    return 4;
-
-	num_vertices = ceil (2*M_PI / divisor);
+	num_vertices = ceil (2*M_PI / acos (1 - tolerance / major_axis));
 
 	/* number of vertices must be even */
 	if (num_vertices % 2)

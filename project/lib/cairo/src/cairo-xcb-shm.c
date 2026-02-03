@@ -36,15 +36,6 @@
 
 #include "cairoint.h"
 
-/**
- * CAIRO_HAS_XCB_SHM_FUNCTIONS:
- *
- * Defined if Cairo has SHM functions for XCB.
- * This macro can be used to conditionally compile backend-specific code.
- *
- * Since: 1.10
- **/
-
 #if CAIRO_HAS_XCB_SHM_FUNCTIONS
 
 #include "cairo-xcb-private.h"
@@ -218,7 +209,7 @@ _cairo_xcb_connection_allocate_shm_info (cairo_xcb_connection_t *connection,
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
-    pool = _cairo_calloc (sizeof (cairo_xcb_shm_mem_pool_t));
+    pool = _cairo_malloc (sizeof (cairo_xcb_shm_mem_pool_t));
     if (unlikely (pool == NULL)) {
 	CAIRO_MUTEX_UNLOCK (connection->shm_mutex);
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);

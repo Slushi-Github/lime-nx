@@ -130,8 +130,6 @@ cairo_feature_sources = {
   ],
   'cairo-ft': [
     'cairo-ft-font.c',
-    'cairo-colr-glyph-render.c',
-    'cairo-svg-glyph-render.c'
   ],
 
   'cairo-xlib': [
@@ -179,8 +177,24 @@ cairo_feature_sources = {
   'cairo-win32-font': [
     'win32/cairo-win32-font.c',
   ],
-  'cairo-dwrite-font': [
+  'cairo-win32-dwrite-font': [
+    'win32/cairo-dwrite-font-public.c',
     'win32/cairo-dwrite-font.cpp',
+  ],
+  'cairo-gl': [
+    'cairo-gl-composite.c',
+    'cairo-gl-device.c',
+    'cairo-gl-dispatch.c',
+    'cairo-gl-glyphs.c',
+    'cairo-gl-gradient.c',
+    'cairo-gl-info.c',
+    'cairo-gl-msaa-compositor.c',
+    'cairo-gl-operand.c',
+    'cairo-gl-shaders.c',
+    'cairo-gl-source.c',
+    'cairo-gl-spans-compositor.c',
+    'cairo-gl-surface.c',
+    'cairo-gl-traps-compositor.c',
   ],
   'cairo-script': [
     'cairo-script-surface.c',
@@ -194,6 +208,18 @@ cairo_feature_sources = {
   ],
   'cairo-svg': [
     'cairo-svg-surface.c',
+  ],
+  'cairo-egl': [
+    'cairo-egl-context.c',
+  ],
+  'cairo-glx': [
+    'cairo-glx-context.c',
+  ],
+  'cairo-wgl': [
+    'cairo-wgl-context.c',
+  ],
+  'cairo-xml': [
+    'cairo-xml-surface.c',
   ],
   'cairo-tee': [
     'cairo-tee-surface.c',
@@ -211,10 +237,10 @@ cairo_feature_headers = {
   'cairo-quartz': ['cairo-quartz.h'],
   'cairo-quartz-image': ['cairo-quartz-image.h'],
   'cairo-win32': ['cairo-win32.h'],
-  'cairo-dwrite-font': ['cairo-dwrite.h'],
   'cairo-gl': ['cairo-gl.h'],
   'cairo-script': ['cairo-script.h'],
   'cairo-tee': ['cairo-tee.h'],
+  'cairo-xml': ['cairo-xml.h'],
   'cairo-vg': ['cairo-vg.h'],
 }
 
@@ -234,26 +260,23 @@ endforeach
 
 incsrc = include_directories('.')
 
-cairo_static_args = []
-if get_option('default_library') == 'static' and host_machine.system() == 'windows'
-  cairo_static_args += ['-DCAIRO_WIN32_STATIC_BUILD']
-  add_project_arguments('-DCAIRO_WIN32_STATIC_BUILD', language: 'c')
-endif
-
 libcairo = library('cairo', cairo_sources,
   dependencies: deps,
-  c_args: cairo_no_warn_c_args + pthread_c_args + ['-DCAIRO_COMPILATION'],
-  cpp_args: cairo_no_warn_c_args + pthread_c_args + ['-DCAIRO_COMPILATION'],
+  c_args: cairo_no_warn_c_args + pthread_c_args,
+  cpp_args: cairo_no_warn_c_args + pthread_c_args,
   link_args: extra_link_args,
-  gnu_symbol_visibility: 'hidden',
   soversion: cairo_version_sonum,
   version: cairo_libversion,
   install: true,
   include_directories: incbase,
 )
 
-cairo_features_file = configure_file(output: 'cairo-features.h', configuration: feature_conf)
-cairo_headers += [cairo_features_file]
+cairo_headers += [configure_file(output: 'cairo-features.h', configuration: feature_conf)]
+
+cairo_static_args = []
+if get_option('default_library') == 'static' and host_machine.system() == 'windows'
+  cairo_static_args += ['-DCAIRO_WIN32_STATIC_BUILD']
+endif
 
 libcairo_dep = declare_dependency(link_with: libcairo,
   dependencies: deps,
@@ -273,6 +296,9 @@ install_headers(cairo_headers, subdir: 'cairo')
 shell = find_program('sh', required: false)
 if shell.found()
   test_scripts = [
+    # This script calls back into make to generate cairo.def
+    # TODO: Make this work, somehow
+    #'check-def.sh',
     'check-doc-syntax.sh',
     'check-headers.sh',
     'check-preprocessor-syntax.sh',
@@ -281,7 +307,15 @@ if shell.found()
   foreach test_script: test_scripts
     test(test_script, shell,
       args: [test_script],
-      suite: ['fast', 'lint'],
       workdir: meson.current_source_dir())
   endforeach
+
+  env = environment()
+  env.set('CAIRO_HAS_HIDDEN_SYMBOLS', '1')
+
+  test('check-plt.sh', shell,
+    args: ['check-plt.sh', libcairo ],
+    env: env,
+    workdir: meson.current_source_dir())
+
 endif

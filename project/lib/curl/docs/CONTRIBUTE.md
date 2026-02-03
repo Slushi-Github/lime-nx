@@ -4,7 +4,9 @@ This document is intended to offer guidelines on how to best contribute to the
 curl project. This concerns new features as well as corrections to existing
 flaws or bugs.
 
-## Join the Community
+## Learning curl
+
+### Join the Community
 
 Skip over to [https://curl.se/mail/](https://curl.se/mail/) and join
 the appropriate mailing list(s). Read up on details before you post
@@ -21,7 +23,7 @@ If you are at all interested in the code side of things, consider clicking
 'watch' on the [curl repo on GitHub](https://github.com/curl/curl) to be
 notified of pull requests and new issues posted there.
 
-## License and copyright
+### License and copyright
 
 When contributing with code, you agree to put your changes and new code under
 the same license curl and libcurl is already using unless stated and agreed
@@ -44,7 +46,7 @@ patch/code to us. We will credit you for your changes as far as possible, to
 give credit but also to keep a trace back to who made what changes. Please
 always provide us with your full real name when contributing,
 
-## What To Read
+### What To Read
 
 Source code, the man pages, the [INTERNALS
 document](https://curl.se/dev/internals.html),
@@ -122,7 +124,7 @@ If you do not have test cases or perhaps you have done something that is hard
 to write tests for, do explain exactly how you have otherwise tested and
 verified your changes.
 
-## Submit Your Changes
+## Sharing Your Changes
 
 ### How to get your changes into the main sources
 
@@ -131,24 +133,19 @@ GitHub](https://github.com/curl/curl/pulls), but you can also send your plain
 patch to [the curl-library mailing
 list](https://curl.se/mail/list.cgi?list=curl-library).
 
-If you opt to post a patch on the mailing list, chances are someone will
-convert it into a pull request for you, to have the CI jobs verify it proper
-before it can be merged. Be prepared that some feedback on the proposed change
-might then come on GitHub.
+Either way, your change will be reviewed and discussed there and you will be
+expected to correct flaws pointed out and update accordingly, or the change
+risks stalling and eventually just getting deleted without action. As a
+submitter of a change, you are the owner of that change until it has been merged.
 
-Your change will be reviewed and discussed and you will be expected to correct
-flaws pointed out and update accordingly, or the change risks stalling and
-eventually just getting deleted without action. As a submitter of a change,
-you are the owner of that change until it has been merged.
-
-Respond on the list or on GitHub about the change and answer questions and/or
+Respond on the list or on github about the change and answer questions and/or
 fix nits/flaws. This is important. We will take lack of replies as a sign that
 you are not anxious to get your patch accepted and we tend to simply drop such
 changes.
 
 ### About pull requests
 
-With GitHub it is easy to send a [pull
+With github it is easy to send a [pull
 request](https://github.com/curl/curl/pulls) to the curl project to have
 changes merged.
 
@@ -157,12 +154,12 @@ git commit that is easy to merge and they are easy to track and not that easy
 to lose in the flood of many emails, like they sometimes do on the mailing
 lists.
 
-Every pull request submitted will automatically be tested in several different
-ways. [See the CI document for more
+Every pull request submitted will automatically be
+tested in several different ways. [See CI.md for more
 information](https://github.com/curl/curl/blob/master/tests/CI.md).
 
 Sometimes the tests fail due to a dependency service temporarily being offline
-or otherwise unavailable, e.g. package downloads. In this case you can just
+or otherwise unavailable, eg. package downloads. In this case you can just
 try to update your pull requests to rerun the tests later as described below.
 
 You can update your pull requests by pushing new commits or force-pushing
@@ -172,21 +169,15 @@ actual content changed also allows you to retrigger the tests for that commit.
 When you adjust your pull requests after review, consider squashing the
 commits so that we can review the full updated version more easily.
 
-A pull request sent to the project might get labeled `needs-votes` by a
-project maintainer. This label means that in addition to meeting all other
-checks and qualifications this pull request must also receive more "votes" of
-user support. More signs that people want this to happen. It could be in the
-form of messages saying so, or thumbs-up reactions on GitHub.
-
-### Making quality changes
+### Making quality patches
 
 Make the patch against as recent source versions as possible.
 
-If you have followed the tips in this document and your patch still has not
-been incorporated or responded to after some weeks, consider resubmitting it
-to the list or better yet: change it to a pull request.
+If you have followed the tips in this document and your patch still has not been
+incorporated or responded to after some weeks, consider resubmitting it to the
+list or better yet: change it to a pull request.
 
-### Commit messages
+### Write good commit messages
 
 A short guide to how to write commit messages in the curl project.
 
@@ -245,7 +236,7 @@ can make patches out of your changes that are suitable for mailing:
 
     git format-patch remotes/origin/master
 
-This creates files in your local directory named `NNNN-[name].patch` for each
+This creates files in your local directory named NNNN-[name].patch for each
 commit.
 
 Now send those patches off to the curl-library list. You can of course opt to
@@ -267,25 +258,17 @@ can use diff recursively:
     diff -ur curl-original-dir curl-modified-sources-dir > my-fixes.diff
 
 The GNU diff and GNU patch tools exist for virtually all platforms, including
-all kinds of Unixes and Windows.
+all kinds of Unixes and Windows:
+
+For unix-like operating systems:
+
+ - [https://savannah.gnu.org/projects/patch/](https://savannah.gnu.org/projects/patch/)
+ - [https://www.gnu.org/software/diffutils/](https://www.gnu.org/software/diffutils/)
+
+For Windows:
+
+ - [https://gnuwin32.sourceforge.io/packages/patch.htm](https://gnuwin32.sourceforge.io/packages/patch.htm)
+ - [https://gnuwin32.sourceforge.io/packages/diffutils.htm](https://gnuwin32.sourceforge.io/packages/diffutils.htm)
 
 ### Useful resources
  - [Webinar on getting code into cURL](https://www.youtube.com/watch?v=QmZ3W1d6LQI)
-
-## Update copyright and license information
-
-There is a CI job called **REUSE compliance / check** that will run on every
-pull request and commit to verify that the *REUSE state* of all files are
-still fine.
-
-This means that all files need to have their license and copyright information
-clearly stated. Ideally by having the standard curl source code header, with
-an accurate copyright year range and the SPDX-License-Identifier included. If
-the header does not work, you can use a smaller header or add the information
-for a specific file to the `.reuse/dep5` file.
-
-We update copyright year ranges to end on the year of the most recent change
-of the individual file.
-
-You can manually verify the copyright and compliance status by running the
-`./scripts/copyright.pl` script in the root of the git repository.

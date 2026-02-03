@@ -1,5 +1,3 @@
-c: Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
-SPDX-License-Identifier: curl
 Long: tlsauthtype
 Arg: <type>
 Help: TLS authentication type
@@ -7,7 +5,6 @@ Added: 7.21.4
 Category: tls auth
 Example: --tlsauthtype SRP $URL
 See-also: tlsuser
-Multi: single
 ---
 Set TLS authentication type. Currently, the only supported option is "SRP",
 for TLS-SRP (RFC 5054). If --tlsuser and --tlspassword are specified but

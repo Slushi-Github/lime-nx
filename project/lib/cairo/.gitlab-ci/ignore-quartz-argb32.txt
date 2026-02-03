@@ -12,6 +12,7 @@ fallback
 ft-show-glyphs-positioning
 ft-text-vertical-layout-type1
 ft-text-vertical-layout-type3
+negative-stride-image
 operator-www
 radial-gradient
 radial-gradient-mask

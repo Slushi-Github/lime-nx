@@ -11,38 +11,37 @@ struct EntryExitRecord
 {
   friend struct CursivePosFormat1;
 
-  bool sanitize (hb_sanitize_context_t *c, const struct CursivePosFormat1 *base) const
+  bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
     return_trace (entryAnchor.sanitize (c, base) && exitAnchor.sanitize (c, base));
   }
 
   void collect_variation_indices (hb_collect_variation_indices_context_t *c,
-                                  const struct CursivePosFormat1 *src_base) const
+                                  const void *src_base) const
   {
     (src_base+entryAnchor).collect_variation_indices (c);
     (src_base+exitAnchor).collect_variation_indices (c);
   }
 
-  bool subset (hb_subset_context_t *c,
-	       const struct CursivePosFormat1 *src_base) const
+  EntryExitRecord* subset (hb_subset_context_t *c,
+                           const void *src_base) const
   {
     TRACE_SERIALIZE (this);
     auto *out = c->serializer->embed (this);
-    if (unlikely (!out)) return_trace (false);
+    if (unlikely (!out)) return_trace (nullptr);
 
-    bool ret = false;
-    ret |= out->entryAnchor.serialize_subset (c, entryAnchor, src_base);
-    ret |= out->exitAnchor.serialize_subset (c, exitAnchor, src_base);
-    return_trace (ret);
+    out->entryAnchor.serialize_subset (c, entryAnchor, src_base);
+    out->exitAnchor.serialize_subset (c, exitAnchor, src_base);
+    return_trace (out);
   }
 
   protected:
-  Offset16To<Anchor, struct CursivePosFormat1>
+  Offset16To<Anchor>
                 entryAnchor;            /* Offset to EntryAnchor table--from
                                          * beginning of CursivePos
                                          * subtable--may be NULL */
-  Offset16To<Anchor, struct CursivePosFormat1>
+  Offset16To<Anchor>
                 exitAnchor;             /* Offset to ExitAnchor table--from
                                          * beginning of CursivePos
                                          * subtable--may be NULL */
@@ -92,13 +91,7 @@ struct CursivePosFormat1
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    if (unlikely (!coverage.sanitize (c, this)))
-      return_trace (false);
-
-    if (c->lazy_some_gpos)
-      return_trace (entryExitRecord.sanitize_shallow (c));
-    else
-      return_trace (entryExitRecord.sanitize (c, this));
+    return_trace (coverage.sanitize (c, this) && entryExitRecord.sanitize (c, this));
   }
 
   bool intersects (const hb_set_t *glyphs) const
@@ -126,27 +119,23 @@ struct CursivePosFormat1
     hb_buffer_t *buffer = c->buffer;
 
     const EntryExitRecord &this_record = entryExitRecord[(this+coverage).get_coverage  (buffer->cur().codepoint)];
-    if (!this_record.entryAnchor ||
-	unlikely (!this_record.entryAnchor.sanitize (&c->sanitizer, this))) return_trace (false);
-    hb_barrier ();
+    if (!this_record.entryAnchor) return_trace (false);
 
     hb_ot_apply_context_t::skipping_iterator_t &skippy_iter = c->iter_input;
-    skippy_iter.reset_fast (buffer->idx);
+    skippy_iter.reset (buffer->idx, 1);
     unsigned unsafe_from;
-    if (unlikely (!skippy_iter.prev (&unsafe_from)))
+    if (!skippy_iter.prev (&unsafe_from))
     {
       buffer->unsafe_to_concat_from_outbuffer (unsafe_from, buffer->idx + 1);
       return_trace (false);
     }
 
     const EntryExitRecord &prev_record = entryExitRecord[(this+coverage).get_coverage  (buffer->info[skippy_iter.idx].codepoint)];
-    if (!prev_record.exitAnchor ||
-	unlikely (!prev_record.exitAnchor.sanitize (&c->sanitizer, this)))
+    if (!prev_record.exitAnchor)
     {
       buffer->unsafe_to_concat_from_outbuffer (skippy_iter.idx, buffer->idx + 1);
       return_trace (false);
     }
-    hb_barrier ();
 
     unsigned int i = skippy_iter.idx;
     unsigned int j = buffer->idx;
@@ -154,7 +143,7 @@ struct CursivePosFormat1
     if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
     {
       c->buffer->message (c->font,
-			  "cursive attaching glyph at %u to glyph at %u",
+			  "cursive attaching glyph at %d to glyph at %d",
 			  i, j);
     }
 
@@ -211,8 +200,8 @@ struct CursivePosFormat1
      * Arabic. */
     unsigned int child  = i;
     unsigned int parent = j;
-    hb_position_t x_offset = roundf (entry_x - exit_x);
-    hb_position_t y_offset = roundf (entry_y - exit_y);
+    hb_position_t x_offset = entry_x - exit_x;
+    hb_position_t y_offset = entry_y - exit_y;
     if  (!(c->lookup_props & LookupFlag::RightToLeft))
     {
       unsigned int k = child;
@@ -252,7 +241,7 @@ struct CursivePosFormat1
     if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
     {
       c->buffer->message (c->font,
-			  "cursive attached glyph at %u to glyph at %u",
+			  "cursive attached glyph at %d to glyph at %d",
 			  i, j);
     }
 
@@ -264,7 +253,7 @@ struct CursivePosFormat1
             hb_requires (hb_is_iterator (Iterator))>
   void serialize (hb_subset_context_t *c,
                   Iterator it,
-                  const struct CursivePosFormat1 *src_base)
+                  const void *src_base)
   {
     if (unlikely (!c->serializer->extend_min ((*this)))) return;
     this->format = 1;
@@ -289,6 +278,7 @@ struct CursivePosFormat1
     const hb_map_t &glyph_map = *c->plan->glyph_map;
 
     auto *out = c->serializer->start_embed (*this);
+    if (unlikely (!out)) return_trace (false);
 
     auto it =
     + hb_zip (this+coverage, entryExitRecord)

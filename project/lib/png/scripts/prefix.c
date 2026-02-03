@@ -1,3 +1,4 @@
+
 /* prefix.c - generate an unprefixed symbol list
  *
  * Copyright (c) 2013-2014 Glenn Randers-Pehrson

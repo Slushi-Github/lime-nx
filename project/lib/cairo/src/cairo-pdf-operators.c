@@ -359,7 +359,7 @@ _word_wrap_stream_create (cairo_output_stream_t *output, cairo_bool_t ps, int ma
     if (output->status)
 	return _cairo_output_stream_create_in_error (output->status);
 
-    stream = _cairo_calloc (sizeof (word_wrap_stream_t));
+    stream = _cairo_malloc (sizeof (word_wrap_stream_t));
     if (unlikely (stream == NULL)) {
 	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
@@ -1568,16 +1568,10 @@ _cairo_pdf_operators_tag_begin (cairo_pdf_operators_t *pdf_operators,
 	    return status;
     }
 
-    if (mcid >= 0) {
-	_cairo_output_stream_printf (pdf_operators->stream,
-				     "/%s << /MCID %d >> BDC\n",
-				     tag_name,
-				     mcid);
-    } else {
-	_cairo_output_stream_printf (pdf_operators->stream,
-				     "/%s BMC\n",
-				     tag_name);
-    }
+    _cairo_output_stream_printf (pdf_operators->stream,
+				 "/%s << /MCID %d >> BDC\n",
+				 tag_name,
+				 mcid);
 
     return _cairo_output_stream_get_status (pdf_operators->stream);
 }

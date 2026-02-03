@@ -23,8 +23,6 @@ ft-text-vertical-layout-type3
 gradient-zero-stops
 gradient-zero-stops-mask
 halo-transform
-huge-linear
-huge-radial
 image-surface-source
 linear-gradient-one-stop
 linear-gradient-reflect

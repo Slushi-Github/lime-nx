@@ -111,7 +111,7 @@ _cairo_xcb_connection_find_visual_formats (cairo_xcb_connection_t *connection,
 		cairo_xcb_xrender_format_t *f;
 		cairo_status_t status;
 
-		f = _cairo_calloc (sizeof (cairo_xcb_xrender_format_t));
+		f = _cairo_malloc (sizeof (cairo_xcb_xrender_format_t));
 		if (unlikely (f == NULL))
 		    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -177,7 +177,7 @@ _cairo_xcb_connection_parse_xrender_formats (cairo_xcb_connection_t *connection,
 	    if (! _cairo_hash_table_lookup (connection->xrender_formats, &key)) {
 		cairo_xcb_xrender_format_t *f;
 
-		f = _cairo_calloc (sizeof (cairo_xcb_xrender_format_t));
+		f = _cairo_malloc (sizeof (cairo_xcb_xrender_format_t));
 		if (unlikely (f == NULL))
 		    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
@@ -629,7 +629,7 @@ _cairo_xcb_connection_get (xcb_connection_t *xcb_connection)
 	}
     }
 
-    connection = _cairo_calloc (sizeof (cairo_xcb_connection_t));
+    connection = _cairo_malloc (sizeof (cairo_xcb_connection_t));
     if (unlikely (connection == NULL))
 	goto unlock;
 
@@ -686,8 +686,7 @@ _cairo_xcb_connection_get (xcb_connection_t *xcb_connection)
 
     connection->root = xcb_get_setup (xcb_connection);
     connection->render = NULL;
-    connection->subpixel_orders = _cairo_calloc_ab (connection->root->roots_len,
-                                                 sizeof(*connection->subpixel_orders));
+    connection->subpixel_orders = calloc (connection->root->roots_len, sizeof(*connection->subpixel_orders));
     if (unlikely (connection->subpixel_orders == NULL)) {
 	CAIRO_MUTEX_UNLOCK (connection->device.mutex);
 	_cairo_xcb_connection_destroy (connection);
@@ -897,6 +896,9 @@ cairo_xcb_device_debug_cap_xrender_version (cairo_device_t *device,
 	    connection->flags &= ~CAIRO_XCB_RENDER_HAS_GRADIENTS;
     }
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_device_debug_cap_xrender_version);
+#endif
 
 /**
  * cairo_xcb_device_debug_set_precision:
@@ -924,6 +926,9 @@ cairo_xcb_device_debug_set_precision (cairo_device_t *device,
 
     ((cairo_xcb_connection_t *) device)->force_precision = precision;
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_device_debug_set_precision);
+#endif
 
 /**
  * cairo_xcb_device_debug_get_precision:
@@ -950,3 +955,6 @@ cairo_xcb_device_debug_get_precision (cairo_device_t *device)
 
     return ((cairo_xcb_connection_t *) device)->force_precision;
 }
+#if CAIRO_HAS_XLIB_XCB_FUNCTIONS
+slim_hidden_def (cairo_xcb_device_debug_get_precision);
+#endif

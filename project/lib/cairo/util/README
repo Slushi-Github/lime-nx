@@ -3,6 +3,22 @@ Cairo Utilities
 
 There are a varieties of utilities we use with cairo.
 
+
+malloc-stats
+------------
+
+This is a small shared library designed to be preloaded by the
+linker and its purpose is to make the malloc_stats() function
+of glibc produce more useful information.
+
+Build by:
+
+	make malloc-stats.so
+
+and use by:
+
+	LD_PRELOAD=$(blddir)/util/libmalloc-stats.so app-to-run
+
 cairo-trace
 -----------
 

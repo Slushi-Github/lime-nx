@@ -24,44 +24,51 @@
 
 /* This file contains a relatively simple streaming audio player. */
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "SDL_sound.h"
-#include "SDL_audio.h"
-#include "SDL_stdinc.h"
+#include "sndfile.h"
 
 #include "AL/al.h"
+#include "AL/alext.h"
 
 #include "common/alhelpers.h"
 
+#include "win_main_utf8.h"
 
-#ifndef SDL_AUDIO_MASK_BITSIZE
-#define SDL_AUDIO_MASK_BITSIZE (0xFF)
-#endif
-#ifndef SDL_AUDIO_BITSIZE
-#define SDL_AUDIO_BITSIZE(x) (x & SDL_AUDIO_MASK_BITSIZE)
-#endif
 
 /* Define the number of buffers and buffer size (in milliseconds) to use. 4
- * buffers with 200ms each gives a nice per-chunk size, and lets the queue last
- * for almost one second. */
-#define NUM_BUFFERS 4
-#define BUFFER_TIME_MS 200
+ * buffers at 200ms each gives a nice per-chunk size, and lets the queue last
+ * for almost one second.
+ */
+enum { NumBuffers = 4 };
+enum { BufferMillisec = 200 };
+
+typedef enum SampleType {
+    Int16, Float, IMA4, MSADPCM
+} SampleType;
 
 typedef struct StreamPlayer {
-    /* These are the buffers and source to play out through OpenAL with */
-    ALuint buffers[NUM_BUFFERS];
+    /* These are the buffers and source to play out through OpenAL with. */
+    ALuint buffers[NumBuffers];
     ALuint source;
 
     /* Handle for the audio file */
-    Sound_Sample *sample;
+    SNDFILE *sndfile;
+    SF_INFO sfinfo;
+    void *membuf;
 
-    /* The format of the output stream */
+    /* The sample type and block/frame size being read for the buffer. */
+    SampleType sample_type;
+    int byteblockalign;
+    int sampleblockalign;
+    int block_count;
+
+    /* The format of the output stream (sample rate is in sfinfo) */
     ALenum format;
-    ALsizei srate;
 } StreamPlayer;
 
 static StreamPlayer *NewPlayer(void);
@@ -73,7 +80,8 @@ static int UpdatePlayer(StreamPlayer *player);
 
 /* Creates a new player object, and allocates the needed OpenAL source and
  * buffer objects. Error checking is simplified for the purposes of this
- * example, and will cause an abort if needed. */
+ * example, and will cause an abort if needed.
+ */
 static StreamPlayer *NewPlayer(void)
 {
     StreamPlayer *player;
@@ -82,7 +90,7 @@ static StreamPlayer *NewPlayer(void)
     assert(player != NULL);
 
     /* Generate the buffers and source */
-    alGenBuffers(NUM_BUFFERS, player->buffers);
+    alGenBuffers(NumBuffers, player->buffers);
     assert(alGetError() == AL_NO_ERROR && "Could not create buffers");
 
     alGenSources(1, &player->source);
@@ -105,11 +113,11 @@ static void DeletePlayer(StreamPlayer *player)
     ClosePlayerFile(player);
 
     alDeleteSources(1, &player->source);
-    alDeleteBuffers(NUM_BUFFERS, player->buffers);
+    alDeleteBuffers(NumBuffers, player->buffers);
     if(alGetError() != AL_NO_ERROR)
         fprintf(stderr, "Failed to delete object IDs\n");
 
-    memset(player, 0, sizeof(*player));
+    memset(player, 0, sizeof(*player)); /* NOLINT(clang-analyzer-security.insecureAPI.*) */
     free(player);
 }
 
@@ -118,73 +126,197 @@ static void DeletePlayer(StreamPlayer *player)
  * it will be closed first. */
 static int OpenPlayerFile(StreamPlayer *player, const char *filename)
 {
-    Uint32 frame_size;
+    int byteblockalign=0, splblockalign=0;
 
     ClosePlayerFile(player);
 
-    /* Open the file and get the first stream from it */
-    player->sample = Sound_NewSampleFromFile(filename, NULL, 0);
-    if(!player->sample)
+    /* Open the audio file and check that it's usable. */
+    player->sndfile = sf_open(filename, SFM_READ, &player->sfinfo);
+    if(!player->sndfile)
     {
-        fprintf(stderr, "Could not open audio in %s\n", filename);
-        goto error;
+        fprintf(stderr, "Could not open audio in %s: %s\n", filename, sf_strerror(NULL));
+        return 0;
     }
 
-    /* Get the stream format, and figure out the OpenAL format */
-    if(player->sample->actual.channels == 1)
+    /* Detect a suitable format to load. Formats like Vorbis and Opus use float
+     * natively, so load as float to avoid clipping when possible. Formats
+     * larger than 16-bit can also use float to preserve a bit more precision.
+     */
+    switch((player->sfinfo.format&SF_FORMAT_SUBMASK))
     {
-        if(player->sample->actual.format == AUDIO_U8)
-            player->format = AL_FORMAT_MONO8;
-        else if(player->sample->actual.format == AUDIO_S16SYS)
-            player->format = AL_FORMAT_MONO16;
+    case SF_FORMAT_PCM_24:
+    case SF_FORMAT_PCM_32:
+    case SF_FORMAT_FLOAT:
+    case SF_FORMAT_DOUBLE:
+    case SF_FORMAT_VORBIS:
+    case SF_FORMAT_OPUS:
+    case SF_FORMAT_ALAC_20:
+    case SF_FORMAT_ALAC_24:
+    case SF_FORMAT_ALAC_32:
+    case 0x0080/*SF_FORMAT_MPEG_LAYER_I*/:
+    case 0x0081/*SF_FORMAT_MPEG_LAYER_II*/:
+    case 0x0082/*SF_FORMAT_MPEG_LAYER_III*/:
+        if(alIsExtensionPresent("AL_EXT_FLOAT32"))
+            player->sample_type = Float;
+        break;
+    case SF_FORMAT_IMA_ADPCM:
+        /* ADPCM formats require setting a block alignment as specified in the
+         * file, which needs to be read from the wave 'fmt ' chunk manually
+         * since libsndfile doesn't provide it in a format-agnostic way.
+         */
+        if(player->sfinfo.channels <= 2
+            && (player->sfinfo.format&SF_FORMAT_TYPEMASK) == SF_FORMAT_WAV
+            && alIsExtensionPresent("AL_EXT_IMA4")
+            && alIsExtensionPresent("AL_SOFT_block_alignment"))
+            player->sample_type = IMA4;
+        break;
+    case SF_FORMAT_MS_ADPCM:
+        if(player->sfinfo.channels <= 2
+            && (player->sfinfo.format&SF_FORMAT_TYPEMASK) == SF_FORMAT_WAV
+            && alIsExtensionPresent("AL_SOFT_MSADPCM")
+            && alIsExtensionPresent("AL_SOFT_block_alignment"))
+            player->sample_type = MSADPCM;
+        break;
+    }
+
+    if(player->sample_type == IMA4 || player->sample_type == MSADPCM)
+    {
+        /* For ADPCM, lookup the wave file's "fmt " chunk, which is a
+         * WAVEFORMATEX-based structure for the audio format.
+         */
+        SF_CHUNK_INFO inf = { "fmt ", 4, 0, NULL };
+        SF_CHUNK_ITERATOR *iter = sf_get_chunk_iterator(player->sndfile, &inf);
+
+        /* If there's an issue getting the chunk or block alignment, load as
+         * 16-bit and have libsndfile do the conversion.
+         */
+        if(!iter || sf_get_chunk_size(iter, &inf) != SF_ERR_NO_ERROR || inf.datalen < 14)
+            player->sample_type = Int16;
         else
         {
-            fprintf(stderr, "Unsupported sample format: 0x%04x\n", player->sample->actual.format);
-            goto error;
+            ALubyte *fmtbuf = calloc(inf.datalen, 1);
+            inf.data = fmtbuf;
+            if(sf_get_chunk_data(iter, &inf) != SF_ERR_NO_ERROR)
+                player->sample_type = Int16;
+            else
+            {
+                /* Read the nBlockAlign field, and convert from bytes- to
+                 * samples-per-block (verifying it's valid by converting back
+                 * and comparing to the original value).
+                 */
+                byteblockalign = fmtbuf[12] | (fmtbuf[13]<<8);
+                if(player->sample_type == IMA4)
+                {
+                    splblockalign = (byteblockalign/player->sfinfo.channels - 4)/4*8 + 1;
+                    if(splblockalign < 1
+                        || ((splblockalign-1)/2 + 4)*player->sfinfo.channels != byteblockalign)
+                        player->sample_type = Int16;
+                }
+                else
+                {
+                    splblockalign = (byteblockalign/player->sfinfo.channels - 7)*2 + 2;
+                    if(splblockalign < 2
+                        || ((splblockalign-2)/2 + 7)*player->sfinfo.channels != byteblockalign)
+                        player->sample_type = Int16;
+                }
+            }
+            free(fmtbuf);
         }
     }
-    else if(player->sample->actual.channels == 2)
+
+    if(player->sample_type == Int16)
     {
-        if(player->sample->actual.format == AUDIO_U8)
-            player->format = AL_FORMAT_STEREO8;
-        else if(player->sample->actual.format == AUDIO_S16SYS)
-            player->format = AL_FORMAT_STEREO16;
-        else
-        {
-            fprintf(stderr, "Unsupported sample format: 0x%04x\n", player->sample->actual.format);
-            goto error;
-        }
+        player->sampleblockalign = 1;
+        player->byteblockalign = player->sfinfo.channels * 2;
+    }
+    else if(player->sample_type == Float)
+    {
+        player->sampleblockalign = 1;
+        player->byteblockalign = player->sfinfo.channels * 4;
     }
     else
     {
-        fprintf(stderr, "Unsupported channel count: %d\n", player->sample->actual.channels);
-        goto error;
+        player->sampleblockalign = splblockalign;
+        player->byteblockalign = byteblockalign;
     }
-    player->srate = (ALsizei)player->sample->actual.rate;
 
-    frame_size = player->sample->actual.channels *
-        SDL_AUDIO_BITSIZE(player->sample->actual.format) / 8;
+    /* Figure out the OpenAL format from the file and desired sample type. */
+    player->format = AL_NONE;
+    if(player->sfinfo.channels == 1)
+    {
+        if(player->sample_type == Int16)
+            player->format = AL_FORMAT_MONO16;
+        else if(player->sample_type == Float)
+            player->format = AL_FORMAT_MONO_FLOAT32;
+        else if(player->sample_type == IMA4)
+            player->format = AL_FORMAT_MONO_IMA4;
+        else if(player->sample_type == MSADPCM)
+            player->format = AL_FORMAT_MONO_MSADPCM_SOFT;
+    }
+    else if(player->sfinfo.channels == 2)
+    {
+        if(player->sample_type == Int16)
+            player->format = AL_FORMAT_STEREO16;
+        else if(player->sample_type == Float)
+            player->format = AL_FORMAT_STEREO_FLOAT32;
+        else if(player->sample_type == IMA4)
+            player->format = AL_FORMAT_STEREO_IMA4;
+        else if(player->sample_type == MSADPCM)
+            player->format = AL_FORMAT_STEREO_MSADPCM_SOFT;
+    }
+    else if(player->sfinfo.channels == 3)
+    {
+        if(sf_command(player->sndfile, SFC_WAVEX_GET_AMBISONIC, NULL, 0) == SF_AMBISONIC_B_FORMAT)
+        {
+            if(player->sample_type == Int16)
+                player->format = AL_FORMAT_BFORMAT2D_16;
+            else if(player->sample_type == Float)
+                player->format = AL_FORMAT_BFORMAT2D_FLOAT32;
+        }
+    }
+    else if(player->sfinfo.channels == 4)
+    {
+        if(sf_command(player->sndfile, SFC_WAVEX_GET_AMBISONIC, NULL, 0) == SF_AMBISONIC_B_FORMAT)
+        {
+            if(player->sample_type == Int16)
+                player->format = AL_FORMAT_BFORMAT3D_16;
+            else if(player->sample_type == Float)
+                player->format = AL_FORMAT_BFORMAT3D_FLOAT32;
+        }
+    }
+    if(!player->format)
+    {
+        fprintf(stderr, "Unsupported channel count: %d\n", player->sfinfo.channels);
+        sf_close(player->sndfile);
+        player->sndfile = NULL;
+        return 0;
+    }
 
-    /* Set the buffer size, given the desired millisecond length. */
-    Sound_SetBufferSize(player->sample, (Uint32)((Uint64)player->srate*BUFFER_TIME_MS/1000) *
-                                        frame_size);
+    player->block_count = player->sfinfo.samplerate / player->sampleblockalign;
+    player->block_count = player->block_count * BufferMillisec / 1000;
+    player->membuf = malloc((size_t)player->block_count * (size_t)player->byteblockalign);
 
     return 1;
-
-error:
-    if(player->sample)
-        Sound_FreeSample(player->sample);
-    player->sample = NULL;
-
-    return 0;
 }
 
 /* Closes the audio file stream */
 static void ClosePlayerFile(StreamPlayer *player)
 {
-    if(player->sample)
-        Sound_FreeSample(player->sample);
-    player->sample = NULL;
+    if(player->sndfile)
+        sf_close(player->sndfile);
+    player->sndfile = NULL;
+
+    free(player->membuf);
+    player->membuf = NULL;
+
+    if(player->sampleblockalign > 1)
+    {
+        ALsizei i;
+        for(i = 0;i < NumBuffers;i++)
+            alBufferi(player->buffers[i], AL_UNPACK_BLOCK_ALIGNMENT_SOFT, 0);
+        player->sampleblockalign = 0;
+        player->byteblockalign = 0;
+    }
 }
 
 
@@ -198,14 +330,39 @@ static int StartPlayer(StreamPlayer *player)
     alSourcei(player->source, AL_BUFFER, 0);
 
     /* Fill the buffer queue */
-    for(i = 0;i < NUM_BUFFERS;i++)
+    for(i = 0;i < NumBuffers;i++)
     {
-        /* Get some data to give it to the buffer */
-        Uint32 slen = Sound_Decode(player->sample);
-        if(slen == 0) break;
+        sf_count_t slen;
 
-        alBufferData(player->buffers[i], player->format, player->sample->buffer, (ALsizei)slen,
-            player->srate);
+        /* Get some data to give it to the buffer */
+        if(player->sample_type == Int16)
+        {
+            slen = sf_readf_short(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->sampleblockalign);
+            if(slen < 1) break;
+            slen *= player->byteblockalign;
+        }
+        else if(player->sample_type == Float)
+        {
+            slen = sf_readf_float(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->sampleblockalign);
+            if(slen < 1) break;
+            slen *= player->byteblockalign;
+        }
+        else
+        {
+            slen = sf_read_raw(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->byteblockalign);
+            if(slen > 0) slen -= slen%player->byteblockalign;
+            if(slen < 1) break;
+        }
+
+        if(player->sampleblockalign > 1)
+            alBufferi(player->buffers[i], AL_UNPACK_BLOCK_ALIGNMENT_SOFT,
+                player->sampleblockalign);
+
+        alBufferData(player->buffers[i], player->format, player->membuf, (ALsizei)slen,
+            player->sfinfo.samplerate);
     }
     if(alGetError() != AL_NO_ERROR)
     {
@@ -242,21 +399,36 @@ static int UpdatePlayer(StreamPlayer *player)
     while(processed > 0)
     {
         ALuint bufid;
-        Uint32 slen;
+        sf_count_t slen;
 
         alSourceUnqueueBuffers(player->source, 1, &bufid);
         processed--;
 
-        if((player->sample->flags&(SOUND_SAMPLEFLAG_EOF|SOUND_SAMPLEFLAG_ERROR)))
-            continue;
-
         /* Read the next chunk of data, refill the buffer, and queue it
          * back on the source */
-        slen = Sound_Decode(player->sample);
+        if(player->sample_type == Int16)
+        {
+            slen = sf_readf_short(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->sampleblockalign);
+            if(slen > 0) slen *= player->byteblockalign;
+        }
+        else if(player->sample_type == Float)
+        {
+            slen = sf_readf_float(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->sampleblockalign);
+            if(slen > 0) slen *= player->byteblockalign;
+        }
+        else
+        {
+            slen = sf_read_raw(player->sndfile, player->membuf,
+                (sf_count_t)player->block_count * player->byteblockalign);
+            if(slen > 0) slen -= slen%player->byteblockalign;
+        }
+
         if(slen > 0)
         {
-            alBufferData(bufid, player->format, player->sample->buffer, (ALsizei)slen,
-                player->srate);
+            alBufferData(bufid, player->format, player->membuf, (ALsizei)slen,
+                player->sfinfo.samplerate);
             alSourceQueueBuffers(player->source, 1, &bufid);
         }
         if(alGetError() != AL_NO_ERROR)
@@ -304,8 +476,6 @@ int main(int argc, char **argv)
     if(InitAL(&argv, &argc) != 0)
         return 1;
 
-    Sound_Init();
-
     player = NewPlayer();
 
     /* Play each file listed on the command line */
@@ -318,12 +488,12 @@ int main(int argc, char **argv)
 
         /* Get the name portion, without the path, for display. */
         namepart = strrchr(argv[i], '/');
-        if(namepart || (namepart=strrchr(argv[i], '\\')))
-            namepart++;
-        else
-            namepart = argv[i];
+        if(!namepart) namepart = strrchr(argv[i], '\\');
+        if(!namepart) namepart = argv[i];
+        else namepart++;
 
-        printf("Playing: %s (%s, %dhz)\n", namepart, FormatName(player->format), player->srate);
+        printf("Playing: %s (%s, %dhz)\n", namepart, FormatName(player->format),
+            player->sfinfo.samplerate);
         fflush(stdout);
 
         if(!StartPlayer(player))
@@ -340,11 +510,10 @@ int main(int argc, char **argv)
     }
     printf("Done.\n");
 
-    /* All files done. Delete the player, and close down SDL_sound and OpenAL */
+    /* All files done. Delete the player, and close down OpenAL */
     DeletePlayer(player);
     player = NULL;
 
-    Sound_Quit();
     CloseAL();
 
     return 0;

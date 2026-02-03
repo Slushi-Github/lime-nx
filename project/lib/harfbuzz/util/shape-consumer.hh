@@ -61,7 +61,7 @@ struct shape_consumer_t : shape_options_t
 
     for (unsigned int n = num_iterations; n; n--)
     {
-      populate_buffer (buffer, text, text_len, app.text_before, app.text_after, app.font);
+      populate_buffer (buffer, text, text_len, app.text_before, app.text_after);
       if (n == 1)
 	output.consume_text (buffer, text, text_len, utf8_clusters);
 
@@ -77,10 +77,7 @@ struct shape_consumer_t : shape_options_t
       }
     }
 
-    if (glyphs)
-      output.consume_glyphs (buffer, nullptr, 0, false);
-    else
-      output.consume_glyphs (buffer, text, text_len, utf8_clusters);
+    output.consume_glyphs (buffer, text, text_len, utf8_clusters);
     return true;
   }
   template <typename app_t>

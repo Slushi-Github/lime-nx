@@ -73,9 +73,9 @@ typedef enum _cairo_svg_version {
  * lengths in the SVG specification.
  *
  * See also:
- * - [SVG Units](https://www.w3.org/TR/SVG/coords.html#Units)
- * - [SVG Types](https://www.w3.org/TR/SVG/types.html#DataTypeLength)
- * - [CSS Length](https://www.w3.org/TR/css-values-3/#lengths)
+ * https://www.w3.org/TR/SVG/coords.html#Units
+ * https://www.w3.org/TR/SVG/types.html#DataTypeLength
+ * https://www.w3.org/TR/css-values-3/#lengths
  *
  * Since: 1.16
  **/

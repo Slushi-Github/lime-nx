@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -27,17 +25,13 @@
 #ifdef USE_MSH3
 
 #include "urldata.h"
+#include "curl_printf.h"
 #include "timeval.h"
 #include "multiif.h"
 #include "sendf.h"
 #include "connect.h"
 #include "h2h3.h"
 #include "msh3.h"
-
-/* The last 3 #include files should be in this order */
-#include "curl_printf.h"
-#include "curl_memory.h"
-#include "memdebug.h"
 
 /* #define DEBUG_HTTP3 1 */
 #ifdef DEBUG_HTTP3
@@ -114,7 +108,7 @@ CURLcode Curl_quic_connect(struct Curl_easy *data,
                            socklen_t addrlen)
 {
   struct quicsocket *qs = &conn->hequic[sockindex];
-  bool insecure = !conn->ssl_config.verifypeer;
+  bool unsecure = !conn->ssl_config.verifypeer;
   memset(qs, 0, sizeof(*qs));
 
   (void)sockfd;
@@ -132,7 +126,7 @@ CURLcode Curl_quic_connect(struct Curl_easy *data,
   qs->conn = MsH3ConnectionOpen(qs->api,
                                 conn->host.name,
                                 (uint16_t)conn->remote_port,
-                                insecure);
+                                unsecure);
   if(!qs->conn) {
     failf(data, "can't create msh3 connection");
     if(qs->api) {
@@ -226,8 +220,13 @@ static unsigned int msh3_conncheck(struct Curl_easy *data,
   return CONNRESULT_NONE;
 }
 
-static void disconnect(struct quicsocket *qs)
+static void msh3_cleanup(struct quicsocket *qs, struct HTTP *stream)
 {
+  if(stream && stream->recv_buf) {
+    free(stream->recv_buf);
+    stream->recv_buf = ZERO_NULL;
+    msh3_lock_uninitialize(&stream->recv_lock);
+  }
   if(qs->conn) {
     MsH3ConnectionClose(qs->conn);
     qs->conn = ZERO_NULL;
@@ -241,20 +240,18 @@ static void disconnect(struct quicsocket *qs)
 static CURLcode msh3_disconnect(struct Curl_easy *data,
                                 struct connectdata *conn, bool dead_connection)
 {
-  (void)data;
   (void)dead_connection;
   H3BUGF(infof(data, "disconnecting (msh3)"));
-  disconnect(conn->quic);
+  msh3_cleanup(conn->quic, data->req.p.http);
   return CURLE_OK;
 }
 
 void Curl_quic_disconnect(struct Curl_easy *data, struct connectdata *conn,
                           int tempindex)
 {
-  (void)data;
   if(conn->transport == TRNSPRT_QUIC) {
-    H3BUGF(infof(data, "disconnecting QUIC index %u", tempindex));
-    disconnect(&conn->hequic[tempindex]);
+    H3BUGF(infof(data, "disconnecting (curl)"));
+    msh3_cleanup(&conn->hequic[tempindex], data->req.p.http);
   }
 }
 
@@ -289,6 +286,7 @@ static void MSH3_CALL msh3_header_received(MSH3_REQUEST *Request,
   struct HTTP *stream = IfContext;
   size_t total_len;
   (void)Request;
+  H3BUGF(printf("* msh3_header_received\n"));
 
   if(stream->recv_header_complete) {
     H3BUGF(printf("* ignoring header after data\n"));
@@ -381,6 +379,9 @@ static void MSH3_CALL msh3_shutdown(MSH3_REQUEST *Request, void *IfContext)
   (void)stream;
 }
 
+static_assert(sizeof(MSH3_HEADER) == sizeof(struct h2h3pseudo),
+              "Sizes must match for cast below to work");
+
 static ssize_t msh3_stream_send(struct Curl_easy *data,
                                 int sockindex,
                                 const void *mem,
@@ -393,9 +394,6 @@ static ssize_t msh3_stream_send(struct Curl_easy *data,
   struct h2h3req *hreq;
 
   (void)sockindex;
-  /* Sizes must match for cast below to work" */
-  DEBUGASSERT(sizeof(MSH3_HEADER) == sizeof(struct h2h3pseudo));
-
   H3BUGF(infof(data, "msh3_stream_send %zu", len));
 
   if(!stream->req) {
@@ -490,19 +488,9 @@ CURLcode Curl_quic_done_sending(struct Curl_easy *data)
 
 void Curl_quic_done(struct Curl_easy *data, bool premature)
 {
-  struct HTTP *stream = data->req.p.http;
+  (void)data;
   (void)premature;
   H3BUGF(infof(data, "Curl_quic_done"));
-  if(stream) {
-    if(stream->recv_buf) {
-      Curl_safefree(stream->recv_buf);
-      msh3_lock_uninitialize(&stream->recv_lock);
-    }
-    if(stream->req) {
-      MsH3RequestClose(stream->req);
-      stream->req = ZERO_NULL;
-    }
-  }
 }
 
 bool Curl_quic_data_pending(const struct Curl_easy *data)
@@ -510,18 +498,6 @@ bool Curl_quic_data_pending(const struct Curl_easy *data)
   struct HTTP *stream = data->req.p.http;
   H3BUGF(infof((struct Curl_easy *)data, "Curl_quic_data_pending"));
   return stream->recv_header_len || stream->recv_data_len;
-}
-
-/*
- * Called from transfer.c:Curl_readwrite when neither HTTP level read
- * nor write is performed. It is a good place to handle timer expiry
- * for QUIC transport.
- */
-CURLcode Curl_quic_idle(struct Curl_easy *data)
-{
-  (void)data;
-  H3BUGF(infof(data, "Curl_quic_idle"));
-  return CURLE_OK;
 }
 
 #endif /* USE_MSH3 */

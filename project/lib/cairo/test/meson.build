@@ -24,12 +24,10 @@ test_sources = [
   'bug-spline.c',
   'big-trap.c',
   'bilevel-image.c',
-  'bug-277.c',
-  'bug-361.c',
   'bug-40410.c',
+  'bug-361.c',
   'bug-431.c',
   'bug-448.c',
-  'bug-535.c',
   'bug-51910.c',
   'bug-75705.c',
   'bug-84115.c',
@@ -96,7 +94,6 @@ test_sources = [
   'create-for-stream.c',
   'create-from-broken-png-stream.c',
   'create-from-png.c',
-  'create-from-png-16bit.c',
   'create-from-png-stream.c',
   'culled-glyphs.c',
   'curve-to-as-line-to.c',
@@ -124,7 +121,6 @@ test_sources = [
   'device-offset-fractional.c',
   'device-offset-positive.c',
   'device-offset-scale.c',
-  'dithergradient.c',
   'error-setters.c',
   'extend-pad.c',
   'extend-pad-border.c',
@@ -154,14 +150,12 @@ test_sources = [
   'font-matrix-translation.c',
   'font-options.c',
   'glyph-cache-pressure.c',
-  'glyph-path.c',
   'get-and-set.c',
   'get-clip.c',
   'get-group-target.c',
   'get-path-extents.c',
   'gradient-alpha.c',
   'gradient-constant-alpha.c',
-  'gradient-scale-crash.c',
   'gradient-zero-stops.c',
   'gradient-zero-stops-mask.c',
   'group-clip.c',
@@ -193,7 +187,6 @@ test_sources = [
   'large-source.c',
   'large-source-roi.c',
   'large-twin-antialias-mixed.c',
-  'leaks.c',
   'leaky-dash.c',
   'leaky-dashed-rectangle.c',
   'leaky-dashed-stroke.c',
@@ -311,7 +304,6 @@ test_sources = [
   'rotated-clip.c',
   'rounded-rectangle-fill.c',
   'rounded-rectangle-stroke.c',
-  'round-join-bug-520.c',
   'sample.c',
   'scale-down-source-surface-paint.c',
   'scale-offset-image.c',
@@ -431,22 +423,21 @@ test_ft_font_sources = [
   'ft-text-vertical-layout-type1.c',
   'ft-text-vertical-layout-type3.c',
   'ft-text-antialias-none.c',
-  'ft-variable-font.c',
 ]
 
-test_ft_svg_font_sources = [
-  'ft-svg-color-font.c',
+test_gl_sources = [
+  'gl-device-release.c',
+  'gl-oversized-surface.c',
+  'gl-surface-source.c',
 ]
 
-test_ft_svg_ttx_font_sources = [
-  'ft-svg-cairo-logo.c',
-  'ft-svg-render.c',
-  'ft-svg-render-color.c'
+test_egl_sources = [
+  'egl-oversized-surface.c',
+  'egl-surface-source.c',
 ]
 
 test_quartz_sources = [
   'quartz-surface-source.c',
-  'quartz-color-font.c',
 ]
 
 test_pdf_sources = [
@@ -455,10 +446,6 @@ test_pdf_sources = [
   'pdf-operators-text.c',
   'pdf-surface-source.c',
   'pdf-tagged-text.c',
-]
-
-test_pdf_structure_sources = [
-  'pdf-structure.c',
 ]
 
 test_ps_sources = [
@@ -492,7 +479,6 @@ test_multi_page_sources = [
 ]
 
 test_fallback_resolution_sources = [
-  'create-regions.c',
   'fallback-resolution.c',
 ]
 
@@ -528,18 +514,6 @@ ps2png_sources = [
   'ps2png.c',
 ]
 
-test_ttx_fonts = [
-  'cairo-logo-font.ttx',
-  'cairo-svg-test-color.ttx',
-  'cairo-svg-test-doc.ttx',
-  'cairo-svg-test-fill.ttx',
-  'cairo-svg-test-gradient.ttx',
-  'cairo-svg-test-path.ttx',
-  'cairo-svg-test-shapes.ttx',
-  'cairo-svg-test-stroke.ttx',
-  'cairo-svg-test-transform.ttx',
-]
-
 build_any2ppm = false
 has_multipage_surfaces = false
 add_fallback_resolution = false
@@ -550,12 +524,6 @@ endif
 
 if feature_conf.get('CAIRO_HAS_FT_FONT', 0) == 1 and feature_conf.get('CAIRO_HAS_FC_FONT', 0) == 1
   test_sources += test_ft_font_sources
-  if conf.get('HAVE_FT_SVG_DOCUMENT', 0) == 1
-    test_sources += test_ft_svg_font_sources
-    if conf.get('CAIRO_CAN_TEST_TTX_FONT', 0) == 1
-      test_sources += test_ft_svg_ttx_font_sources
-    endif
-  endif
 endif
 
 if feature_conf.get('CAIRO_HAS_QUARTZ_SURFACE', 0) == 1
@@ -564,9 +532,6 @@ endif
 
 if feature_conf.get('CAIRO_HAS_PDF_SURFACE', 0) == 1
   test_sources += test_pdf_sources
-  if host_machine.system() != 'windows'
-    test_sources += test_pdf_structure_sources
-  endif
   has_multipage_surfaces = true
   add_fallback_resolution = true
   build_any2ppm = true
@@ -595,6 +560,10 @@ endif
 
 if feature_conf.get('CAIRO_HAS_XLIB_XRENDER_SURFACE', 0) == 1
   test_sources += test_xlib_xrender_sources
+endif
+
+if feature_conf.get('CAIRO_HAS_EGL_FUNCTIONS', 0) == 1
+  test_sources += test_egl_sources
 endif
 
 if has_multipage_surfaces
@@ -659,31 +628,6 @@ exe = executable('cairo-test-suite', [cairo_test_suite_sources, test_sources, ca
     libpdiff_dep],
 )
 
-fs = import('fs')
-build_dir_files = ['completion.bash', 'index.html', 'testtable.js', 'view-test-results.py']
-foreach file : build_dir_files
-  fs.copyfile(file)
-endforeach
-
-if build_machine.system() != 'windows'
-  run_command('ln', '-sfn',
-              meson.current_source_dir(),
-              meson.current_build_dir() / 'srcdir',
-              check: true)
-endif
-
-if ttx.found()
-  # By default, if the output file exists, ttx creates a new name. We specify the full
-  # output name to make ttx overwrite the existing file instead of creating a new file.
-  foreach ttx_font : test_ttx_fonts
-    custom_target(ttx_font,
-                  input: ttx_font,
-                  command: [ ttx, '-q', '-o', '@OUTDIR@' / '@BASENAME@.ttf', '@INPUT@' ],
-                  output: '@BASENAME@.ttf',
-                  build_by_default: true)
-  endforeach
-endif
-
 env = environment()
 
 env.set('srcdir', meson.current_source_dir())
@@ -691,12 +635,5 @@ env.set('srcdir', meson.current_source_dir())
 test('cairo', exe,
   timeout: 60 * 60,
   env: env,
-  suite: ['cairo-test-suite', 'slow'],
   workdir: meson.current_build_dir(),
   depends: test_depends)
-
-# The SVG renderer debug tools can only be built if the _cairo_debug_svg_render()
-# function has been exposed by defining DEBUG_SVG_RENDER
-if conf.get('HAVE_FT_SVG_DOCUMENT', 0) == 1 and cc.has_define('DEBUG_SVG_RENDER')
-  subdir('svg')
-endif

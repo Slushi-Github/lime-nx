@@ -1,263 +1,131 @@
-#include <efsw/Debug.hpp>
-#include <efsw/String.hpp>
 #include <efsw/WatcherWin32.hpp>
+#include <efsw/String.hpp>
 
 #if EFSW_PLATFORM == EFSW_PLATFORM_WIN32
 
-#include <algorithm>
-
-namespace efsw {
-
-struct EFSW_FILE_NOTIFY_EXTENDED_INFORMATION_EX {
-	DWORD NextEntryOffset;
-	DWORD Action;
-	LARGE_INTEGER CreationTime;
-	LARGE_INTEGER LastModificationTime;
-	LARGE_INTEGER LastChangeTime;
-	LARGE_INTEGER LastAccessTime;
-	LARGE_INTEGER AllocatedLength;
-	LARGE_INTEGER FileSize;
-	DWORD FileAttributes;
-	DWORD ReparsePointTag;
-	LARGE_INTEGER FileId;
-	LARGE_INTEGER ParentFileId;
-	DWORD FileNameLength;
-	WCHAR FileName[1];
-};
-
-typedef EFSW_FILE_NOTIFY_EXTENDED_INFORMATION_EX* EFSW_PFILE_NOTIFY_EXTENDED_INFORMATION_EX;
-
-typedef BOOL( WINAPI* EFSW_LPREADDIRECTORYCHANGESEXW )( HANDLE hDirectory, LPVOID lpBuffer,
-												   DWORD nBufferLength, BOOL bWatchSubtree,
-												   DWORD dwNotifyFilter, LPDWORD lpBytesReturned,
-												   LPOVERLAPPED lpOverlapped, LPOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
-												   DWORD ReadDirectoryNotifyInformationClass );
-
-static EFSW_LPREADDIRECTORYCHANGESEXW pReadDirectoryChangesExW = NULL;
-
-#define EFSW_ReadDirectoryNotifyExtendedInformation 2
-
-static void initReadDirectoryChangesEx() {
-	static bool hasInit = false;
-	if ( !hasInit ) {
-		hasInit = true;
-
-		HMODULE hModule = GetModuleHandleW( L"Kernel32.dll" );
-		if ( !hModule )
-			return;
-
-		pReadDirectoryChangesExW =
-			(EFSW_LPREADDIRECTORYCHANGESEXW)GetProcAddress( hModule, "ReadDirectoryChangesExW" );
-	}
-}
-
-void WatchCallbackOld( WatcherWin32* pWatch ) {
-	PFILE_NOTIFY_INFORMATION pNotify;
-	size_t offset = 0;
-	do {
-		bool skip = false;
-
-		pNotify = (PFILE_NOTIFY_INFORMATION)&pWatch->Buffer[offset];
-		offset += pNotify->NextEntryOffset;
-		int count =
-			WideCharToMultiByte( CP_UTF8, 0, pNotify->FileName,
-								 pNotify->FileNameLength / sizeof( WCHAR ), NULL, 0, NULL, NULL );
-		if ( count == 0 )
-			continue;
-
-		std::string nfile( count, '\0' );
-
-		count = WideCharToMultiByte( CP_UTF8, 0, pNotify->FileName,
-									 pNotify->FileNameLength / sizeof( WCHAR ), &nfile[0], count,
-									 NULL, NULL );
-
-		if ( FILE_ACTION_MODIFIED == pNotify->Action ) {
-			FileInfo fifile( std::string( pWatch->DirName ) + nfile );
-
-			if ( pWatch->LastModifiedEvent.file.ModificationTime == fifile.ModificationTime &&
-				 pWatch->LastModifiedEvent.file.Size == fifile.Size &&
-				 pWatch->LastModifiedEvent.fileName == nfile ) {
-				skip = true;
-			}
-
-			pWatch->LastModifiedEvent.fileName = nfile;
-			pWatch->LastModifiedEvent.file = fifile;
-		}
-
-		if ( !skip ) {
-			pWatch->Watch->handleAction( pWatch, nfile, pNotify->Action );
-		}
-	} while ( pNotify->NextEntryOffset != 0 );
-}
-
-void WatchCallbackEx( WatcherWin32* pWatch ) {
-	EFSW_PFILE_NOTIFY_EXTENDED_INFORMATION_EX pNotify;
-	size_t offset = 0;
-	do {
-		bool skip = false;
-
-		pNotify = (EFSW_PFILE_NOTIFY_EXTENDED_INFORMATION_EX)&pWatch->Buffer[offset];
-		offset += pNotify->NextEntryOffset;
-		int count =
-			WideCharToMultiByte( CP_UTF8, 0, pNotify->FileName,
-								 pNotify->FileNameLength / sizeof( WCHAR ), NULL, 0, NULL, NULL );
-		if ( count == 0 )
-			continue;
-
-		std::string nfile( count, '\0' );
-
-		count = WideCharToMultiByte( CP_UTF8, 0, pNotify->FileName,
-									 pNotify->FileNameLength / sizeof( WCHAR ), &nfile[0], count,
-									 NULL, NULL );
-
-		if ( FILE_ACTION_MODIFIED == pNotify->Action ) {
-			FileInfo fifile( std::string( pWatch->DirName ) + nfile );
-
-			if ( pWatch->LastModifiedEvent.file.ModificationTime == fifile.ModificationTime &&
-				 pWatch->LastModifiedEvent.file.Size == fifile.Size &&
-				 pWatch->LastModifiedEvent.fileName == nfile ) {
-				skip = true;
-			}
-
-			pWatch->LastModifiedEvent.fileName = nfile;
-			pWatch->LastModifiedEvent.file = fifile;
-		} else if ( FILE_ACTION_RENAMED_OLD_NAME == pNotify->Action ) {
-			pWatch->OldFiles.emplace_back( nfile, pNotify->FileId );
-			skip = true;
-		} else if ( FILE_ACTION_RENAMED_NEW_NAME == pNotify->Action ) {
-			std::string oldFile;
-			LARGE_INTEGER oldFileId{};
-
-			for ( auto it = pWatch->OldFiles.begin(); it != pWatch->OldFiles.end(); ++it ) {
-				if ( it->second.QuadPart == pNotify->FileId.QuadPart ) {
-					oldFile = it->first;
-					oldFileId = it->second;
-					it = pWatch->OldFiles.erase( it );
-					break;
-				}
-			}
-
-			if ( oldFile.empty() ) {
-				pWatch->Watch->handleAction( pWatch, nfile, FILE_ACTION_ADDED );
-				skip = true;
-			} else {
-				pWatch->Watch->handleAction( pWatch, oldFile, FILE_ACTION_RENAMED_OLD_NAME );
-			}
-		}
-
-		if ( !skip ) {
-			pWatch->Watch->handleAction( pWatch, nfile, pNotify->Action );
-		}
-	} while ( pNotify->NextEntryOffset != 0 );
-}
+namespace efsw
+{
 
 /// Unpacks events and passes them to a user defined callback.
-void CALLBACK WatchCallback( DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped ) {
-	if ( NULL == lpOverlapped ) {
+void CALLBACK WatchCallback(DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
+{
+	if (dwNumberOfBytesTransfered == 0 || NULL == lpOverlapped)
+	{
 		return;
 	}
 
-	WatcherStructWin32* tWatch = (WatcherStructWin32*)lpOverlapped;
-	WatcherWin32* pWatch = tWatch->Watch;
+	char szFile[MAX_PATH];
+	PFILE_NOTIFY_INFORMATION pNotify;
+	WatcherStructWin32 * tWatch = (WatcherStructWin32*) lpOverlapped;
+	WatcherWin32 * pWatch = tWatch->Watch;
+	size_t offset = 0;
 
-	if ( dwNumberOfBytesTransfered == 0 ) {
-		if ( nullptr != pWatch && !pWatch->StopNow ) {
-			RefreshWatch( tWatch );
-		} else {
-			return;
+	do
+	{
+		bool skip = false;
+
+		pNotify = (PFILE_NOTIFY_INFORMATION) &pWatch->Buffer[offset];
+		offset += pNotify->NextEntryOffset;
+
+		int count = WideCharToMultiByte(CP_UTF8, 0, pNotify->FileName,
+			pNotify->FileNameLength / sizeof(WCHAR),
+			szFile, MAX_PATH - 1, NULL, NULL);
+		szFile[count] = TEXT('\0');
+
+		std::string nfile( szFile );
+
+		if ( FILE_ACTION_MODIFIED == pNotify->Action )
+		{
+			FileInfo fifile( std::string( pWatch->DirName ) + nfile );
+
+			if ( pWatch->LastModifiedEvent.file.ModificationTime == fifile.ModificationTime && pWatch->LastModifiedEvent.file.Size == fifile.Size && pWatch->LastModifiedEvent.fileName == nfile )
+			{
+				skip = true;
+			}
+
+			pWatch->LastModifiedEvent.fileName	= nfile;
+			pWatch->LastModifiedEvent.file		= fifile;
 		}
-	}
 
-	// Fork watch depending on the Windows API supported
-	if ( pWatch->Extended ) {
-		WatchCallbackEx( pWatch );
-	} else {
-		WatchCallbackOld( pWatch );
-	}
+		if ( !skip )
+		{
+			pWatch->Watch->handleAction(pWatch, nfile, pNotify->Action);
+		}
+	} while (pNotify->NextEntryOffset != 0);
 
-	if ( !pWatch->StopNow ) {
-		RefreshWatch( tWatch );
+	if (!pWatch->StopNow)
+	{
+		RefreshWatch(tWatch);
 	}
 }
 
 /// Refreshes the directory monitoring.
-RefreshResult RefreshWatch( WatcherStructWin32* pWatch ) {
-	initReadDirectoryChangesEx();
-
-	bool bRet = false;
-	RefreshResult ret = RefreshResult::Failed;
-	pWatch->Watch->Extended = false;
-
-	if ( pReadDirectoryChangesExW ) {
-		bRet = pReadDirectoryChangesExW( pWatch->Watch->DirHandle, pWatch->Watch->Buffer.data(),
-									  (DWORD)pWatch->Watch->Buffer.size(), pWatch->Watch->Recursive,
-									  pWatch->Watch->NotifyFilter, NULL, &pWatch->Overlapped,
-										 NULL, EFSW_ReadDirectoryNotifyExtendedInformation ) != 0;
-		if ( bRet ) {
-			ret = RefreshResult::SucessEx;
-			pWatch->Watch->Extended = true;
-		}
-	}
-
-	if ( !bRet ) {
-		bRet = ReadDirectoryChangesW( pWatch->Watch->DirHandle, pWatch->Watch->Buffer.data(),
-									  (DWORD)pWatch->Watch->Buffer.size(), pWatch->Watch->Recursive,
-									  pWatch->Watch->NotifyFilter, NULL, &pWatch->Overlapped,
-									  NULL ) != 0;
-
-		if ( bRet )
-			ret = RefreshResult::Success;
-	}
-
-	if ( !bRet ) {
-		std::string error = std::to_string( GetLastError() );
-		Errors::Log::createLastError( Errors::WatcherFailed, error );
-	}
-
-	return ret;
+bool RefreshWatch(WatcherStructWin32* pWatch)
+{
+	return ReadDirectoryChangesW(
+				pWatch->Watch->DirHandle,
+				pWatch->Watch->Buffer,
+				sizeof(pWatch->Watch->Buffer),
+				pWatch->Watch->Recursive,
+				pWatch->Watch->NotifyFilter,
+				NULL,
+				&pWatch->Overlapped,
+				NULL
+	) != 0;
 }
 
 /// Stops monitoring a directory.
-void DestroyWatch( WatcherStructWin32* pWatch ) {
-	if ( pWatch ) {
-		WatcherWin32* tWatch = pWatch->Watch;
+void DestroyWatch(WatcherStructWin32* pWatch)
+{
+	if (pWatch)
+	{
+		WatcherWin32 * tWatch = pWatch->Watch;
 		tWatch->StopNow = true;
-		CancelIoEx( pWatch->Watch->DirHandle, &pWatch->Overlapped );
-		CloseHandle( pWatch->Watch->DirHandle );
+		CancelIoEx(pWatch->Watch->DirHandle, &pWatch->Overlapped);
+		CloseHandle(pWatch->Watch->DirHandle);
 		efSAFE_DELETE_ARRAY( pWatch->Watch->DirName );
 		efSAFE_DELETE( pWatch->Watch );
-		efSAFE_DELETE( pWatch );
 	}
 }
 
 /// Starts monitoring a directory.
-WatcherStructWin32* CreateWatch( LPCWSTR szDirectory, bool recursive,
-								 DWORD bufferSize, DWORD notifyFilter, HANDLE iocp ) {
-	WatcherStructWin32* tWatch = new WatcherStructWin32();
-	WatcherWin32* pWatch = new WatcherWin32(bufferSize);
-	if (tWatch)
-		tWatch->Watch = pWatch;
+WatcherStructWin32* CreateWatch(LPCWSTR szDirectory, bool recursive, DWORD NotifyFilter, HANDLE iocp)
+{
+	WatcherStructWin32 * tWatch;
+	size_t ptrsize = sizeof(*tWatch);
+	tWatch = static_cast<WatcherStructWin32*>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ptrsize));
+
+	WatcherWin32 * pWatch = new WatcherWin32();
+	tWatch->Watch = pWatch;
 
 	pWatch->DirHandle = CreateFileW(
-		szDirectory, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL );
+							szDirectory,
+							GENERIC_READ,
+							FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+							NULL,
+							OPEN_EXISTING,
+							FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+							NULL
+						);
 
-	if ( pWatch->DirHandle != INVALID_HANDLE_VALUE &&
-		 CreateIoCompletionPort( pWatch->DirHandle, iocp, 0, 1 ) ) {
-		pWatch->NotifyFilter = notifyFilter;
+	if (pWatch->DirHandle != INVALID_HANDLE_VALUE &&
+		CreateIoCompletionPort(pWatch->DirHandle, iocp, 0, 1))
+	{
+		pWatch->NotifyFilter = NotifyFilter;
 		pWatch->Recursive = recursive;
 
-		if ( RefreshResult::Failed != RefreshWatch( tWatch ) ) {
+		if (RefreshWatch(tWatch))
+		{
 			return tWatch;
 		}
 	}
 
-	CloseHandle( pWatch->DirHandle );
+	CloseHandle(pWatch->DirHandle);
 	efSAFE_DELETE( pWatch->Watch );
-	efSAFE_DELETE( tWatch );
+	HeapFree(GetProcessHeap(), 0, tWatch);
 	return NULL;
 }
 
-} // namespace efsw
+}
 
-#endif
+ #endif

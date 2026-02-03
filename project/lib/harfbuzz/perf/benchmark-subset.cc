@@ -1,9 +1,18 @@
-#include "hb-benchmark.hh"
+#include "benchmark/benchmark.h"
+#include <cassert>
+#include <cstring>
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "hb-subset.h"
+
 
 enum operation_t
 {
+  subset_codepoints,
   subset_glyphs,
-  subset_unicodes,
   instance,
 };
 
@@ -37,13 +46,6 @@ _mplus_instance_opts[] =
   {HB_TAG ('w', 'g', 'h', 't'), 800.f},
 };
 
-static const axis_location_t
-_fraunces_partial_instance_opts[] =
-{
-  {HB_TAG ('S', 'O', 'F', 'T'), 75.0f},
-  {HB_TAG ('W', 'O', 'N', 'K'), 0.75f},
-};
-
 template <typename Type, unsigned int n>
 static inline unsigned int ARRAY_LEN (const Type (&)[n]) { return n; }
 
@@ -67,7 +69,6 @@ struct test_input_t
   {SUBSET_FONT_BASE_PATH "AdobeVFPrototype.otf", 300, nullptr, 0},
   {SUBSET_FONT_BASE_PATH "MPLUS1-Variable.ttf", 6000, _mplus_instance_opts, ARRAY_LEN (_mplus_instance_opts)},
   {SUBSET_FONT_BASE_PATH "RobotoFlex-Variable.ttf", 900, _roboto_flex_instance_opts, ARRAY_LEN (_roboto_flex_instance_opts)},
-  {SUBSET_FONT_BASE_PATH "Fraunces.ttf", 900, _fraunces_partial_instance_opts, ARRAY_LEN (_fraunces_partial_instance_opts)},
 #if 0
   {"perf/fonts/NotoSansCJKsc-VF.ttf", 100000},
 #endif
@@ -96,12 +97,7 @@ void AddGlyphs(unsigned num_glyphs_in_font,
 {
   auto *glyphs = hb_subset_input_glyph_set (input);
   for (unsigned i = 0; i < subset_size && i < num_glyphs_in_font; i++) {
-    if (i + 1 == subset_size &&
-        hb_subset_input_get_flags (input) & HB_SUBSET_FLAGS_RETAIN_GIDS)
-    {
-      hb_set_add (glyphs, num_glyphs_in_font - 1);
-      continue;
-    }
+    // TODO(garretrieger): pick randomly.
     hb_set_add (glyphs, i);
   }
 }
@@ -115,32 +111,25 @@ static hb_face_t* preprocess_face(hb_face_t* face)
   return new_face;
 }
 
-static hb_face_t *cached_face;
-
-static void
-free_cached_face (void)
-{
-  hb_face_destroy (cached_face);
-  cached_face = nullptr;
-}
-
-
 /* benchmark for subsetting a font */
 static void BM_subset (benchmark::State &state,
                        operation_t operation,
                        const test_input_t &test_input,
-                       bool retain_gids)
+                       bool hinting)
 {
   unsigned subset_size = state.range(0);
 
   hb_face_t *face = nullptr;
 
+  static hb_face_t *cached_face;
   static const char *cached_font_path;
 
   if (!cached_font_path || strcmp (cached_font_path, test_input.font_path))
   {
-    face = hb_benchmark_face_create_from_file_or_fail (test_input.font_path, 0);
-    assert (face);
+    hb_blob_t *blob = hb_blob_create_from_file_or_fail (test_input.font_path);
+    assert (blob);
+    face = hb_face_create (blob, 0);
+    hb_blob_destroy (blob);
 
     face = preprocess_face (face);
 
@@ -156,12 +145,12 @@ static void BM_subset (benchmark::State &state,
   hb_subset_input_t* input = hb_subset_input_create_or_fail ();
   assert (input);
 
-  if (retain_gids)
-    hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_RETAIN_GIDS);
+  if (!hinting)
+    hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_NO_HINTING);
 
   switch (operation)
   {
-    case subset_unicodes:
+    case subset_codepoints:
     {
       hb_set_t* all_codepoints = hb_set_create ();
       hb_face_collect_unicodes (face, all_codepoints);
@@ -184,8 +173,6 @@ static void BM_subset (benchmark::State &state,
       AddCodepoints(all_codepoints, subset_size, input);
       hb_set_destroy (all_codepoints);
 
-      hb_subset_input_set_flags(input, hb_subset_input_get_flags(input) | HB_SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS);
-
       for (unsigned i = 0; i < test_input.num_instance_opts; i++)
         hb_subset_input_pin_axis_location (input, face,
                                            test_input.instance_opts[i].axis_tag,
@@ -207,7 +194,7 @@ static void BM_subset (benchmark::State &state,
 
 static void test_subset (operation_t op,
                          const char *op_name,
-                         bool retain_gids,
+                         bool hinting,
                          benchmark::TimeUnit time_unit,
                          const test_input_t &test_input)
 {
@@ -219,10 +206,10 @@ static void test_subset (operation_t op,
   strcat (name, "/");
   const char *p = strrchr (test_input.font_path, '/');
   strcat (name, p ? p + 1 : test_input.font_path);
-  if (retain_gids)
-    strcat (name, "/retaingids");
+  if (!hinting)
+    strcat (name, "/nohinting");
 
-  benchmark::RegisterBenchmark (name, BM_subset, op, test_input, retain_gids)
+  benchmark::RegisterBenchmark (name, BM_subset, op, test_input, hinting)
       ->Range(10, test_input.max_subset_size)
       ->Unit(time_unit);
 }
@@ -245,10 +232,6 @@ int main(int argc, char** argv)
 {
   benchmark::Initialize(&argc, argv);
 
-#ifndef HB_NO_ATEXIT
-  atexit (free_cached_face);
-#endif
-
   if (argc > 1)
   {
     num_tests = (argc - 1) / 2;
@@ -262,9 +245,9 @@ int main(int argc, char** argv)
 
 #define TEST_OPERATION(op, time_unit) test_operation (op, #op, tests, num_tests, time_unit)
 
-  TEST_OPERATION (subset_glyphs, benchmark::kMicrosecond);
-  TEST_OPERATION (subset_unicodes, benchmark::kMicrosecond);
-  TEST_OPERATION (instance, benchmark::kMicrosecond);
+  TEST_OPERATION (subset_glyphs, benchmark::kMillisecond);
+  TEST_OPERATION (subset_codepoints, benchmark::kMillisecond);
+  TEST_OPERATION (instance, benchmark::kMillisecond);
 
 #undef TEST_OPERATION
 

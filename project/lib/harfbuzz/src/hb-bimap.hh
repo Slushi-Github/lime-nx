@@ -39,10 +39,10 @@ struct hb_bimap_t
     back_map.reset ();
   }
 
-  void alloc (unsigned pop)
+  void resize (unsigned pop)
   {
-    forw_map.alloc (pop);
-    back_map.alloc (pop);
+    forw_map.resize (pop);
+    back_map.resize (pop);
   }
 
   bool in_error () const { return forw_map.in_error () || back_map.in_error (); }
@@ -86,38 +86,11 @@ struct hb_bimap_t
   protected:
   hb_map_t  forw_map;
   hb_map_t  back_map;
-
-  public:
-  auto keys () const HB_AUTO_RETURN (+ forw_map.keys())
-  auto values () const HB_AUTO_RETURN (+ forw_map.values())
-  auto iter () const HB_AUTO_RETURN (+ forw_map.iter())
 };
 
-/* Incremental bimap: only lhs is given, rhs is incrementally assigned */
-struct hb_inc_bimap_t
+/* Inremental bimap: only lhs is given, rhs is incrementally assigned */
+struct hb_inc_bimap_t : hb_bimap_t
 {
-  bool in_error () const { return forw_map.in_error () || back_map.in_error (); }
-
-  unsigned int get_population () const { return forw_map.get_population (); }
-
-  void reset ()
-  {
-    forw_map.reset ();
-    back_map.reset ();
-  }
-
-  void alloc (unsigned pop)
-  {
-    forw_map.alloc (pop);
-    back_map.alloc (pop);
-  }
-
-  void clear ()
-  {
-    forw_map.clear ();
-    back_map.resize (0);
-  }
-
   /* Add a mapping from lhs to rhs with a unique value if lhs is unknown.
    * Return the rhs value as the result.
    */
@@ -126,42 +99,29 @@ struct hb_inc_bimap_t
     hb_codepoint_t  rhs = forw_map[lhs];
     if (rhs == HB_MAP_VALUE_INVALID)
     {
-      rhs = back_map.length;
-      forw_map.set (lhs, rhs);
-      back_map.push (lhs);
+      rhs = next_value++;
+      set (lhs, rhs);
     }
     return rhs;
   }
 
   hb_codepoint_t skip ()
-  {
-    hb_codepoint_t start = back_map.length;
-    back_map.push (HB_MAP_VALUE_INVALID);
-    return start;
-  }
-
-  hb_codepoint_t skip (unsigned count)
-  {
-    hb_codepoint_t start = back_map.length;
-    back_map.alloc (back_map.length + count);
-    for (unsigned i = 0; i < count; i++)
-      back_map.push (HB_MAP_VALUE_INVALID);
-    return start;
-  }
+  { return next_value++; }
 
   hb_codepoint_t get_next_value () const
-  { return back_map.length; }
+  { return next_value; }
 
   void add_set (const hb_set_t *set)
   {
-    for (auto i : *set) add (i);
+    hb_codepoint_t i = HB_SET_VALUE_INVALID;
+    while (hb_set_next (set, &i)) add (i);
   }
 
   /* Create an identity map. */
   bool identity (unsigned int size)
   {
     clear ();
-    for (hb_codepoint_t i = 0; i < size; i++) add (i);
+    for (hb_codepoint_t i = 0; i < size; i++) set (i, i);
     return !in_error ();
   }
 
@@ -176,30 +136,20 @@ struct hb_inc_bimap_t
   {
     hb_codepoint_t  count = get_population ();
     hb_vector_t <hb_codepoint_t> work;
-    if (unlikely (!work.resize (count, false))) return;
+    work.resize (count);
 
     for (hb_codepoint_t rhs = 0; rhs < count; rhs++)
-      work.arrayZ[rhs] = back_map[rhs];
+      work[rhs] = back_map[rhs];
 
     work.qsort (cmp_id);
 
     clear ();
     for (hb_codepoint_t rhs = 0; rhs < count; rhs++)
-      add (work.arrayZ[rhs]);
+      set (work[rhs], rhs);
   }
 
-  hb_codepoint_t get (hb_codepoint_t lhs) const { return forw_map.get (lhs); }
-  hb_codepoint_t backward (hb_codepoint_t rhs) const { return back_map[rhs]; }
-
-  hb_codepoint_t operator [] (hb_codepoint_t lhs) const { return get (lhs); }
-  bool has (hb_codepoint_t lhs) const { return forw_map.has (lhs); }
-
   protected:
-  hb_map_t forw_map;
-  hb_vector_t<hb_codepoint_t> back_map;
-
-  public:
-  auto keys () const HB_AUTO_RETURN (+ back_map.iter())
+  unsigned int next_value = 0;
 };
 
 #endif /* HB_BIMAP_HH */

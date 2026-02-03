@@ -2,7 +2,7 @@
 <info>
 <keywords>
 unittest
-curl_strequal
+curl_strcasecompare
 </keywords>
 </info>
 
@@ -12,8 +12,11 @@ curl_strequal
 <server>
 none
 </server>
+<features>
+unittest
+</features>
  <name>
-curl_strequal tests
+curl_strcasecompare unit tests
  </name>
 </client>
 </testcase>

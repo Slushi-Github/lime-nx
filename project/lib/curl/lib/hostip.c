@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -46,6 +44,10 @@
 #endif
 #ifdef HAVE_SIGNAL_H
 #include <signal.h>
+#endif
+
+#ifdef HAVE_PROCESS_H
+#include <process.h>
 #endif
 
 #include "urldata.h"
@@ -177,7 +179,7 @@ create_hostcache_id(const char *name, int port, char *ptr, size_t buflen)
     len = buflen - 7;
   /* store and lower case the name */
   while(len--)
-    *ptr++ = Curl_raw_tolower(*name++);
+    *ptr++ = (char)TOLOWER(*name++);
   msnprintf(ptr, 7, ":%u", port);
 }
 
@@ -293,31 +295,6 @@ static struct Curl_dns_entry *fetch_addr(struct Curl_easy *data,
     }
   }
 
-  /* See if the returned entry matches the required resolve mode */
-  if(dns && data->conn->ip_version != CURL_IPRESOLVE_WHATEVER) {
-    int pf = PF_INET;
-    bool found = false;
-    struct Curl_addrinfo *addr = dns->addr;
-
-#ifdef PF_INET6
-    if(data->conn->ip_version == CURL_IPRESOLVE_V6)
-      pf = PF_INET6;
-#endif
-
-    while(addr) {
-      if(addr->ai_family == pf) {
-        found = true;
-        break;
-      }
-      addr = addr->ai_next;
-    }
-
-    if(!found) {
-      infof(data, "Hostname in DNS cache doesn't have needed family, zapped");
-      dns = NULL; /* the memory deallocation is being handled by the hash */
-      Curl_hash_delete(data->dns.hostcache, entry_id, entry_len + 1);
-    }
-  }
   return dns;
 }
 
@@ -484,12 +461,12 @@ Curl_cache_addr(struct Curl_easy *data,
 }
 
 #ifdef ENABLE_IPV6
-/* return a static IPv6 ::1 for the name */
-static struct Curl_addrinfo *get_localhost6(int port, const char *name)
+/* return a static IPv6 resolve for 'localhost' */
+static struct Curl_addrinfo *get_localhost6(int port)
 {
   struct Curl_addrinfo *ca;
   const size_t ss_size = sizeof(struct sockaddr_in6);
-  const size_t hostlen = strlen(name);
+  const size_t hostlen = strlen("localhost");
   struct sockaddr_in6 sa6;
   unsigned char ipv6[16];
   unsigned short port16 = (unsigned short)(port & 0xffff);
@@ -514,19 +491,19 @@ static struct Curl_addrinfo *get_localhost6(int port, const char *name)
   ca->ai_addr = (void *)((char *)ca + sizeof(struct Curl_addrinfo));
   memcpy(ca->ai_addr, &sa6, ss_size);
   ca->ai_canonname = (char *)ca->ai_addr + ss_size;
-  strcpy(ca->ai_canonname, name);
+  strcpy(ca->ai_canonname, "localhost");
   return ca;
 }
 #else
-#define get_localhost6(x,y) NULL
+#define get_localhost6(x) NULL
 #endif
 
-/* return a static IPv4 127.0.0.1 for the given name */
-static struct Curl_addrinfo *get_localhost(int port, const char *name)
+/* return a static IPv4 resolve for 'localhost' */
+static struct Curl_addrinfo *get_localhost(int port)
 {
   struct Curl_addrinfo *ca;
   const size_t ss_size = sizeof(struct sockaddr_in);
-  const size_t hostlen = strlen(name);
+  const size_t hostlen = strlen("localhost");
   struct sockaddr_in sa;
   unsigned int ipv4;
   unsigned short port16 = (unsigned short)(port & 0xffff);
@@ -550,8 +527,8 @@ static struct Curl_addrinfo *get_localhost(int port, const char *name)
   ca->ai_addr = (void *)((char *)ca + sizeof(struct Curl_addrinfo));
   memcpy(ca->ai_addr, &sa, ss_size);
   ca->ai_canonname = (char *)ca->ai_addr + ss_size;
-  strcpy(ca->ai_canonname, name);
-  ca->ai_next = get_localhost6(port, name);
+  strcpy(ca->ai_canonname, "localhost");
+  ca->ai_next = get_localhost6(port);
   return ca;
 }
 
@@ -567,11 +544,7 @@ bool Curl_ipv6works(struct Curl_easy *data)
        have the info kept for fast re-use */
     DEBUGASSERT(data);
     DEBUGASSERT(data->multi);
-    if(data->multi->ipv6_up == IPV6_UNKNOWN) {
-      bool works = Curl_ipv6works(NULL);
-      data->multi->ipv6_up = works ? IPV6_WORKS : IPV6_DEAD;
-    }
-    return data->multi->ipv6_up == IPV6_WORKS;
+    return data->multi->ipv6_works;
   }
   else {
     int ipv6_works = -1;
@@ -606,17 +579,6 @@ bool Curl_host_is_ipnum(const char *hostname)
     )
     return TRUE;
   return FALSE;
-}
-
-
-/* return TRUE if 'part' is a case insensitive tail of 'full' */
-static bool tailmatch(const char *full, const char *part)
-{
-  size_t plen = strlen(part);
-  size_t flen = strlen(full);
-  if(plen > flen)
-    return FALSE;
-  return strncasecompare(part, &full[flen - plen], plen);
 }
 
 /*
@@ -754,9 +716,8 @@ enum resolve_t Curl_resolv(struct Curl_easy *data,
       if(conn->ip_version == CURL_IPRESOLVE_V6 && !Curl_ipv6works(data))
         return CURLRESOLV_ERROR;
 
-      if(strcasecompare(hostname, "localhost") ||
-         tailmatch(hostname, ".localhost"))
-        addr = get_localhost(port, hostname);
+      if(strcasecompare(hostname, "localhost"))
+        addr = get_localhost(port);
 #ifndef CURL_DISABLE_DOH
       else if(allowDOH && data->set.doh && !ipnum)
         addr = Curl_doh(data, hostname, port, &respwait);
@@ -1030,9 +991,9 @@ static void freednsentry(void *freethis)
 /*
  * Curl_init_dnscache() inits a new DNS cache.
  */
-void Curl_init_dnscache(struct Curl_hash *hash, int size)
+void Curl_init_dnscache(struct Curl_hash *hash)
 {
-  Curl_hash_init(hash, size, Curl_hash_str, Curl_str_key_compare,
+  Curl_hash_init(hash, 7, Curl_hash_str, Curl_str_key_compare,
                  freednsentry);
 }
 

@@ -7,15 +7,21 @@ namespace efsw {
 
 /** Simple mutex class */
 class Lock {
-  public:
-	explicit Lock( Mutex& mutex ) : mMutex( mutex ) { mMutex.lock(); }
+	public:
+		explicit Lock( Mutex& mutex ) :
+			mMutex( mutex )
+		{
+			mMutex.lock();
+		}
 
-	~Lock() { mMutex.unlock(); }
-
-  private:
-	Mutex& mMutex;
+		~Lock()
+		{
+			mMutex.unlock();
+		}
+	private:
+		Mutex&		mMutex;
 };
 
-} // namespace efsw
+}
 
 #endif

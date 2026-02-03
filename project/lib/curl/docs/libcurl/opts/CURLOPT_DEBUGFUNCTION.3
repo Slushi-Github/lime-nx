@@ -5,7 +5,7 @@
 .\" *                            | (__| |_| |  _ <| |___
 .\" *                             \___|\___/|_| \_\_____|
 .\" *
-.\" * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+.\" * Copyright (C) 1998 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
 .\" *
 .\" * This software is licensed as described in the file COPYING, which
 .\" * you should have received as part of this distribution. The terms
@@ -17,8 +17,6 @@
 .\" *
 .\" * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 .\" * KIND, either express or implied.
-.\" *
-.\" * SPDX-License-Identifier: curl
 .\" *
 .\" **************************************************************************
 .\"
@@ -61,7 +59,7 @@ NOT be null-terminated, but will be exactly of the \fIsize\fP as told by the
 
 The \fIuserptr\fP argument is the pointer set with \fICURLOPT_DEBUGDATA(3)\fP.
 
-Available \fBcurl_infotype\fP values:
+Available curl_infotype values:
 .IP CURLINFO_TEXT
 The data is informational text.
 .IP CURLINFO_HEADER_IN
@@ -69,10 +67,7 @@ The data is header (or header-like) data received from the peer.
 .IP CURLINFO_HEADER_OUT
 The data is header (or header-like) data sent to the peer.
 .IP CURLINFO_DATA_IN
-The data is the unprocessed protocol data received from the peer. Even if the
-data is encoded or compressed, it will not be provided decoded nor
-decompressed to this callback. If you need the data in decoded and
-decompressed form, use \fICURLOPT_WRITEFUNCTION(3)\fP.
+The data is protocol data received from the peer.
 .IP CURLINFO_DATA_OUT
 The data is protocol data sent to the peer.
 .IP CURLINFO_SSL_DATA_OUT
@@ -128,8 +123,7 @@ int my_trace(CURL *handle, curl_infotype type,
 
   switch (type) {
   case CURLINFO_TEXT:
-    fputs("== Info: ", stderr);
-    fwrite(data, size, 1, stderr);
+    fprintf(stderr, "== Info: %s", data);
   default: /* in case a new one is introduced to shock us */
     return 0;
 

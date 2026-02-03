@@ -623,6 +623,16 @@ cell_list_rewind (struct cell_list *cells)
 }
 
 inline static void
+cell_list_maybe_rewind (struct cell_list *cells, int x)
+{
+    if (x < cells->cursor->x) {
+	cells->cursor = cells->rewind;
+	if (x < cells->cursor->x)
+	    cells->cursor = &cells->head;
+    }
+}
+
+inline static void
 cell_list_set_rewind (struct cell_list *cells)
 {
     cells->rewind = cells->cursor;
@@ -1675,7 +1685,7 @@ _cairo_tor22_scan_converter_create (int			xmin,
     cairo_tor22_scan_converter_t *self;
     cairo_status_t status;
 
-    self = _cairo_calloc (sizeof(struct _cairo_tor22_scan_converter));
+    self = _cairo_malloc (sizeof(struct _cairo_tor22_scan_converter));
     if (unlikely (self == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto bail_nomem;

@@ -239,7 +239,7 @@ struct _cairo_test_context {
     FILE *log_file;
     const char *output;
     const char *srcdir; /* directory containing sources and input data */
-    char *refdir; /* directory containing reference images */
+    const char *refdir; /* directory containing reference images */
 
     char *ref_name; /* cache of the current reference image */
     cairo_surface_t *ref_image;
@@ -322,11 +322,6 @@ cairo_test_mkdir (const char *path);
 cairo_t *
 cairo_test_create (cairo_surface_t *surface,
 		   const cairo_test_context_t *ctx);
-
-/* Set font face from a font file in build or src dir, using the FT backend. */
-cairo_test_status_t
-cairo_test_ft_select_font_from_file (cairo_t      *cr,
-                                     const char   *filename);
 
 CAIRO_END_DECLS
 

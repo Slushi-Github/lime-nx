@@ -20,22 +20,18 @@
 
 #include "config.h"
 
-#include "backends/null.h"
+#include "null.h"
 
 #include <exception>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include <thread>
 
-#include "alcmain.h"
-#include "alexcpt.h"
-#include "almalloc.h"
-#include "alu.h"
-#include "logging.h"
-#include "threads.h"
+#include "althrd_setname.h"
+#include "core/device.h"
+#include "core/helpers.h"
 
 
 namespace {
@@ -43,52 +39,51 @@ namespace {
 using std::chrono::seconds;
 using std::chrono::milliseconds;
 using std::chrono::nanoseconds;
+using namespace std::string_view_literals;
 
-constexpr ALCchar nullDevice[] = "No Output";
+[[nodiscard]] constexpr auto GetDeviceName() noexcept { return "No Output"sv; }
 
 
 struct NullBackend final : public BackendBase {
-    NullBackend(ALCdevice *device) noexcept : BackendBase{device} { }
+    explicit NullBackend(DeviceBase *device) noexcept : BackendBase{device} { }
 
     int mixerProc();
 
-    void open(const ALCchar *name) override;
+    void open(std::string_view name) override;
     bool reset() override;
-    bool start() override;
+    void start() override;
     void stop() override;
 
     std::atomic<bool> mKillNow{true};
     std::thread mThread;
-
-    DEF_NEWDEL(NullBackend)
 };
 
 int NullBackend::mixerProc()
 {
-    const milliseconds restTime{mDevice->UpdateSize*1000/mDevice->Frequency / 2};
+    const milliseconds restTime{mDevice->mUpdateSize*1000/mDevice->mSampleRate / 2};
 
     SetRTPriority();
-    althrd_setname(MIXER_THREAD_NAME);
+    althrd_setname(GetMixerThreadName());
 
     int64_t done{0};
     auto start = std::chrono::steady_clock::now();
-    while(!mKillNow.load(std::memory_order_acquire) &&
-          mDevice->Connected.load(std::memory_order_acquire))
+    while(!mKillNow.load(std::memory_order_acquire)
+        && mDevice->Connected.load(std::memory_order_acquire))
     {
         auto now = std::chrono::steady_clock::now();
 
         /* This converts from nanoseconds to nanosamples, then to samples. */
-        int64_t avail{std::chrono::duration_cast<seconds>((now-start) * mDevice->Frequency).count()};
-        if(avail-done < mDevice->UpdateSize)
+        const auto avail = int64_t{std::chrono::duration_cast<seconds>((now-start)
+            * mDevice->mSampleRate).count()};
+        if(avail-done < mDevice->mUpdateSize)
         {
             std::this_thread::sleep_for(restTime);
             continue;
         }
-        while(avail-done >= mDevice->UpdateSize)
+        while(avail-done >= mDevice->mUpdateSize)
         {
-            std::lock_guard<NullBackend> _{*this};
-            aluMixData(mDevice, nullptr, mDevice->UpdateSize, 0u);
-            done += mDevice->UpdateSize;
+            mDevice->renderSamples(nullptr, mDevice->mUpdateSize, 0u);
+            done += mDevice->mUpdateSize;
         }
 
         /* For every completed second, increment the start time and reduce the
@@ -96,11 +91,11 @@ int NullBackend::mixerProc()
          * and current time from growing too large, while maintaining the
          * correct number of samples to render.
          */
-        if(done >= mDevice->Frequency)
+        if(done >= mDevice->mSampleRate)
         {
-            seconds s{done/mDevice->Frequency};
+            seconds s{done/mDevice->mSampleRate};
             start += s;
-            done -= mDevice->Frequency*s.count();
+            done -= mDevice->mSampleRate*s.count();
         }
     }
 
@@ -108,35 +103,33 @@ int NullBackend::mixerProc()
 }
 
 
-void NullBackend::open(const ALCchar *name)
+void NullBackend::open(std::string_view name)
 {
-    if(!name)
-        name = nullDevice;
-    else if(strcmp(name, nullDevice) != 0)
-        throw al::backend_exception{ALC_INVALID_VALUE, "Device name \"%s\" not found", name};
+    if(name.empty())
+        name = GetDeviceName();
+    else if(name != GetDeviceName())
+        throw al::backend_exception{al::backend_error::NoDevice, "Device name \"{}\" not found",
+            name};
 
-    mDevice->DeviceName = name;
+    mDeviceName = name;
 }
 
 bool NullBackend::reset()
 {
-    SetDefaultWFXChannelOrder(mDevice);
+    setDefaultWFXChannelOrder();
     return true;
 }
 
-bool NullBackend::start()
+void NullBackend::start()
 {
     try {
         mKillNow.store(false, std::memory_order_release);
-        mThread = std::thread{std::mem_fn(&NullBackend::mixerProc), this};
-        return true;
+        mThread = std::thread{&NullBackend::mixerProc, this};
     }
     catch(std::exception& e) {
-        ERR("Failed to start mixing thread: %s\n", e.what());
+        throw al::backend_exception{al::backend_error::DeviceError,
+            "Failed to start mixing thread: {}", e.what()};
     }
-    catch(...) {
-    }
-    return false;
 }
 
 void NullBackend::stop()
@@ -155,20 +148,20 @@ bool NullBackendFactory::init()
 bool NullBackendFactory::querySupport(BackendType type)
 { return (type == BackendType::Playback); }
 
-void NullBackendFactory::probe(DevProbe type, std::string *outnames)
+auto NullBackendFactory::enumerate(BackendType type) -> std::vector<std::string>
 {
     switch(type)
     {
-        case DevProbe::Playback:
-            /* Includes null char. */
-            outnames->append(nullDevice, sizeof(nullDevice));
-            break;
-        case DevProbe::Capture:
-            break;
+    case BackendType::Playback:
+        /* Include null char. */
+        return std::vector{std::string{GetDeviceName()}};
+    case BackendType::Capture:
+        break;
     }
+    return {};
 }
 
-BackendPtr NullBackendFactory::createBackend(ALCdevice *device, BackendType type)
+BackendPtr NullBackendFactory::createBackend(DeviceBase *device, BackendType type)
 {
     if(type == BackendType::Playback)
         return BackendPtr{new NullBackend{device}};

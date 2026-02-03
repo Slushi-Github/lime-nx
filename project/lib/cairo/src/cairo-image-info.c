@@ -162,15 +162,9 @@ static const unsigned char _jpx_signature[] = {
 };
 
 static const unsigned char *
-_jpx_next_box (const unsigned char *p, const unsigned char *end)
+_jpx_next_box (const unsigned char *p)
 {
-    if (p + 4 < end) {
-	uint32_t length = get_unaligned_be32 (p);
-	if (p + length < end)
-	    return p + length;
-    }
-
-    return end;
+    return p + get_unaligned_be32 (p);
 }
 
 static const unsigned char *
@@ -199,25 +193,19 @@ _jpx_find_box (const unsigned char *p, const unsigned char *end, uint32_t type)
     while (p < end) {
 	if (_jpx_match_box (p, end, type))
 	    return p;
-	p = _jpx_next_box (p, end);
+	p = _jpx_next_box (p);
     }
 
     return NULL;
 }
 
-static cairo_int_status_t
-_jpx_extract_info (const unsigned char *p, cairo_image_info_t *info, const unsigned char *end)
+static void
+_jpx_extract_info (const unsigned char *p, cairo_image_info_t *info)
 {
-    if (p + 11 >= end) {
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-    }
-
     info->height = get_unaligned_be32 (p);
     info->width = get_unaligned_be32 (p + 4);
     info->num_components = (p[8] << 8) + p[9];
     info->bits_per_component = p[10];
-
-    return CAIRO_STATUS_SUCCESS;
 }
 
 cairo_int_status_t
@@ -239,7 +227,7 @@ _cairo_image_info_get_jpx_info (cairo_image_info_t	*info,
     if (! _jpx_match_box (p, end, JPX_FILETYPE))
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    p = _jpx_next_box (p, end);
+    p = _jpx_next_box (p);
 
     /* Locate the JP2 header box. */
     p = _jpx_find_box (p, end, JPX_JP2_HEADER);
@@ -254,7 +242,9 @@ _cairo_image_info_get_jpx_info (cairo_image_info_t	*info,
 
     /* Get the image info */
     p = _jpx_get_box_contents (p);
-    return _jpx_extract_info (p, info, end);
+    _jpx_extract_info (p, info);
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 /* PNG (image/png)
@@ -358,8 +348,6 @@ _jbig2_get_next_segment (const unsigned char  *p,
 
     num_segs = p[0] >> 5;
     if (num_segs == 7) {
-	if (p + 4 >= end)
-	    return NULL;
 	num_segs = get_unaligned_be32 (p) & 0x1fffffff;
 	ref_seg_bytes = 4 + ((num_segs + 1)/8);
     } else {

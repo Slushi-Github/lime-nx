@@ -1,5 +1,3 @@
-c: Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
-SPDX-License-Identifier: curl
 Short: v
 Long: verbose
 Mutexed: trace trace-ascii
@@ -8,7 +6,6 @@ See-also: include
 Category: important verbose
 Example: --verbose $URL
 Added: 4.0
-Multi: boolean
 ---
 Makes curl verbose during the operation. Useful for debugging and seeing
 what's going on "under the hood". A line starting with '>' means "header data"

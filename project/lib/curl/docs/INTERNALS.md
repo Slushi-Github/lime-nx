@@ -25,7 +25,7 @@ versions of libs, tools and operating systems.
  - c-ares       1.16.0
  - libidn2      2.0.0
  - wolfSSL      2.0.0
- - OpenLDAP     2.0
+ - openldap     2.0
  - MIT Kerberos 1.2.4
  - GSKit        V5R3M0
  - NSS          3.14.x
@@ -58,12 +58,3 @@ versions of libs, tools and operating systems.
  - perl         5.004
  - roffit       0.5
  - groff        ? (any version that supports `groff -Tps -man [in] [out]`)
-
-Library Symbols
-===============
-
- All symbols used internally in libcurl must use a `Curl_` prefix if they are
- used in more than a single file. Single-file symbols must be made static.
- Public ("exported") symbols must use a `curl_` prefix. Public API functions
- are marked with `CURL_EXTERN` in the public header files so that all others
- can be hidden on platforms where this is possible.

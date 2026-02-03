@@ -107,6 +107,14 @@ with open ('meson.build', 'w') as f: f.write ('\n'.join (
 	[']', '']
 ))
 
-subprocess.run([git, 'add', 'meson.build'], check=True)
+with open ('Makefile.sources', 'w') as f: f.write ('\n'.join (
+	['TESTS = \\'] +
+	['	%s \\' % x for x in tests] +
+	['	$(NULL)', '', 'DISBALED_TESTS = \\'] +
+	['	%s \\' % x for x in disabled_tests] +
+	['	$(NULL)', '']
+))
+
+subprocess.run([git, 'add', 'Makefile.sources'], check=True)
 
 print ('Updated the testsuit, now run `git commit -e -m "[test/text-rendering-tests] Update from upstream"`')

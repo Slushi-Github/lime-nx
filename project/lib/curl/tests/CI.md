@@ -1,9 +1,3 @@
-<!--
-Copyright (C) 1998 - 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
-
-SPDX-License-Identifier: curl
--->
-
 # Continuous Integration for curl
 
 Curl runs in many different environments, so every change is run against a large
@@ -39,24 +33,24 @@ Consider the following table while looking at pull request failures:
  | LGTM analysis: Python               | stable | new findings               |
  | LGTM analysis:  C/C++               | stable | new findings               |
  | buildbot/curl_winssl_ ...           | stable | all errors and failures    |
- | AppVeyor                            | flaky  | all errors and failures    |
+ | continuous-integration/appveyor/pr  | stable | all errors and failures    |
  | curl.curl (linux ...)               | stable | all errors and failures    |
  | curl.curl (windows ...)             | flaky  | repetitive errors/failures |
- | CodeQL                              | stable | new findings               |
+ | deepcode-ci-bot                     | stable | new findings               |
+ | musedev                             | stable | new findings               |
 
 Sometimes the tests fail due to a dependency service temporarily being offline
-or otherwise unavailable, for example package downloads. In this case you can
-just try to update your pull requests to rerun the tests later as described
-below.
+or otherwise unavailable, eg. package downloads. In this case you can just
+try to update your pull requests to rerun the tests later as described below.
 
 ## CI servers
 
 Here are the different CI environments that are currently in use, and how they
 are configured:
 
-### GitHub Actions
+### Github Actions
 
-GitHub Actions runs the following tests:
+Github Actions runs the following tests:
 
 - Mac OS tests with a variety of different compilation options
 - Fuzz tests ([see tests/fuzz/README for
@@ -75,20 +69,20 @@ The following tests are run in Microsoft Azure CI environment:
 
 These are all configured in `.azure-pipelines.yml`.
 
-As of November 2021 `@bagder` and `@mback2k` are the only people with
-administrator access to the Azure CI environment. Additional admins/group
-members can be added on request.
+As of November 2021 @bagder and @mback2k are the only people with administrator
+access to the Azure CI environment. Additional admins/group members can be added
+on request.
 
-### AppVeyor
+### Appveyor
 
-AppVeyor runs a variety of different Windows builds, with different compilation
+Appveyor runs a variety of different Windows builds, with different compilation
 options.
 
-As of November 2021 `@bagder`, `@mback2k`, `@jay`, `@vszakats`, `@dfandrich`
-and `@danielgustafsson` have administrator access to the AppVeyor CI
-environment.  Additional admins/group members can be added on request.
+As of November 2021 @bagder, @mback2k, @jay, @vszakats, @dfandrich and
+@danielgustafsson have administrator access to the Appveyor CI environment.
+Additional admins/group members can be added on request.
 
-The tests are configured in `appveyor.yml`.
+The tests are configured in appveyor.yml.
 
 ### Zuul
 
@@ -101,25 +95,25 @@ BoringSSL, etc).
 - Curl compiled with different C compilers.
 
 As of November 2021, the tests run (sometimes) but do not run consistently and
-do not report results to the GitHub checks runner - you need to manually check
+do not report results to the Github checks runner - you need to manually check
 for failures. See [#7522](https://github.com/curl/curl/issues/7522) for more
 information.
 
-As of November 2021 Daniel Stenberg is the only person with administrator
-access to the Zuul CI environment.
+As of November 2021 Daniel Stenberg is the only person with administrator access
+to the Zuul CI environment.
 
 These are configured in `zuul.d` and have test runners in `scripts/zuul`.
 
-### Circle CI
+### CircleCI
 
-Circle CI runs a basic Linux test suite on Ubuntu for both x86 and ARM
+CircleCI runs a basic Linux test suite on Ubuntu for both x86 and ARM
 processors. This is configured in `.circleci/config.yml`.
 
-You can [view the full list of CI jobs on Circle CI's
+You can [view the full list of CI jobs on CircleCI's
 website](https://app.circleci.com/pipelines/github/curl/curl).
 
-`@bagder` has access to edit the "Project Settings" on that page. Additional
-admins/group members can be added on request.
+@bagder has access to edit the "Project Settings" on that page.
+Additional admins/group members can be added on request.
 
 ### Cirrus CI
 
@@ -129,5 +123,5 @@ Cirrus CI runs a basic test suite on FreeBSD and Windows. This is configured in
 You can [view the full list of CI jobs on Cirrus CI's
 website](https://cirrus-ci.com/github/curl/curl).
 
-`@bagder` has access to edit the "Project Settings" on that page. Additional
-admins/group members can be added on request.
+@bagder has access to edit the "Project Settings" on that page.
+Additional admins/group members can be added on request.

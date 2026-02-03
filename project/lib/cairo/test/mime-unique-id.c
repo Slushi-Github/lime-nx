@@ -79,13 +79,10 @@
  *
  * If the size check fails, manually check the output and if the
  * surfaces are still embedded only once, update the expected sizes.
- *
- * Note: The PS2 output will embed the image more than once due to the
- * lower MAX_L2_FORM_DATA for PS2 in cairo-ps-surface.c.
  */
-#define PS2_EXPECTED_SIZE 626926
-#define PS3_EXPECTED_SIZE 381555
-#define PDF_EXPECTED_SIZE 162692
+#define PS2_EXPECTED_SIZE 417510
+#define PS3_EXPECTED_SIZE 381554
+#define PDF_EXPECTED_SIZE 162923
 #define SIZE_TOLERANCE      5000
 
 static const char *png_filename = "romedalen.png";

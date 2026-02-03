@@ -1,4 +1,11 @@
-#include "hb-benchmark.hh"
+/*
+ * Benchmarks for hb_set_t operations.
+ */
+#include "benchmark/benchmark.h"
+
+#include <cassert>
+#include <cstdlib>
+#include "hb.h"
 
 void RandomSet(unsigned size, unsigned max_value, hb_set_t* out) {
   hb_set_clear(out);

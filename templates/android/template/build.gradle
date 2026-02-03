@@ -16,7 +16,8 @@ buildscript {
 allprojects {
 	repositories {
 		mavenCentral()
-		google()
+		google()::if ANDROID_GRADLE_MAVEN_REPOSITORIES::::foreach ANDROID_GRADLE_MAVEN_REPOSITORIES::
+		maven { url = uri("::__current__::") }::end::::end::
 	}::if ANDROID_GRADLE_BUILD_DIRECTORY::
 	buildDir = "::ANDROID_GRADLE_BUILD_DIRECTORY::/::APP_FILE::/${project.name}"::end::
 }
@@ -47,6 +48,7 @@ configure(subprojects.findAll {!it.file('build.gradle').exists() && it.file('bui
 		compileSdkVersion Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
 		buildToolsVersion project.ANDROID_BUILD_TOOLS_VERSION
 		::if (ANDROID_GRADLE_PLUGIN>="4.0")::ndkPath '::ANDROID_NDK_ROOT_ESCAPED::'::end::
+		::if (ANDROID_GRADLE_PLUGIN>="4.0")::ndkVersion '::ANDROID_NDK_VERSION::'::end::
 
 		sourceSets {
 			main {

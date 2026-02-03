@@ -223,15 +223,19 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 
 - (BOOL)prefersHomeIndicatorAutoHidden
 {
+    /*
     BOOL hidden = NO;
     if (self.homeIndicatorHidden == 1) {
         hidden = YES;
     }
     return hidden;
+    */
+    return NO;
 }
 
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
 {
+    /*
     if (self.homeIndicatorHidden >= 0) {
         if (self.homeIndicatorHidden == 2) {
             return UIRectEdgeAll;
@@ -239,13 +243,17 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
             return UIRectEdgeNone;
         }
     }
+    */
 
     /* By default, fullscreen and borderless windows get all screen gestures */
+    /*
     if ((window->flags & (SDL_WINDOW_FULLSCREEN|SDL_WINDOW_BORDERLESS)) != 0) {
         return UIRectEdgeAll;
     } else {
         return UIRectEdgeNone;
     }
+    */
+    return UIRectEdgeBottom;
 }
 
 - (BOOL)prefersPointerLocked

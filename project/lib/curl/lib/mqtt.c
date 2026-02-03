@@ -19,8 +19,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -186,7 +184,7 @@ static int add_passwd(const char *passwd, const size_t plen,
   return 0;
 }
 
-/* add user to the CONNECT packet */
+/* add user to the CONN packet */
 static int add_user(const char *username, const size_t ulen,
                     unsigned char *pkt, const size_t start, int remain_pos)
 {
@@ -204,7 +202,7 @@ static int add_user(const char *username, const size_t ulen,
   return 0;
 }
 
-/* add client ID to the CONNECT packet */
+/* add client ID to the CONN packet */
 static int add_client_id(const char *client_id, const size_t client_id_len,
                          char *pkt, const size_t start)
 {
@@ -216,7 +214,7 @@ static int add_client_id(const char *client_id, const size_t client_id_len,
   return 0;
 }
 
-/* Set initial values of CONNECT packet */
+/* Set initial values of CONN packet */
 static int init_connpack(char *packet, char *remain, int remain_pos)
 {
   /* Fixed header starts */
@@ -242,7 +240,7 @@ static int init_connpack(char *packet, char *remain, int remain_pos)
   /* keep-alive 0 = disabled */
   packet[remain_pos + 9] = 0x00;
   packet[remain_pos + 10] = 0x3c;
-  /* end of variable header */
+  /*end of variable header*/
   return remain_pos + 10;
 }
 
@@ -251,7 +249,7 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
   CURLcode result = CURLE_OK;
   int pos = 0;
   int rc = 0;
-  /* remain length */
+  /*remain length*/
   int remain_pos = 0;
   char remain[4] = {0};
   size_t packetlen = 0;
@@ -293,7 +291,7 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
     return CURLE_OUT_OF_MEMORY;
   memset(packet, 0, packetlen);
 
-  /* set initial values for the CONNECT packet */
+  /* set initial values for CONN pack */
   pos = init_connpack(packet, remain, remain_pos);
 
   result = Curl_rand_hex(data, (unsigned char *)&client_id[clen],
@@ -389,18 +387,10 @@ static CURLcode mqtt_get_topic(struct Curl_easy *data,
                                char **topic, size_t *topiclen)
 {
   char *path = data->state.up.path;
-  CURLcode result = CURLE_URL_MALFORMAT;
-  if(strlen(path) > 1) {
-    result = Curl_urldecode(path + 1, 0, topic, topiclen, REJECT_NADA);
-    if(!result && (*topiclen > 0xffff)) {
-      failf(data, "Too long MQTT topic");
-      result = CURLE_URL_MALFORMAT;
-    }
-  }
-  else
-    failf(data, "No MQTT topic found. Forgot to URL encode it?");
-
-  return result;
+  if(strlen(path) > 1)
+    return Curl_urldecode(path + 1, 0, topic, topiclen, REJECT_NADA);
+  failf(data, "No MQTT topic found. Forgot to URL encode it?");
+  return CURLE_URL_MALFORMAT;
 }
 
 static CURLcode mqtt_subscribe(struct Curl_easy *data)
@@ -698,7 +688,7 @@ static CURLcode mqtt_do(struct Curl_easy *data, bool *done)
 
   result = mqtt_connect(data);
   if(result) {
-    failf(data, "Error %d sending MQTT CONNECT request", result);
+    failf(data, "Error %d sending MQTT CONN request", result);
     return result;
   }
   mqstate(data, MQTT_FIRST, MQTT_CONNACK);

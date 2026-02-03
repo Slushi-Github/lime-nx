@@ -56,7 +56,6 @@ ok
 http
 </server>
 <features>
-Mime
 !SSPI
 crypto
 proxy

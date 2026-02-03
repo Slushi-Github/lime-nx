@@ -1,12 +1,9 @@
-c: Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
-SPDX-License-Identifier: curl
 Long: no-clobber
 Help: Do not overwrite files that already exist
 Category: curl output
 Added: 7.83.0
 See-also: output remote-name
 Example: --no-clobber --output local/dir/file $URL
-Multi: boolean
 ---
 When used in conjunction with the --output, --remote-header-name,
 --remote-name, or --remote-name-all options, curl avoids overwriting files

@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -17,8 +17,6 @@
  *
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
- *
- * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
 #include "curlcheck.h"
@@ -47,7 +45,7 @@ UNITTEST_START
 UNITTEST_STOP
 #else
 
-char *stripcredentials(const char *url);
+bool stripcredentials(char **url);
 
 struct checkthis {
   const char *input;
@@ -67,22 +65,25 @@ static const struct checkthis tests[] = {
 
 UNITTEST_START
 {
+  bool cleanup;
+  char *url;
   int i;
   int rc = 0;
 
   for(i = 0; tests[i].input; i++) {
-    const char *url = tests[i].input;
-    char *stripped = stripcredentials(url);
+    url = (char *)tests[i].input;
+    cleanup = stripcredentials(&url);
     printf("Test %u got input \"%s\", output: \"%s\"\n",
-           i, tests[i].input, stripped);
+           i, tests[i].input, url);
 
-    if(stripped && strcmp(tests[i].output, stripped)) {
+    if(strcmp(tests[i].output, url)) {
       fprintf(stderr, "Test %u got input \"%s\", expected output \"%s\"\n"
               " Actual output: \"%s\"\n", i, tests[i].input, tests[i].output,
-              stripped);
+              url);
       rc++;
     }
-    curl_free(stripped);
+    if(cleanup)
+      curl_free(url);
   }
   return rc;
 }

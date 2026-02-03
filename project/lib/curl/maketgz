@@ -22,8 +22,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 
 version=$1
@@ -64,7 +62,6 @@ numeric=`perl -e 'printf("%02x%02x%02x\n", '"$major, $minor, $patch);"`
 HEADER=include/curl/curlver.h
 CHEADER=src/tool_version.h
 PLIST=lib/libcurl.plist
-PLISTO=$PLIST
 
 if test -z "$only"; then
   ext=".dist"
@@ -94,9 +91,6 @@ rm -f "$HEADER.bak"
 # Replace version number in header file:
 sed -i.bak 's/#define CURL_VERSION .*/#define CURL_VERSION "'$curlversion'"/g' $CHEADER
 rm -f "$CHEADER.bak"
-
-# Replace version number in plist file:
-sed "s/@CURL_PLIST_VERSION@/$curlversion/g" < $PLISTO.in >$PLIST
 
 if test -n "$only"; then
   # done!

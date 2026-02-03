@@ -27,59 +27,46 @@ def strip_check_sum (ttx_string):
 		       ttx_string, count=1)
 
 
-def generate_expected_output(input_file, unicodes, profile_flags, instance_flags, iup_optimize, output_directory, font_name, no_fonttools):
+def generate_expected_output(input_file, unicodes, profile_flags, instance_flags, output_directory, font_name):
 	input_path = input_file
-	if not no_fonttools and instance_flags:
+	if instance_flags:
 		instance_path = os.path.join(tempfile.mkdtemp (), font_name)
 		args = ["fonttools", "varLib.instancer",
 			"--no-overlap-flag",
-			"--no-recalc-timestamp"]
-		if not iup_optimize:
-			args.extend(["--no-optimize",])
-		args.extend(["--output=%s" % instance_path,
-			    input_file])
+			"--no-recalc-bounds",
+			"--no-recalc-timestamp",
+			"--output=%s" % instance_path,
+			input_file]
 		args.extend(instance_flags)
 		check_call(args)
 		input_path = instance_path
 
 	fonttools_path = os.path.join(tempfile.mkdtemp (), font_name)
 	args = ["fonttools", "subset", input_path]
-	if instance_flags:
-		args.extend(["--recalc-bounds", "--recalc-average-width"])
-	args.extend(["--drop-tables+=DSIG,BASE",
+	args.extend(["--drop-tables+=DSIG",
 		     "--drop-tables-=sbix",
 		     "--no-harfbuzz-repacker", # disable harfbuzz repacker so we aren't comparing to ourself.
+		     "--unicodes=%s" % unicodes,
 		     "--output-file=%s" % fonttools_path])
-	if unicodes != "":
-		args.extend(["--unicodes=%s" % unicodes,])
+	args.extend(profile_flags)
+	check_call(args)
 
-	# --gid-map is unsupported in fonttools so don't send it. Tests using
-	# it are crafted to work without fonttools knowing about the flag.
-	args.extend([f for f in profile_flags if not f.startswith("--gid-map")])
-	# Harfbuzz doesn't support pruning codepage ranges, so disable it in fonttools.
-	args.extend(["--no-prune-codepage-ranges"])
-	if not no_fonttools:
-		check_call(args)
-
-		with io.StringIO () as fp:
-			with TTFont (fonttools_path) as font:
-				font.saveXML (fp)
-				fonttools_ttx = strip_check_sum (fp.getvalue ())
+	with io.StringIO () as fp:
+		with TTFont (fonttools_path) as font:
+			font.saveXML (fp)
+		fonttools_ttx = strip_check_sum (fp.getvalue ())
 
 	harfbuzz_path = os.path.join(tempfile.mkdtemp (), font_name)
 	args = [
 		hb_subset,
 		"--font-file=" + input_file,
 		"--output-file=" + harfbuzz_path,
-		"--drop-tables+=DSIG,BASE",
+		"--unicodes=%s" % unicodes,
+		"--drop-tables+=DSIG",
 		"--drop-tables-=sbix"]
-	if unicodes != "":
-		args.extend(["--unicodes=%s" % unicodes,])
 	args.extend(profile_flags)
 	if instance_flags:
 		args.extend(["--instance=%s" % ','.join(instance_flags)])
-	if iup_optimize:
-		args.extend(["--optimize",])
 	check_call(args)
 
 	with io.StringIO () as fp:
@@ -87,7 +74,7 @@ def generate_expected_output(input_file, unicodes, profile_flags, instance_flags
 			font.saveXML (fp)
 		harfbuzz_ttx = strip_check_sum (fp.getvalue ())
 
-	if not no_fonttools and harfbuzz_ttx != fonttools_ttx:
+	if harfbuzz_ttx != fonttools_ttx:
 		for line in unified_diff (fonttools_ttx.splitlines (1), harfbuzz_ttx.splitlines (1), fonttools_path, harfbuzz_path):
 			sys.stdout.write (line)
 		sys.stdout.flush ()
@@ -113,7 +100,6 @@ for path in args:
 		for test in test_suite.tests():
 			unicodes = test.unicodes()
 			font_name = test.get_font_name()
-			no_fonttools = ("no_fonttools" in test.options)
 			print("Creating subset %s/%s" % (output_directory, font_name))
 			generate_expected_output(test.font_path, unicodes, test.get_profile_flags(),
-						 test.get_instance_flags(), test.iup_optimize, output_directory, font_name, no_fonttools=no_fonttools)
+						 test.get_instance_flags(), output_directory, font_name)

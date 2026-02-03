@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 /*
@@ -60,7 +58,7 @@ static int checkparts(CURLU *u, const char *in, const char *wanted,
     {CURLUPART_PATH, "path"},
     {CURLUPART_QUERY, "query"},
     {CURLUPART_FRAGMENT, "fragment"},
-    {CURLUPART_URL, NULL}
+    {0, NULL}
   };
   memset(buf, 0, sizeof(buf));
 
@@ -130,86 +128,7 @@ struct querycase {
   CURLUcode ucode;
 };
 
-struct clearurlcase {
-  CURLUPart part;
-  const char *in;
-  const char *out;
-  CURLUcode ucode;
-};
-
 static const struct testcase get_parts_list[] ={
-  /* https://ℂᵤⓇℒ。𝐒🄴 */
-  {"https://"
-   "%e2%84%82%e1%b5%a4%e2%93%87%e2%84%92%e3%80%82%f0%9d%90%92%f0%9f%84%b4",
-   "https | [11] | [12] | [13] | ℂᵤⓇℒ。𝐒🄴 | [15] |"
-   " / | [16] | [17]",
-   0, 0, CURLUE_OK},
-  {"https://"
-   "%e2%84%82%e1%b5%a4%e2%93%87%e2%84%92%e3%80%82%f0%9d%90%92%f0%9f%84%b4",
-   "https | [11] | [12] | [13] | "
-   "%e2%84%82%e1%b5%a4%e2%93%87%e2%84%92%e3%80%82%f0%9d%90%92%f0%9f%84%b4 "
-   "| [15] | / | [16] | [17]",
-   0, CURLU_URLENCODE, CURLUE_OK},
-  {"https://"
-   "\xe2\x84\x82\xe1\xb5\xa4\xe2\x93\x87\xe2\x84\x92"
-   "\xe3\x80\x82\xf0\x9d\x90\x92\xf0\x9f\x84\xb4",
-   "https | [11] | [12] | [13] | "
-   "%e2%84%82%e1%b5%a4%e2%93%87%e2%84%92%e3%80%82%f0%9d%90%92%f0%9f%84%b4 "
-   "| [15] | / | [16] | [17]",
-   0, CURLU_URLENCODE, CURLUE_OK},
-  {"https://user@example.net?he l lo",
-   "https | user | [12] | [13] | example.net | [15] | / | he+l+lo | [17]",
-   CURLU_ALLOW_SPACE, CURLU_URLENCODE, CURLUE_OK},
-  {"https://user@example.net?he l lo",
-   "https | user | [12] | [13] | example.net | [15] | / | he l lo | [17]",
-   CURLU_ALLOW_SPACE, 0, CURLUE_OK},
-  {"https://exam{}[]ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam{ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam}ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam]ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam\\ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam$ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam'ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam\"ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam^ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam`ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam*ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam<ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam>ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam=ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://exam;ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example,net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example&net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example+net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example(net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example)net", "", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://example.net/}",
-   "https | [11] | [12] | [13] | example.net | [15] | /} | [16] | [17]",
-   0, 0, CURLUE_OK},
-
-  /* blank user is blank */
-  {"https://:password@example.net",
-   "https |  | password | [13] | example.net | [15] | / | [16] | [17]",
-   0, 0, CURLUE_OK},
-  /* blank user + blank password */
-  {"https://:@example.net",
-   "https |  |  | [13] | example.net | [15] | / | [16] | [17]",
-   0, 0, CURLUE_OK},
-  /* user-only (no password) */
-  {"https://user@example.net",
-   "https | user | [12] | [13] | example.net | [15] | / | [16] | [17]",
-   0, 0, CURLUE_OK},
-#ifdef USE_WEBSOCKETS
-  {"ws://example.com/color/?green",
-   "ws | [11] | [12] | [13] | example.com | [15] | /color/ | green |"
-   " [17]",
-   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK },
-  {"wss://example.com/color/?green",
-   "wss | [11] | [12] | [13] | example.com | [15] | /color/ | green |"
-   " [17]",
-   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK },
-#endif
-
   {"https://user:password@example.net/get?this=and#but frag then", "",
    CURLU_DEFAULT_SCHEME, 0, CURLUE_BAD_FRAGMENT},
   {"https://user:password@example.net/get?this=and what", "",
@@ -309,7 +228,7 @@ static const struct testcase get_parts_list[] ={
    CURLU_DEFAULT_SCHEME, 0, CURLUE_NO_HOST},
   {"boing:80",
    "https | [11] | [12] | [13] | boing | 80 | / | [16] | [17]",
-   CURLU_DEFAULT_SCHEME|CURLU_GUESS_SCHEME, 0, CURLUE_OK},
+   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
   {"http://[fd00:a41::50]:8080",
    "http | [11] | [12] | [13] | [fd00:a41::50] | 8080 | / | [16] | [17]",
    CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
@@ -454,15 +373,6 @@ static const struct testcase get_parts_list[] ={
 };
 
 static const struct urltestcase get_url_list[] = {
-  /* unsupported schemes with no guessing enabled */
-  {"data:text/html;charset=utf-8;base64,PCFET0NUWVBFIEhUTUw+PG1ldGEgY",
-   "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
-  {"d:anything-really", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
-  {"about:config", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
-  {"example://foo", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
-  {"mailto:infobot@example.com?body=send%20current-issue", "", 0, 0,
-   CURLUE_UNSUPPORTED_SCHEME},
-  {"about:80", "https://about:80/", CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
   /* percent encoded host names */
   {"http://example.com%40127.0.0.1/", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"http://example.com%21127.0.0.1/", "", 0, 0, CURLUE_BAD_HOSTNAME},
@@ -489,8 +399,8 @@ static const struct urltestcase get_url_list[] = {
   {"https://0xff.0xff.0377.255", "https://255.255.255.255/", 0, 0, CURLUE_OK},
   {"https://1.0xffffff", "https://1.255.255.255/", 0, 0, CURLUE_OK},
   /* IPv4 numerical overflows or syntax errors will not normalize */
-  {"https://a127.0.0.1", "https://a127.0.0.1/", 0, 0, CURLUE_OK},
-  {"https://\xff.127.0.0.1", "https://%FF.127.0.0.1/", 0, CURLU_URLENCODE,
+  {"https://+127.0.0.1", "https://+127.0.0.1/", 0, 0, CURLUE_OK},
+  {"https://+127.0.0.1", "https://%2B127.0.0.1/", 0, CURLU_URLENCODE,
    CURLUE_OK},
   {"https://127.-0.0.1", "https://127.-0.0.1/", 0, 0, CURLUE_OK},
   {"https://127.0. 1", "https://127.0.0.1/", 0, 0, CURLUE_BAD_HOSTNAME},
@@ -589,7 +499,7 @@ static const struct urltestcase get_url_list[] = {
    "",
    CURLU_DISALLOW_USER, 0, CURLUE_USER_NOT_ALLOWED},
   {"http:/@example.com:123",
-   "http://@example.com:123/",
+   "http://example.com:123/",
    0, 0, CURLUE_OK},
   {"http:/:password@example.com",
    "http://:password@example.com/",
@@ -639,7 +549,7 @@ static const struct urltestcase get_url_list[] = {
   {"custom-scheme://host?expected=test-still-good",
    "custom-scheme://host/?expected=test-still-good",
    CURLU_NON_SUPPORT_SCHEME | CURLU_NO_AUTHORITY, 0, CURLUE_OK},
-  {NULL, NULL, 0, 0, CURLUE_OK}
+  {NULL, NULL, 0, 0, 0}
 };
 
 static int checkurl(const char *url, const char *out)
@@ -655,9 +565,9 @@ static int checkurl(const char *url, const char *out)
 /* !checksrc! disable SPACEBEFORECOMMA 1 */
 static const struct setcase set_parts_list[] = {
   {"https://example.com/",
-   "host=0xff,", /* '++' there's no automatic URL decode when settin this
+   "host=++,", /* '++' there's no automatic URL decode when settin this
                   part */
-   "https://0xff/",
+   "https://++/",
    0, /* get */
    0, /* set */
    CURLUE_OK, CURLUE_OK},
@@ -803,7 +713,7 @@ static const struct setcase set_parts_list[] = {
    CURLU_NON_SUPPORT_SCHEME, CURLU_NON_SUPPORT_SCHEME | CURLU_NO_AUTHORITY,
    CURLUE_OK, CURLUE_OK},
 
-  {NULL, NULL, NULL, 0, 0, CURLUE_OK, CURLUE_OK}
+  {NULL, NULL, NULL, 0, 0, 0, 0}
 };
 
 static CURLUPart part2id(char *part)
@@ -878,47 +788,35 @@ static CURLUcode updateurl(CURLU *u, const char *cmd, unsigned int setflags)
 }
 
 static const struct redircase set_url_list[] = {
-  {"http://example.com/please/../gimme/%TESTNUMBER?foobar#hello",
-   "http://example.net/there/it/is/../../tes t case=/%TESTNUMBER0002? yes no",
-   "http://example.net/there/tes%20t%20case=/%TESTNUMBER0002?+yes+no",
-   0, CURLU_URLENCODE|CURLU_ALLOW_SPACE, CURLUE_OK},
-  {"http://local.test?redirect=http://local.test:80?-321",
-   "http://local.test:80?-123",
-   "http://local.test:80/?-123",
-   0, CURLU_URLENCODE|CURLU_ALLOW_SPACE, CURLUE_OK},
-  {"http://local.test?redirect=http://local.test:80?-321",
-   "http://local.test:80?-123",
-   "http://local.test:80/?-123",
-   0, 0, CURLUE_OK},
   {"http://example.org/static/favicon/wikipedia.ico",
    "//fake.example.com/licenses/by-sa/3.0/",
    "http://fake.example.com/licenses/by-sa/3.0/",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"https://example.org/static/favicon/wikipedia.ico",
    "//fake.example.com/licenses/by-sa/3.0/",
    "https://fake.example.com/licenses/by-sa/3.0/",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"file://localhost/path?query#frag",
    "foo#another",
    "file:///foo#another",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"http://example.com/path?query#frag",
    "https://two.example.com/bradnew",
    "https://two.example.com/bradnew",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"http://example.com/path?query#frag",
    "../../newpage#foo",
    "http://example.com/newpage#foo",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"http://user:foo@example.com/path?query#frag",
    "../../newpage",
    "http://user:foo@example.com/newpage",
-   0, 0, CURLUE_OK},
+   0, 0, 0},
   {"http://user:foo@example.com/path?query#frag",
    "../newpage",
    "http://user:foo@example.com/newpage",
-   0, 0, CURLUE_OK},
-  {NULL, NULL, NULL, 0, 0, CURLUE_OK}
+   0, 0, 0},
+  {NULL, NULL, NULL, 0, 0, 0}
 };
 
 static int set_url(void)
@@ -1105,7 +1003,7 @@ static const struct querycase append_list[] = {
    0, 0, CURLUE_OK},
   {"HTTP://test/?size=2#f", "name=joe", "http://test/?size=2&name=joe#f",
    0, 0, CURLUE_OK},
-  {NULL, NULL, NULL, 0, 0, CURLUE_OK}
+  {NULL, NULL, NULL, 0, 0, 0}
 };
 
 static int append(void)
@@ -1326,61 +1224,13 @@ static int get_nothing(void)
       fprintf(stderr, "unexpected return code line %u\n", __LINE__);
 
     rc = curl_url_get(u, CURLUPART_ZONEID, &p, 0);
-    if(rc != CURLUE_NO_ZONEID)
+    if(rc != CURLUE_OK)
       fprintf(stderr, "unexpected return code %u on line %u\n", (int)rc,
               __LINE__);
 
     curl_url_cleanup(u);
   }
   return 0;
-}
-
-static const struct clearurlcase clear_url_list[] ={
-  {CURLUPART_SCHEME, "http", NULL, CURLUE_NO_SCHEME},
-  {CURLUPART_USER, "user", NULL, CURLUE_NO_USER},
-  {CURLUPART_PASSWORD, "password", NULL, CURLUE_NO_PASSWORD},
-  {CURLUPART_OPTIONS, "options", NULL, CURLUE_NO_OPTIONS},
-  {CURLUPART_HOST, "host", NULL, CURLUE_NO_HOST},
-  {CURLUPART_ZONEID, "eth0", NULL, CURLUE_NO_ZONEID},
-  {CURLUPART_PORT, "1234", NULL, CURLUE_NO_PORT},
-  {CURLUPART_PATH, "/hello", "/", CURLUE_OK},
-  {CURLUPART_QUERY, "a=b", NULL, CURLUE_NO_QUERY},
-  {CURLUPART_FRAGMENT, "anchor", NULL, CURLUE_NO_FRAGMENT},
-  {CURLUPART_URL, NULL, NULL, CURLUE_OK},
-};
-
-static int clear_url(void)
-{
-  CURLU *u = curl_url();
-  int i, error = 0;
-  if(u) {
-    char *p = NULL;
-    CURLUcode rc;
-
-    for(i = 0; clear_url_list[i].in && !error; i++) {
-      rc = curl_url_set(u, clear_url_list[i].part, clear_url_list[i].in, 0);
-      if(rc != CURLUE_OK)
-        fprintf(stderr, "unexpected return code line %u\n", __LINE__);
-
-      rc = curl_url_set(u, CURLUPART_URL, NULL, 0);
-      if(rc != CURLUE_OK)
-        fprintf(stderr, "unexpected return code line %u\n", __LINE__);
-
-      rc = curl_url_get(u, clear_url_list[i].part, &p, 0);
-      if(rc != clear_url_list[i].ucode || (clear_url_list[i].out &&
-         0 != strcmp(p, clear_url_list[i].out))) {
-
-        fprintf(stderr, "unexpected return code line %u\n", __LINE__);
-        error++;
-      }
-      if(rc == CURLUE_OK)
-        curl_free(p);
-    }
-  }
-
-  curl_url_cleanup(u);
-
-  return error;
 }
 
 int test(char *URL)
@@ -1407,9 +1257,6 @@ int test(char *URL)
 
   if(get_parts())
     return 4;
-
-  if(clear_url())
-    return 8;
 
   printf("success\n");
   return 0;

@@ -107,6 +107,17 @@ cairo_win32_scaled_font_get_device_to_logical (cairo_scaled_font_t *scaled_font,
 
 #endif /* CAIRO_HAS_WIN32_FONT */
 
+#if CAIRO_HAS_DWRITE_FONT
+
+/*
+ * Win32 DirectWrite font support
+ */
+
+cairo_public cairo_font_face_t *
+cairo_dwrite_font_face_create_for_dwrite_fontface (void *dwrite_font_face);
+
+#endif /* CAIRO_HAS_DWRITE_FONT */
+
 CAIRO_END_DECLS
 
 #else  /* CAIRO_HAS_WIN32_SURFACE */

@@ -164,7 +164,7 @@ namespace lime {
 	std::wstring* System::GetDeviceModel () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_ComputerSystemProduct"), L"Version");
+		return GetWMIValue (_bstr_t(L"SELECT * FROM Win32_ComputerSystemProduct"), _bstr_t(L"Version"));
 		#endif
 
 		return NULL;
@@ -175,7 +175,7 @@ namespace lime {
 	std::wstring* System::GetDeviceVendor () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_ComputerSystemProduct"), L"Vendor");
+		return GetWMIValue (_bstr_t(L"SELECT * FROM Win32_ComputerSystemProduct"), _bstr_t(L"Vendor"));
 		#endif
 
 		return NULL;
@@ -186,7 +186,7 @@ namespace lime {
 	std::wstring* System::GetPlatformLabel () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_OperatingSystem"), L"Caption");
+		return GetWMIValue (_bstr_t(L"SELECT * FROM Win32_OperatingSystem"), _bstr_t(L"Caption"));
 		#endif
 
 		return NULL;
@@ -204,7 +204,7 @@ namespace lime {
 	std::wstring* System::GetPlatformVersion () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_OperatingSystem"), L"Version");
+		return GetWMIValue (_bstr_t(L"SELECT * FROM Win32_OperatingSystem"), _bstr_t(L"Version"));
 		#endif
 
 		return NULL;
@@ -249,8 +249,6 @@ namespace lime {
 
 }
 
-// Condición mejorada: Solo para Linux, no para Switch
-// Asegura que no se active en plataformas distintas de Linux real
 #if defined(HX_LINUX) && !defined(__SWITCH__) && !defined(NX) && !defined(HX_NX)
 
 // Improve compatibility with old glibc

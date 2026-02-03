@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 /*
@@ -92,12 +90,14 @@ static int addFd(struct Sockets *sockets, curl_socket_t fd, const char *what)
     sockets->max_count = 20;
   }
   else if(sockets->count + 1 > sockets->max_count) {
-    curl_socket_t *ptr = realloc(sockets->sockets, sizeof(curl_socket_t) *
-                                 (sockets->max_count + 20));
-    if(!ptr)
+    curl_socket_t *oldptr = sockets->sockets;
+    sockets->sockets = realloc(oldptr, sizeof(curl_socket_t) *
+                               (sockets->max_count + 20));
+    if(!sockets->sockets) {
       /* cleanup in test_cleanup */
+      sockets->sockets = oldptr;
       return 1;
-    sockets->sockets = ptr;
+    }
     sockets->max_count += 20;
   }
   /*
@@ -247,7 +247,7 @@ static int checkFdSet(CURLM *curl,
                       int evBitmask, const char *name)
 {
   int i;
-  int result = 0;
+  CURLMcode result = CURLM_OK;
   for(i = 0; i < sockets->count; ++i) {
     if(FD_ISSET(sockets->sockets[i], fdset)) {
       result = socket_action(curl, sockets->sockets[i], evBitmask, name);
@@ -255,7 +255,7 @@ static int checkFdSet(CURLM *curl,
         break;
     }
   }
-  return result;
+  return (int)result;
 }
 
 static int testone(char *URL, int timercb, int socketcb)
@@ -359,6 +359,7 @@ test_cleanup:
   /* free local memory */
   free(sockets.read.sockets);
   free(sockets.write.sockets);
+
   return res;
 }
 

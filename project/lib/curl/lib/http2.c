@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -109,7 +107,7 @@ static int http2_getsock(struct Curl_easy *data,
   sock[0] = conn->sock[FIRSTSOCKET];
 
   if(!(k->keepon & KEEP_RECV_PAUSE))
-    /* Unless paused - in an HTTP/2 connection we can basically always get a
+    /* Unless paused - in a HTTP/2 connection we can basically always get a
        frame so we should always be ready for one */
     bitmap |= GETSOCK_READSOCK(FIRSTSOCKET);
 
@@ -191,7 +189,7 @@ static bool http2_connisdead(struct Curl_easy *data, struct connectdata *conn)
   }
   else if(sval & CURL_CSELECT_IN) {
     /* readable with no error. could still be closed */
-    dead = !Curl_connalive(data, conn);
+    dead = !Curl_connalive(conn);
     if(!dead) {
       /* This happens before we've sent off a request and the connection is
          not in use by any other transfer, there shouldn't be any data here,
@@ -645,7 +643,7 @@ static int push_promise(struct Curl_easy *data,
                                               frame->promised_stream_id,
                                               newhandle);
     if(rv) {
-      infof(data, "failed to set user_data for stream %u",
+      infof(data, "failed to set user_data for stream %d",
             frame->promised_stream_id);
       DEBUGASSERT(0);
       rv = CURL_PUSH_DENY;
@@ -715,19 +713,19 @@ static int on_frame_recv(nghttp2_session *session, const nghttp2_frame *frame,
   data_s = nghttp2_session_get_stream_user_data(session, stream_id);
   if(!data_s) {
     H2BUGF(infof(data,
-                 "No Curl_easy associated with stream: %u",
+                 "No Curl_easy associated with stream: %x",
                  stream_id));
     return 0;
   }
 
   stream = data_s->req.p.http;
   if(!stream) {
-    H2BUGF(infof(data_s, "No proto pointer for stream: %u",
+    H2BUGF(infof(data_s, "No proto pointer for stream: %x",
                  stream_id));
     return NGHTTP2_ERR_CALLBACK_FAILURE;
   }
 
-  H2BUGF(infof(data_s, "on_frame_recv() header %x stream %u",
+  H2BUGF(infof(data_s, "on_frame_recv() header %x stream %x",
                frame->hd.type, stream_id));
 
   switch(frame->hd.type) {
@@ -915,7 +913,7 @@ static int on_stream_close(nghttp2_session *session, int32_t stream_id,
     /* remove the entry from the hash as the stream is now gone */
     rv = nghttp2_session_set_stream_user_data(session, stream_id, 0);
     if(rv) {
-      infof(data_s, "http/2: failed to clear user_data for stream %u",
+      infof(data_s, "http/2: failed to clear user_data for stream %d",
             stream_id);
       DEBUGASSERT(0);
     }
@@ -1024,9 +1022,9 @@ static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
       if(!check)
         /* no memory */
         return NGHTTP2_ERR_CALLBACK_FAILURE;
-      if(!strcasecompare(check, (const char *)value) &&
+      if(!Curl_strcasecompare(check, (const char *)value) &&
          ((conn->remote_port != conn->given->defport) ||
-          !strcasecompare(conn->host.name, (const char *)value))) {
+          !Curl_strcasecompare(conn->host.name, (const char *)value))) {
         /* This is push is not for the same authority that was asked for in
          * the URL. RFC 7540 section 8.2 says: "A client MUST treat a
          * PUSH_PROMISE for which the server is not authoritative as a stream
@@ -1052,12 +1050,6 @@ static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
     else if(stream->push_headers_used ==
             stream->push_headers_alloc) {
       char **headp;
-      if(stream->push_headers_alloc > 1000) {
-        /* this is beyond crazy many headers, bail out */
-        failf(data_s, "Too many PUSH_PROMISE headers");
-        Curl_safefree(stream->push_headers);
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-      }
       stream->push_headers_alloc *= 2;
       headp = Curl_saferealloc(stream->push_headers,
                                stream->push_headers_alloc * sizeof(char *));
@@ -1120,7 +1112,7 @@ static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
 
   /* nghttp2 guarantees that namelen > 0, and :status was already
      received, and this is not pseudo-header field . */
-  /* convert to an HTTP1-style header */
+  /* convert to a HTTP1-style header */
   result = Curl_dyn_addn(&stream->header_recvbuf, name, namelen);
   if(result)
     return NGHTTP2_ERR_CALLBACK_FAILURE;
@@ -1248,13 +1240,13 @@ void Curl_http2_done(struct Curl_easy *data, bool premature)
 
   /* do this before the reset handling, as that might clear ->stream_id */
   if(http->stream_id == httpc->pause_stream_id) {
-    H2BUGF(infof(data, "DONE the pause stream (%u)", http->stream_id));
+    H2BUGF(infof(data, "DONE the pause stream (%x)", http->stream_id));
     httpc->pause_stream_id = 0;
   }
   if(premature || (!http->closed && http->stream_id)) {
     /* RST_STREAM */
     set_transfer(httpc, data); /* set the transfer */
-    H2BUGF(infof(data, "RST stream %u", http->stream_id));
+    H2BUGF(infof(data, "RST stream %x", http->stream_id));
     if(!nghttp2_submit_rst_stream(httpc->h2, NGHTTP2_FLAG_NONE,
                                   http->stream_id, NGHTTP2_STREAM_CLOSED))
       (void)nghttp2_session_send(httpc->h2);
@@ -1268,34 +1260,13 @@ void Curl_http2_done(struct Curl_easy *data, bool premature)
     int rv = nghttp2_session_set_stream_user_data(httpc->h2,
                                                   http->stream_id, 0);
     if(rv) {
-      infof(data, "http/2: failed to clear user_data for stream %u",
+      infof(data, "http/2: failed to clear user_data for stream %d",
             http->stream_id);
       DEBUGASSERT(0);
     }
     set_transfer(httpc, NULL);
     http->stream_id = 0;
   }
-}
-
-static int client_new(struct connectdata *conn,
-                      nghttp2_session_callbacks *callbacks)
-{
-#if NGHTTP2_VERSION_NUM < 0x013200
-  /* before 1.50.0 */
-  return nghttp2_session_client_new(&conn->proto.httpc.h2, callbacks, conn);
-#else
-  nghttp2_option *o;
-  int rc = nghttp2_option_new(&o);
-  if(rc)
-    return rc;
-  /* turn off RFC 9113 leading and trailing white spaces validation against
-     HTTP field value. */
-  nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(o, 1);
-  rc = nghttp2_session_client_new2(&conn->proto.httpc.h2, callbacks, conn,
-                                   o);
-  nghttp2_option_del(o);
-  return rc;
-#endif
 }
 
 /*
@@ -1338,7 +1309,7 @@ static CURLcode http2_init(struct Curl_easy *data, struct connectdata *conn)
     nghttp2_session_callbacks_set_error_callback(callbacks, error_callback);
 
     /* The nghttp2 session is not yet setup, do it */
-    rc = client_new(conn, callbacks);
+    rc = nghttp2_session_client_new(&conn->proto.httpc.h2, callbacks, conn);
 
     nghttp2_session_callbacks_del(callbacks);
 
@@ -1351,7 +1322,7 @@ static CURLcode http2_init(struct Curl_easy *data, struct connectdata *conn)
 }
 
 /*
- * Append headers to ask for an HTTP1.1 to HTTP2 upgrade.
+ * Append headers to ask for a HTTP1.1 to HTTP2 upgrade.
  */
 CURLcode Curl_http2_request_upgrade(struct dynbuf *req,
                                     struct Curl_easy *data)
@@ -1392,7 +1363,7 @@ CURLcode Curl_http2_request_upgrade(struct dynbuf *req,
                          NGHTTP2_CLEARTEXT_PROTO_VERSION_ID, base64);
   free(base64);
 
-  k->upgr101 = UPGR101_H2;
+  k->upgr101 = UPGR101_REQUESTED;
 
   return result;
 }
@@ -1548,7 +1519,7 @@ static ssize_t http2_handle_stream_close(struct connectdata *conn,
   /* Reset to FALSE to prevent infinite loop in readwrite_data function. */
   stream->closed = FALSE;
   if(stream->error == NGHTTP2_REFUSED_STREAM) {
-    H2BUGF(infof(data, "REFUSED_STREAM (%u), try again on a new connection",
+    H2BUGF(infof(data, "REFUSED_STREAM (%d), try again on a new connection",
                  stream->stream_id));
     connclose(conn, "REFUSED_STREAM"); /* don't use this anymore */
     data->state.refused_stream = TRUE;
@@ -1556,7 +1527,7 @@ static ssize_t http2_handle_stream_close(struct connectdata *conn,
     return -1;
   }
   else if(stream->error != NGHTTP2_NO_ERROR) {
-    failf(data, "HTTP/2 stream %u was not closed cleanly: %s (err %u)",
+    failf(data, "HTTP/2 stream %d was not closed cleanly: %s (err %u)",
           stream->stream_id, nghttp2_http2_strerror(stream->error),
           stream->error);
     *err = CURLE_HTTP2_STREAM;
@@ -1564,7 +1535,7 @@ static ssize_t http2_handle_stream_close(struct connectdata *conn,
   }
 
   if(!stream->bodystarted) {
-    failf(data, "HTTP/2 stream %u was closed cleanly, but before getting "
+    failf(data, "HTTP/2 stream %d was closed cleanly, but before getting "
           " all response header fields, treated as error",
           stream->stream_id);
     *err = CURLE_HTTP2_STREAM;
@@ -1769,7 +1740,7 @@ static ssize_t http2_recv(struct Curl_easy *data, int sockindex,
     if(stream->closed)
       /* closed overrides paused */
       return 0;
-    H2BUGF(infof(data, "stream %u is paused, pause id: %u",
+    H2BUGF(infof(data, "stream %x is paused, pause id: %x",
                  stream->stream_id, httpc->pause_stream_id));
     *err = CURLE_AGAIN;
     return -1;
@@ -1800,7 +1771,7 @@ static ssize_t http2_recv(struct Curl_easy *data, int sockindex,
           /* This will happen when the server or proxy server is SIGKILLed
              during data transfer. We should emit an error since our data
              received may be incomplete. */
-          failf(data, "HTTP/2 stream %u was not closed cleanly before"
+          failf(data, "HTTP/2 stream %d was not closed cleanly before"
                 " end of the underlying stream",
                 stream->stream_id);
           *err = CURLE_HTTP2_STREAM;
@@ -1884,7 +1855,7 @@ static ssize_t http2_send(struct Curl_easy *data, int sockindex,
 
   if(stream->stream_id != -1) {
     if(stream->close_handled) {
-      infof(data, "stream %u closed", stream->stream_id);
+      infof(data, "stream %d closed", stream->stream_id);
       *err = CURLE_HTTP2_STREAM;
       return -1;
     }
@@ -1997,13 +1968,13 @@ static ssize_t http2_send(struct Curl_easy *data, int sockindex,
 
   if(stream_id < 0) {
     H2BUGF(infof(data,
-                 "http2_send() nghttp2_submit_request error (%s)%u",
+                 "http2_send() nghttp2_submit_request error (%s)%d",
                  nghttp2_strerror(stream_id), stream_id));
     *err = CURLE_SEND_ERROR;
     return -1;
   }
 
-  infof(data, "Using Stream ID: %u (easy handle %p)",
+  infof(data, "Using Stream ID: %x (easy handle %p)",
         stream_id, (void *)data);
   stream->stream_id = stream_id;
 
@@ -2123,7 +2094,7 @@ CURLcode Curl_http2_switched(struct Curl_easy *data,
                                               stream->stream_id,
                                               data);
     if(rv) {
-      infof(data, "http/2: failed to set user_data for stream %u",
+      infof(data, "http/2: failed to set user_data for stream %d",
             stream->stream_id);
       DEBUGASSERT(0);
     }
@@ -2307,7 +2278,7 @@ void Curl_http2_cleanup_dependencies(struct Curl_easy *data)
     Curl_http2_remove_child(data->set.stream_depends_on, data);
 }
 
-/* Only call this function for a transfer that already got an HTTP/2
+/* Only call this function for a transfer that already got a HTTP/2
    CURLE_HTTP2_STREAM error! */
 bool Curl_h2_http_1_1_error(struct Curl_easy *data)
 {

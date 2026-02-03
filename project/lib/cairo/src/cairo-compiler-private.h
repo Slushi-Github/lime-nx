@@ -54,6 +54,58 @@
 
 #define CAIRO_STACK_ARRAY_LENGTH(T) (CAIRO_STACK_BUFFER_SIZE / sizeof(T))
 
+/*
+ * The goal of this block is to define the following macros for
+ * providing faster linkage to functions in the public API for calls
+ * from within cairo.
+ *
+ * slim_hidden_proto(f)
+ * slim_hidden_proto_no_warn(f)
+ *
+ *   Declares `f' as a library internal function and hides the
+ *   function from the global symbol table.  This macro must be
+ *   expanded after `f' has been declared with a prototype but before
+ *   any calls to the function are seen by the compiler.  The no_warn
+ *   variant inhibits warnings about the return value being unused at
+ *   call sites.  The macro works by renaming `f' to an internal name
+ *   in the symbol table and hiding that.  As far as cairo internal
+ *   calls are concerned they're calling a library internal function
+ *   and thus don't need to bounce via the procedure linkage table (PLT).
+ *
+ * slim_hidden_def(f)
+ *
+ *   Exports `f' back to the global symbol table.  This macro must be
+ *   expanded right after the function definition and only for symbols
+ *   hidden previously with slim_hidden_proto().  The macro works by
+ *   adding a global entry to the symbol table which points at the
+ *   internal name of `f' created by slim_hidden_proto().
+ *
+ * Functions in the public API which aren't called by the library
+ * don't need to be hidden and re-exported using the slim hidden
+ * macros.
+ */
+#if __GNUC__ >= 3 && defined(__ELF__) && !defined(__sun)
+# define slim_hidden_proto(name)		slim_hidden_proto1(name, slim_hidden_int_name(name)) cairo_private
+# define slim_hidden_proto_no_warn(name)	slim_hidden_proto1(name, slim_hidden_int_name(name)) cairo_private_no_warn
+# define slim_hidden_def(name)			slim_hidden_def1(name, slim_hidden_int_name(name))
+# define slim_hidden_int_name(name) INT_##name
+# define slim_hidden_proto1(name, internal)				\
+  extern __typeof (name) name						\
+	__asm__ (slim_hidden_asmname (internal))
+# define slim_hidden_def1(name, internal)				\
+  extern __typeof (name) EXT_##name __asm__(slim_hidden_asmname(name))	\
+	__attribute__((__alias__(slim_hidden_asmname(internal))))
+# define slim_hidden_ulp		slim_hidden_ulp1(__USER_LABEL_PREFIX__)
+# define slim_hidden_ulp1(x)		slim_hidden_ulp2(x)
+# define slim_hidden_ulp2(x)		#x
+# define slim_hidden_asmname(name)	slim_hidden_asmname1(name)
+# define slim_hidden_asmname1(name)	slim_hidden_ulp #name
+#else
+# define slim_hidden_proto(name)		int _cairo_dummy_prototype(void)
+# define slim_hidden_proto_no_warn(name)	int _cairo_dummy_prototype(void)
+# define slim_hidden_def(name)			int _cairo_dummy_prototype(void)
+#endif
+
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 #ifdef __MINGW32__
 #define CAIRO_PRINTF_FORMAT(fmt_index, va_index)                        \
@@ -66,6 +118,7 @@
 #define CAIRO_PRINTF_FORMAT(fmt_index, va_index)
 #endif
 
+/* slim_internal.h */
 #define CAIRO_HAS_HIDDEN_SYMBOLS 1
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)) && \
     (defined(__ELF__) || defined(__APPLE__)) &&			\
@@ -81,7 +134,6 @@
 #ifndef WARN_UNUSED_RESULT
 #define WARN_UNUSED_RESULT
 #endif
-
 /* Add attribute(warn_unused_result) if supported */
 #define cairo_warn	    WARN_UNUSED_RESULT
 #define cairo_private	    cairo_private_no_warn cairo_warn

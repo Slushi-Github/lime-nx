@@ -130,7 +130,7 @@ struct LigatureSubstFormat1_2
     + hb_zip (this+coverage, hb_iter (ligatureSet) | hb_map (hb_add (this)))
     | hb_filter (glyphset, hb_first)
     | hb_filter ([&] (const LigatureSet<Types>& _) {
-      return _.intersects_lig_glyph (&glyphset);
+      return _.intersects (&glyphset);
     }, hb_second)
     | hb_map (hb_first)
     | hb_sink (new_coverage);

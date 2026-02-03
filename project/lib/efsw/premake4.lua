@@ -1,5 +1,6 @@
 newoption { trigger = "verbose", description = "Build efsw with verbose mode." }
 newoption { trigger = "strip-symbols", description = "Strip debugging symbols in other file ( only for relwithdbginfo configuration )." }
+newoption { trigger = "no-atomics", description = "Build efsw without atomics." }
 newoption { trigger = "thread-sanitizer", description ="Compile with ThreadSanitizer." }
 
 efsw_major_version	= "1"
@@ -132,8 +133,11 @@ solution "efsw"
 		defines { "EFSW_VERBOSE" }
 	end
 
-	if not is_vs() then
-		buildoptions { "-std=c++11" }
+	if not _OPTIONS["no-atomics"] then
+		if not is_vs() then
+			buildoptions { "-std=c++11" }
+		end
+		defines { "EFSW_USE_CXX11" }
 	end
 
 	if os.is("macosx") then

@@ -18,8 +18,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 #include "server_setup.h"
 
@@ -67,7 +65,7 @@
     ((__W32API_MAJOR_VERSION == 3) && (__W32API_MINOR_VERSION < 6))
 const struct in6_addr in6addr_any = {{ IN6ADDR_ANY_INIT }};
 #endif /* w32api < 3.6 */
-#endif /* ENABLE_IPV6 && __MINGW32__ */
+#endif /* ENABLE_IPV6 && __MINGW32__*/
 
 static struct timeval tvnow(void);
 
@@ -367,6 +365,31 @@ void clear_advisor_read_lock(const char *filename)
 }
 
 
+/* Portable, consistent toupper (remember EBCDIC). Do not use toupper() because
+   its behavior is altered by the current locale. */
+static char raw_toupper(char in)
+{
+  if(in >= 'a' && in <= 'z')
+    return (char)('A' + in - 'a');
+  return in;
+}
+
+int strncasecompare(const char *first, const char *second, size_t max)
+{
+  while(*first && *second && max) {
+    if(raw_toupper(*first) != raw_toupper(*second)) {
+      break;
+    }
+    max--;
+    first++;
+    second++;
+  }
+  if(0 == max)
+    return 1; /* they are equal this far */
+
+  return raw_toupper(*first) == raw_toupper(*second);
+}
+
 #if defined(WIN32) && !defined(MSDOS)
 
 static struct timeval tvnow(void)
@@ -496,11 +519,7 @@ static SIGHANDLER_T old_sigbreak_handler = SIG_ERR;
 #endif
 
 #ifdef WIN32
-#ifdef _WIN32_WCE
 static DWORD thread_main_id = 0;
-#else
-static unsigned int thread_main_id = 0;
-#endif
 static HANDLE thread_main_window = NULL;
 static HWND hidden_main_window = NULL;
 #endif
@@ -603,12 +622,7 @@ static LRESULT CALLBACK main_window_proc(HWND hwnd, UINT uMsg,
 }
 /* Window message queue loop for hidden main window, details see above.
  */
-#ifdef _WIN32_WCE
 static DWORD WINAPI main_window_loop(LPVOID lpParameter)
-#else
-#include <process.h>
-static unsigned int WINAPI main_window_loop(void *lpParameter)
-#endif
 {
   WNDCLASS wc;
   BOOL ret;
@@ -689,14 +703,6 @@ static SIGHANDLER_T set_signal(int signum, SIGHANDLER_T handler,
 void install_signal_handlers(bool keep_sigalrm)
 {
 #ifdef WIN32
-#ifdef _WIN32_WCE
-  typedef HANDLE curl_win_thread_handle_t;
-#elif defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
-  typedef unsigned long curl_win_thread_handle_t;
-#else
-  typedef uintptr_t curl_win_thread_handle_t;
-#endif
-  curl_win_thread_handle_t thread;
   /* setup windows exit event before any signal can trigger */
   exit_event = CreateEvent(NULL, TRUE, FALSE, NULL);
   if(!exit_event)
@@ -745,14 +751,10 @@ void install_signal_handlers(bool keep_sigalrm)
 #ifdef WIN32
   if(!SetConsoleCtrlHandler(ctrl_event_handler, TRUE))
     logmsg("cannot install CTRL event handler");
-#ifdef _WIN32_WCE
-  thread = CreateThread(NULL, 0, &main_window_loop,
-                        (LPVOID)GetModuleHandle(NULL), 0, &thread_main_id);
-#else
-  thread = _beginthreadex(NULL, 0, &main_window_loop,
-                          (void *)GetModuleHandle(NULL), 0, &thread_main_id);
-#endif
-  thread_main_window = (HANDLE)thread;
+  thread_main_window = CreateThread(NULL, 0,
+                                    &main_window_loop,
+                                    (LPVOID)GetModuleHandle(NULL),
+                                    0, &thread_main_id);
   if(!thread_main_window || !thread_main_id)
     logmsg("cannot start main window loop");
 #endif

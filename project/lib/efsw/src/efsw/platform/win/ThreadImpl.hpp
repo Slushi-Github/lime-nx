@@ -6,10 +6,10 @@
 #if EFSW_PLATFORM == EFSW_PLATFORM_WIN32
 
 #ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
+	#define WIN32_LEAN_AND_MEAN
 #endif
-#include <process.h>
 #include <windows.h>
+#include <process.h>
 
 namespace efsw {
 
@@ -17,25 +17,24 @@ class Thread;
 
 namespace Platform {
 
-class ThreadImpl {
-  public:
-	explicit ThreadImpl( efsw::Thread* owner );
+class ThreadImpl
+{
+	public:
+		ThreadImpl( Thread * owner );
 
-	~ThreadImpl();
+		~ThreadImpl();
+		
+		void wait();
+		
+		void terminate();
+	protected:
+		static unsigned int __stdcall entryPoint(void* userData);
 
-	void wait();
-
-	void terminate();
-
-  protected:
-	static unsigned int __stdcall entryPoint( void* userData );
-
-	HANDLE mThread;
-	unsigned int mThreadId;
+		HANDLE			mThread;
+		unsigned int	mThreadId;
 };
 
-} // namespace Platform
-} // namespace efsw
+}}
 
 #endif
 

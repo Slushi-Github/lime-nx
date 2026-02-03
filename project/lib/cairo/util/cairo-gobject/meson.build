@@ -12,9 +12,6 @@ libcairogobject = library('cairo-gobject', cairo_gobject_sources,
   dependencies: [glib_dep, gobject_dep, libcairo_dep],
   soversion: cairo_version_sonum,
   version: cairo_libversion,
-  gnu_symbol_visibility: 'hidden',
-  c_args: ['-DCAIRO_COMPILATION'],
-  link_args: extra_link_args,
   install: true,
 )
 

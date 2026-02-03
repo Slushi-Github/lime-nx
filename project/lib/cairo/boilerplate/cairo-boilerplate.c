@@ -30,7 +30,6 @@
 
 #include <pixman.h>
 
-#include <cairo-ctype-inline.h>
 #include <cairo-types-private.h>
 #include <cairo-scaled-font-private.h>
 
@@ -40,6 +39,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -561,7 +561,7 @@ _cairo_boilerplate_target_matches_name (const cairo_boilerplate_target_t *target
     if (! (name_len == 1 && 0 == strncmp (tname, "?", 1))) { /* wildcard? */
 	if (0 != strncmp (target->name, tname, name_len)) /* exact match? */
 	    return FALSE;
-	if (_cairo_isalnum (target->name[name_len]))
+	if (isalnum (target->name[name_len]))
 	    return FALSE;
     }
 

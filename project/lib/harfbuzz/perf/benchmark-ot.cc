@@ -1,4 +1,9 @@
-#include "hb-benchmark.hh"
+/*
+ * Benchmarks for hb_set_t operations.
+ */
+#include "benchmark/benchmark.h"
+
+#include "hb-ot.h"
 
 static void BM_hb_ot_tags_from_script_and_language (benchmark::State& state,
 						    hb_script_t script,

@@ -19,8 +19,6 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
-# SPDX-License-Identifier: curl
-#
 ###########################################################################
 #
 #
@@ -54,8 +52,6 @@ sub scanheader {
     open H, "<$f" || die;
     my $first = "";
     while(<H>) {
-        s/CURL_DEPRECATED\(.*"\)//;
-        s/  */ /g;
         if (/^(^CURL_EXTERN .*)\(/) {
             my $decl = $1;
             $decl =~ s/\r$//;
@@ -68,7 +64,7 @@ sub scanheader {
             $first = $decl;
         }
         elsif($first) {
-            if (/^ *(.*)\(/) {
+            if (/^(.*)\(/) {
                 my $decl = $1;
                 $decl =~ s/\r$//;
                 $first .= $decl;

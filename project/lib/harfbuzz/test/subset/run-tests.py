@@ -52,7 +52,7 @@ def run_test (test, should_check_ots, preprocess):
 	cli_args = ["--font-file=" + test.font_path,
 		    "--output-file=" + out_file,
 		    "--unicodes=%s" % test.unicodes (),
-		    "--drop-tables+=DSIG,BASE",
+		    "--drop-tables+=DSIG",
 		    "--drop-tables-=sbix"]
 	if preprocess:
 		cli_args.extend(["--preprocess-face",])
@@ -60,8 +60,6 @@ def run_test (test, should_check_ots, preprocess):
 	cli_args.extend (test.get_profile_flags ())
 	if test.get_instance_flags ():
 		cli_args.extend (["--instance=%s" % ','.join(test.get_instance_flags ())])
-	if test.iup_optimize:
-		cli_args.extend (["--optimize",])
 	ret = subset_cmd (cli_args)
 
 	if ret != "success":
@@ -135,13 +133,10 @@ if not len (args):
 
 has_ots = has_ots()
 
-env = os.environ.copy()
-env['LC_ALL'] = 'C'
 process = subprocess.Popen ([hb_subset, '--batch'],
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
-                            stderr=sys.stdout,
-                            env=env)
+                            stderr=sys.stdout)
 
 fails = 0
 for path in args:

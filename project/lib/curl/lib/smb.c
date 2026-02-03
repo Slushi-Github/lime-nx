@@ -19,8 +19,6 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * SPDX-License-Identifier: curl
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -30,15 +28,19 @@
 
 #define BUILDING_CURL_SMB_C
 
-#ifdef WIN32
+#ifdef HAVE_PROCESS_H
+#include <process.h>
+#ifdef CURL_WINDOWS_APP
 #define getpid GetCurrentProcessId
+#elif !defined(MSDOS)
+#define getpid _getpid
+#endif
 #endif
 
 #include "smb.h"
 #include "urldata.h"
 #include "sendf.h"
 #include "multiif.h"
-#include "cfilters.h"
 #include "connect.h"
 #include "progress.h"
 #include "transfer.h"
@@ -58,6 +60,8 @@ static CURLcode smb_connect(struct Curl_easy *data, bool *done);
 static CURLcode smb_connection_state(struct Curl_easy *data, bool *done);
 static CURLcode smb_do(struct Curl_easy *data, bool *done);
 static CURLcode smb_request_state(struct Curl_easy *data, bool *done);
+static CURLcode smb_done(struct Curl_easy *data, CURLcode status,
+                         bool premature);
 static CURLcode smb_disconnect(struct Curl_easy *data,
                                struct connectdata *conn, bool dead);
 static int smb_getsock(struct Curl_easy *data, struct connectdata *conn,
@@ -72,7 +76,7 @@ const struct Curl_handler Curl_handler_smb = {
   "SMB",                                /* scheme */
   smb_setup_connection,                 /* setup_connection */
   smb_do,                               /* do_it */
-  ZERO_NULL,                            /* done */
+  smb_done,                             /* done */
   ZERO_NULL,                            /* do_more */
   smb_connect,                          /* connect_it */
   smb_connection_state,                 /* connecting */
@@ -99,7 +103,7 @@ const struct Curl_handler Curl_handler_smbs = {
   "SMBS",                               /* scheme */
   smb_setup_connection,                 /* setup_connection */
   smb_do,                               /* do_it */
-  ZERO_NULL,                            /* done */
+  smb_done,                             /* done */
   ZERO_NULL,                            /* do_more */
   smb_connect,                          /* connect_it */
   smb_connection_state,                 /* connecting */
@@ -665,7 +669,8 @@ static CURLcode smb_connection_state(struct Curl_easy *data, bool *done)
 #ifdef USE_SSL
     if((conn->handler->flags & PROTOPT_SSL)) {
       bool ssl_done = FALSE;
-      result = Curl_conn_connect(data, FIRSTSOCKET, FALSE, &ssl_done);
+      result = Curl_ssl_connect_nonblocking(data, conn, FALSE,
+                                            FIRSTSOCKET, &ssl_done);
       if(result && result != CURLE_AGAIN)
         return result;
       if(!ssl_done)
@@ -932,6 +937,14 @@ static CURLcode smb_request_state(struct Curl_easy *data, bool *done)
   request_state(data, next_state);
 
   return CURLE_OK;
+}
+
+static CURLcode smb_done(struct Curl_easy *data, CURLcode status,
+                         bool premature)
+{
+  (void) premature;
+  Curl_safefree(data->req.p.smb);
+  return status;
 }
 
 static CURLcode smb_disconnect(struct Curl_easy *data,

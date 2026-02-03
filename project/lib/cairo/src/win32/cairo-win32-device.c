@@ -37,6 +37,15 @@
  *	Vladimir Vukicevic <vladimir@pobox.com>
  */
 
+#define WIN32_LEAN_AND_MEAN
+/* We require Windows 2000 features such as ETO_PDY */
+#if !defined(WINVER) || (WINVER < 0x0500)
+# define WINVER 0x0500
+#endif
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
+# define _WIN32_WINNT 0x0500
+#endif
+
 #include "cairoint.h"
 
 #include "cairo-atomic-private.h"
@@ -127,7 +136,7 @@ _cairo_win32_device_get (void)
     if (__cairo_win32_device)
 	return cairo_device_reference (__cairo_win32_device);
 
-    device = _cairo_calloc (sizeof (*device));
+    device = _cairo_malloc (sizeof (*device));
 
     _cairo_device_init (&device->base, &_cairo_win32_device_backend);
 
@@ -136,7 +145,7 @@ _cairo_win32_device_get (void)
     device->msimg32_dll = NULL;
     device->alpha_blend = _cairo_win32_device_get_alpha_blend (device);
 
-    if (_cairo_atomic_ptr_cmpxchg ((cairo_atomic_intptr_t *)&__cairo_win32_device, NULL, device))
+    if (_cairo_atomic_ptr_cmpxchg ((void **)&__cairo_win32_device, NULL, device))
 	return cairo_device_reference(&device->base);
 
     _cairo_win32_device_destroy (device);
