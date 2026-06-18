@@ -61,9 +61,11 @@
 #endif
 
 #ifndef true
-#	define true 1
-#	define false 0
-	typedef int bool;
+#define true 1
+#define false 0
+#if !defined(__cplusplus) && __STDC_VERSION__ < 199901L
+typedef int bool;
+#endif
 #endif
 
 #endif
