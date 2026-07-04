@@ -80,7 +80,7 @@ double utod( const uchar *str, uchar **end ) {
 	}
 	buf[i] = 0;
 	result = strtod(buf,&bend);
-	*end = str + (bend - buf);
+	*end = (uchar*)str + (bend - buf);
 	return result;
 }
 
@@ -101,7 +101,7 @@ int utoi( const uchar *str, uchar **end ) {
 	}
 	buf[i] = 0;
 	result = strtol(buf,&bend,10);
-	*end = str + (bend - buf);
+	*end = (uchar*)str + (bend - buf);
 	return result;
 }
 
@@ -208,7 +208,11 @@ sprintf_loop:
 					switch( c ) {
 					case 'd':
 						cfmt[i++] = 0;
-						size = sprintf(tmp,cfmt,va_arg(arglist,int));
+						if( cfmt[i-3] == 'l' ) {
+							size = sprintf(tmp,cfmt,va_arg(arglist,int64));
+						} else {
+							size = sprintf(tmp,cfmt,va_arg(arglist,int));
+						}
 						goto sprintf_add;
 					case 'f':
 						cfmt[i++] = 0;

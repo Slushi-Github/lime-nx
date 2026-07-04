@@ -5,21 +5,23 @@ import sys.FileSystem;
 
 class AIRHelper
 {
-	public static function build(project:HXProject, workingDirectory:String, targetPlatform:Platform, targetPath:String, applicationXML:String,
-			files:Array<String>, fileDirectory:String = null):String
+	public static function build(project:HXProject, workingDirectory:String, targetPlatform:Platform, targetPathWithoutExtension:String,
+			applicationXML:String, files:Array<String>, fileDirectory:String = null):String
 	{
-		// var airTarget = "air";
-		// var extension = ".air";
 		var airTarget = "bundle";
-		var extension = "";
 
 		switch (targetPlatform)
 		{
-			case MAC:
-
-				if (airTarget == "bundle")
+			case WINDOWS:
+				if (project.targetFlags.exists("shared"))
 				{
-					extension = ".app";
+					airTarget = "air";
+				}
+
+			case MAC:
+				if (project.targetFlags.exists("shared"))
+				{
+					airTarget = "air";
 				}
 
 			case IOS:
@@ -49,7 +51,8 @@ class AIRHelper
 							exportMethod = m;
 						}
 					}
-					if (exportMethod == null && project.targetFlags.exists("final")) {
+					if (exportMethod == null && project.targetFlags.exists("final"))
+					{
 						exportMethod = "appstore";
 					}
 
@@ -75,24 +78,85 @@ class AIRHelper
 					}
 				}
 
-			// extension = ".ipa";
-
 			case ANDROID:
-				if (project.debug)
+				if (project.targetFlags.exists("aab"))
 				{
-					airTarget = "apk-debug";
+					if (project.debug)
+					{
+						airTarget = "aab-debug";
+					}
+					else
+					{
+						airTarget = "aab";
+					}
+				}
+				else if (project.targetFlags.exists("android-studio"))
+				{
+					if (project.debug)
+					{
+						airTarget = "android-studio-debug";
+					}
+					else
+					{
+						airTarget = "android-studio";
+					}
 				}
 				else
 				{
-					airTarget = "apk";
+					if (project.debug)
+					{
+						airTarget = "apk-debug";
+					}
+					else
+					{
+						airTarget = "apk";
+					}
 				}
-
-			// extension = ".apk";
 
 			default:
 		}
 
-		var signingOptions = [];
+		var extension = "";
+
+		switch (targetPlatform)
+		{
+			case WINDOWS:
+				if (airTarget == "air")
+				{
+					extension = ".air";
+				}
+
+			case MAC:
+				if (airTarget == "bundle")
+				{
+					extension = ".app";
+				}
+				else if (airTarget == "air")
+				{
+					extension = ".air";
+				}
+
+			case ANDROID:
+				if (StringTools.startsWith(airTarget, "aab"))
+				{
+					extension = ".aab";
+				}
+				else if (StringTools.startsWith(airTarget, "android-studio"))
+				{
+					// no extension
+				}
+				else
+				{
+					extension = ".apk";
+				}
+
+			case IOS:
+				extension = ".ipa";
+
+			default:
+		}
+
+		var signingOptions:Array<String> = [];
 
 		if (project.keystore != null)
 		{
@@ -188,7 +252,7 @@ class AIRHelper
 			}
 		}
 
-		args = args.concat([targetPath + extension, applicationXML]);
+		args = args.concat([targetPathWithoutExtension + extension, applicationXML]);
 
 		if (targetPlatform == IOS && System.hostPlatform == MAC && project.targetFlags.exists("simulator"))
 		{
@@ -236,7 +300,7 @@ class AIRHelper
 
 		System.runCommand(workingDirectory, project.defines.get("AIR_SDK") + "/bin/adt", args);
 
-		return targetPath + extension;
+		return targetPathWithoutExtension + extension;
 	}
 
 	public static function getExtDirs(project:HXProject):Array<String>
@@ -336,12 +400,28 @@ class AIRHelper
 
 			if (targetPlatform == ANDROID || targetPlatform == IOS)
 			{
-				// these are just generic default dimensions that are a bit
-				// larger than AIR's defaults for the simulator
 				args.push("-XscreenDPI");
-				args.push("252");
+				if (project.config.exists("air.screenDPI"))
+				{
+					var screenDPI = project.config.getString("air.screenDPI");
+					args.push(screenDPI);
+				}
+				else
+				{
+					args.push("252");
+				}
 				args.push("-screensize");
-				args.push("480x762:480x800");
+				if (project.config.exists("air.screensize"))
+				{
+					var screensize = project.config.getString("air.screensize");
+					args.push(screensize);
+				}
+				else
+				{
+					// these are just generic default dimensions that are a bit
+					// larger than AIR's defaults for the simulator
+					args.push("480x762:480x800");
+				}
 			}
 			if (targetPlatform == ANDROID)
 			{
@@ -390,8 +470,8 @@ class AIRHelper
 		if (targetPlatform == ANDROID && !project.targetFlags.exists("air-simulator"))
 		{
 			AndroidHelper.initialize(project);
-			var deviceID = null;
-			var adbFilter = null;
+			var deviceID:String = null;
+			var adbFilter:String = null;
 
 			// if (!Log.verbose) {
 
@@ -415,7 +495,7 @@ class AIRHelper
 		if (targetPlatform == ANDROID)
 		{
 			AndroidHelper.initialize(project);
-			var deviceID = null;
+			var deviceID:String = null;
 			AndroidHelper.uninstall(project.meta.packageName, deviceID);
 		}
 	}

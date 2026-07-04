@@ -10,7 +10,7 @@
 	<define name="native" if="cpp || neko || nodejs || cs || java || hl" />
 	<define name="howlerjs" if="html5" />
 
-	<define name="lime-cairo" if="native" unless="nx || HX_NX || switch"/>
+	<define name="lime-cairo" if="native" unless="nx || HX_NX || switch" />
 	<define name="lime-canvas" if="html5" />
 	<define name="lime-cffi" if="native" />
 	<define name="lime-curl" unless="lime-console || switch || nx || HX_NX || emscripten || flash || html5" />
@@ -19,11 +19,16 @@
 	<define name="lime-howlerjs" if="html5" />
 	<define name="lime-html5" if="html5" />
 	<define name="lime-native" if="native" />
-	<define name="lime-openal" unless="lime-console || flash || html5" />
-	<define name="lime-opengl" if="desktop" unless="html5" />
+	<define name="lime-openalsoft" if="windows || linux || mac || android || switch || nx || HX_NX" unless="lime-mojoal || winrt" />
+	<define name="lime-mojoal" if="static_link || winrt" unless="lime-openalsoft" />
+	<define name="lime-openal" if="ios || tvos || emscripten || lime-openalsoft || lime-mojoal" />
+	<define name="lime-opengl" if="desktop || switch || nx || HX_NX" unless="html5" />
 	<define name="lime-opengles" if="emscripten || mobile" />
+	<define name="lime-vulkan" if="cpp windows" unless="no-vulkan || lime-no-vulkan || winrt" />
+	<define name="lime-vulkan" if="cpp linux" unless="no-vulkan || lime-no-vulkan" />
 	<define name="lime-vorbis" if="native" />
 	<define name="lime-webgl" if="html5" />
+	<haxedef name="lime_sdl_sound" if="native" unless="switch || nx || HX_NX"/>
 
 	<define name="no-typedarray-inline" if="cs" />
 	<haxedef name="no-compilation" />
@@ -48,13 +53,6 @@
 	<!-- <target name="switch" handler="lime-switch" />
 	<haxelib name="lime-switch" if="switch" /> -->
 
-	<!-- <section if="nx">
-		<set name="HXCPP_TOOLCHAIN_linux" value="1" />
-		<set name="nx" value="1" />
-		<set name="DEVKITPRO" value="D:/devkitPro" />
-		<set name="cpp" value="1" />
-	</section> -->
-
 	<target name="wiiu" handler="lime-wiiu" />
 	<haxelib name="lime-wiiu" if="wiiu" />
 
@@ -76,7 +74,8 @@
 		<target name="mac" path="tools/platforms/MacPlatform.hx" />
 		<target name="tvos" path="tools/platforms/TVOSPlatform.hx" />
 		<target name="windows" path="tools/platforms/WindowsPlatform.hx" />
-		<target name="nx" path="tools/platforms/SwitchPlatform.hx" />
+		<target name="switch" path="tools/platforms/SwitchPlatform.hx" />
+
 
 	</section>
 
@@ -86,6 +85,9 @@
 			<haxedef name="lime-threads" if="neko || cpp || html5" unless="emscripten" />
 			<!-- `target.threaded` isn't available, so enumerate the targets instead. -->
 			<haxedef name="lime-threads" if="cs || java || python || hl" unless="${${haxe_ver} < 4}" />
+
+			<!-- For internal use; may be removed or renamed without warning. -->
+			<haxedef name="lime-threads-deque" if="neko || cpp || cs || java || python || hl" />
 		</section>
 
 		<section if="cpp ${${haxe_ver} < 3.3}" unless="static_link">
@@ -94,7 +96,7 @@
 			<ndll name="zlib" haxelib="hxcpp" unless="emscripten || ios || tvos" />
 		</section>
 
-		<ndll name="lime" if="native" unless="lime-console static_link || nx static_link" />
+		<ndll name="lime" if="native" unless="lime-console static_link || switch static_link || nx static_link || HX_NX static_link" />
 
 		<dependency name="extension-api" path="dependencies/extension-api" if="android" />
 

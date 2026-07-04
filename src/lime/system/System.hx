@@ -3,6 +3,7 @@ package lime.system;
 import haxe.Constraints;
 import lime._internal.backend.native.NativeCFFI;
 import lime.app.Application;
+import lime.app.VSyncMode;
 import lime.graphics.RenderContextAttributes;
 import lime.math.Rectangle;
 import lime.ui.WindowAttributes;
@@ -246,6 +247,22 @@ class System
 			display.id = id;
 			display.name = CFFI.stringValue(displayInfo.name);
 			display.bounds = new Rectangle(displayInfo.bounds.x, displayInfo.bounds.y, displayInfo.bounds.width, displayInfo.bounds.height);
+			display.orientation = displayInfo.orientation;
+
+			#if android
+			var getDisplaySafeArea = JNI.createStaticMethod("org/haxe/lime/GameActivity", "getDisplaySafeAreaInsets", "()[I");
+			var result = getDisplaySafeArea();
+			display.safeArea = new Rectangle(display.bounds.x
+				+ result[0], display.bounds.y
+				+ result[1], display.bounds.width
+				- result[0]
+				- result[2],
+				display.bounds.height
+				- result[1]
+				- result[3]);
+			#else
+			display.safeArea = new Rectangle(displayInfo.safeArea.x, displayInfo.safeArea.y, displayInfo.safeArea.width, displayInfo.safeArea.height);
+			#end
 
 			#if ios
 			var tablet = NativeCFFI.lime_system_get_ios_tablet();
@@ -309,6 +326,23 @@ class System
 			#if flash
 			display.dpi = Capabilities.screenDPI;
 			display.currentMode = new DisplayMode(Std.int(Capabilities.screenResolutionX), Std.int(Capabilities.screenResolutionY), 60, ARGB32);
+			#if air
+			switch (flash.Lib.current.stage.orientation)
+			{
+				case DEFAULT:
+					display.orientation = PORTRAIT;
+				case UPSIDE_DOWN:
+					display.orientation = PORTRAIT_FLIPPED;
+				case ROTATED_LEFT:
+					display.orientation = LANDSCAPE_FLIPPED;
+				case ROTATED_RIGHT:
+					display.orientation = LANDSCAPE;
+				default:
+					display.orientation = UNKNOWN;
+			}
+			#else
+			display.orientation = UNKNOWN;
+			#end
 			#elseif (js && html5)
 			// var div = Browser.document.createElement ("div");
 			// div.style.width = "1in";
@@ -318,10 +352,31 @@ class System
 			// display.dpi = Std.parseFloat (ppi);
 			display.dpi = 96 * Browser.window.devicePixelRatio;
 			display.currentMode = new DisplayMode(Browser.window.screen.width, Browser.window.screen.height, 60, ARGB32);
+			if (Browser.window.screen.orientation != null)
+			{
+				switch (Browser.window.screen.orientation.type)
+				{
+					case PORTRAIT_PRIMARY:
+						display.orientation = PORTRAIT;
+					case PORTRAIT_SECONDARY:
+						display.orientation = PORTRAIT_FLIPPED;
+					case LANDSCAPE_PRIMARY:
+						display.orientation = LANDSCAPE;
+					case LANDSCAPE_SECONDARY:
+						display.orientation = LANDSCAPE_FLIPPED;
+					default:
+						display.orientation = UNKNOWN;
+				}
+			}
+			else
+			{
+				display.orientation = UNKNOWN;
+			}
 			#end
 
 			display.supportedModes = [display.currentMode];
 			display.bounds = new Rectangle(0, 0, display.currentMode.width, display.currentMode.height);
+			display.safeArea = new Rectangle(0, 0, display.currentMode.width, display.currentMode.height);
 			return display;
 		}
 		#end
@@ -571,9 +626,16 @@ class System
 							attributes.resizable = __parseBool(argValue);
 						case "stencil", "stencil-buffer":
 							attributes.context.stencil = __parseBool(argValue);
+						case "transparent":
+							attributes.transparent = __parseBool(argValue);
 						// case "title": windowConfig.title = argValue;
-						case "vsync":
-							attributes.context.vsync = __parseBool(argValue);
+						case "vsync", "vsync-mode":
+							var vsyncMode = __parseVSyncMode(argValue);
+							if (vsyncMode != null)
+							{
+								attributes.context.vsyncMode = vsyncMode;
+								attributes.context.vsync = (vsyncMode != VSyncMode.Off);
+							}
 						case "width":
 							attributes.width = Std.parseInt(argValue);
 						case "x":
@@ -595,6 +657,23 @@ class System
 	@:noCompletion private static inline function __parseBool(value:String):Bool
 	{
 		return (value == "true");
+	}
+
+	@:noCompletion private static function __parseVSyncMode(value:String):Null<VSyncMode>
+	{
+		switch (value.toLowerCase())
+		{
+			case "true", "on":
+				return VSyncMode.On;
+			case "false", "off":
+				return VSyncMode.Off;
+			case "adaptive":
+				return VSyncMode.Adaptive;
+			case "auto":
+				return VSyncMode.Auto;
+			default:
+				return null;
+		}
 	}
 
 	@:noCompletion private static function __registerEntryPoint(projectName:String, entryPoint:Function):Void

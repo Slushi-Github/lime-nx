@@ -1,8 +1,13 @@
 # EXPERIMENTAL FORK FOR THE NINTENDO SWITCH
 
-**This fork is based on the commit ``68107ee`` (From  Sep 18, 2025) of the original [Lime](https://github.com/openfl/lime)**
+**This fork is based on the commit ``9778682`` (From  July 2, 2026) of the original [Lime](https://github.com/openfl/lime)**
 
-![](./switchExamples/switchlimelibcapture.png)
+Yes, this is a fork of Lime, designed to run on the Nintendo Switch! This fork adds the `switch` target to the list of targets available in Lime so you can use your Lime projects on this console!
+
+**Since this is an experimental and still-under-development target, please keep in mind that there may be issues that do not occur on other targets.**
+
+Things not currently working:
+- Vulkan: There not support for running Vulkan on homebrew, the Switch [apparantly supports it](https://wccftech.com/nintendo-switch-supports-vulkan/) but the homebrew for the console [does not support it](https://github.com/switchbrew/libnx/issues/317), so we only have the GL context.
 
 ## Examples
 
@@ -26,7 +31,7 @@
 
 ## How to use
 
-You need to install [Haxe](https://haxe.org/download) and [DevKitPro stuff](https://devkitpro.org/wiki/Getting_Started)
+You need to install [Haxe](https://haxe.org/download) (Obviously) and [DevKitPro stuff](https://devkitpro.org/wiki/Getting_Started)
 
 Once you have Haxe and DevKitPro with DevKitA64 installed, install the dependencies:
 
@@ -69,7 +74,7 @@ switch-zlib
 Then just install this fork with:
 
 ```bash
-haxelib git lime https://github.com/Slushi-Github/lime-nx.git
+haxelib git lime https://github.com/Slushi-Github/lime-nx.git lime-9778682
 ```
 
 install the dependencies for Lime:
@@ -91,7 +96,7 @@ And and generate your Lime library:
 haxelib run lime rebuild switch
 ```
 
-For now, you must put this in your `project.xml`, otherwise your program will crash when you open it:
+For now, you must put this in your `project.xml`, otherwise your program will crash or not show nothing when you open it:
 
 ```xml
 <haxedef name="lime-opengl" if="switch" />
@@ -188,6 +193,8 @@ Then the defines for the Switch target (`HX_NX`, `switch`) will be valid in your
 
 ----
 
+(Original Lime README.md):
+
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.md) [![Haxelib Version](https://img.shields.io/github/tag/openfl/lime.svg?style=flat&label=haxelib)](http://lib.haxe.org/p/lime) [![Build Status](https://img.shields.io/github/actions/workflow/status/openfl/lime/main.yml?branch=develop)](https://github.com/openfl/lime/actions) [![Community](https://img.shields.io/discourse/posts?color=24afc4&server=https%3A%2F%2Fcommunity.openfl.org&label=community)](https://community.openfl.org/c/lime/19) [![Discord Server](https://img.shields.io/discord/415681294446493696.svg?color=7289da)](https://discordapp.com/invite/tDgq8EE)
 
 Lime
@@ -212,8 +219,13 @@ Lime does not include a renderer, but exposes the current context:
  * DOM
  * Flash
  * GL
+ * Vulkan
 
 The GL context is based upon the WebGL standard, implemented for both OpenGL and OpenGL ES as needed.
+Native Vulkan support exposes an explicit Vulkan API layer for renderer backends, including native window/swapchain integration and resource/command primitives.
+Native Vulkan support is included in standard Windows and Linux C++ Lime builds, including the matching Haxe API define. Apple targets still require an explicit Vulkan-enabled build and MoltenVK packaging.
+To request a Vulkan window, use the standard `RenderContextType.VULKAN` context selection or set `<window renderer="vulkan" />` in project XML.
+The in-repo `tests/vulkan-smoke` project is used as the current Vulkan CI smoke app.
 
 Lime provides a unified audio API, but also provides access to OpenAL for advanced audio on native targets.
 
@@ -238,7 +250,7 @@ Then, install Lime from Haxelib and run Lime's setup command.
 Development Builds
 ==================
 
-When there are changes, Lime is built nightly. Builds are available for download [here](https://github.com/Slushi-Github/lime-nx/actions?query=branch%3Adevelop+is%3Asuccess).
+When there are changes, Lime is built nightly. Builds are available for download [here](https://github.com/openfl/lime/actions?query=branch%3Adevelop+is%3Asuccess).
 
 To install a development build, use the "haxelib local" command:
 
@@ -248,11 +260,9 @@ To install a development build, use the "haxelib local" command:
 Building from Source
 ====================
 
-**DO NOT FOLLOW THIS, USE THE ABOVE INSTEAD**
-
 1. Clone the Lime repository, as well as the submodules:
 
-        haxelib git lime https://github.com/https://github.com/Slushi-Github/lime-nx/
+        haxelib git lime https://github.com/openfl/lime
 
 2. Install required dependencies:
 
@@ -297,7 +307,6 @@ Lime currently supports the following targets:
     lime test air
     lime test neko
     lime test hl
-    lime test switch
 
 Desktop builds are currently designed to be built on the same host OS
 

@@ -242,6 +242,28 @@ namespace lime {
 	}
 
 
+	void lime_hb_buffer_add_hxstring(value buffer, HxString text, int itemOffset, int itemLength) {
+
+		if (hxs_encoding (text) == hx::StringUtf16) {
+
+			hb_buffer_add_utf16 ((hb_buffer_t*)val_data(buffer), (const uint16_t*)text.c_str (), text.length, itemOffset, itemLength);
+
+		} else {
+
+			hb_buffer_add_utf8 ((hb_buffer_t*)val_data(buffer), text.c_str (), text.length, itemOffset, itemLength);
+
+		}
+
+	}
+
+
+	HL_PRIM void HL_NAME(hl_hb_buffer_add_hxstring) (HL_CFFIPointer* buffer, hl_vstring* text, int itemOffset, int itemLength) {
+
+		hb_buffer_add_utf16 ((hb_buffer_t*)buffer->ptr, text ? (const uint16_t*)text->bytes : NULL, text ? text->length : 0, itemOffset, itemLength);
+
+	}
+
+
 	void lime_hb_buffer_add_codepoints (value buffer, double text, int textLength, int itemOffset, int itemLength) {
 
 		hb_buffer_add_codepoints ((hb_buffer_t*)val_data (buffer), (const hb_codepoint_t*)(uintptr_t)text, textLength, itemOffset, itemLength);
@@ -1534,6 +1556,20 @@ namespace lime {
 	}
 
 
+	void lime_hb_ft_font_changed (value font) {
+
+		hb_ft_font_changed ((hb_font_t*)val_data (font));
+
+	}
+
+
+	HL_PRIM void HL_NAME(hl_hb_ft_font_changed) (HL_CFFIPointer* font) {
+
+		hb_ft_font_changed ((hb_font_t*)font->ptr);
+
+	}
+
+
 	int lime_hb_ft_font_get_load_flags (value font) {
 
 		return hb_ft_font_get_load_flags ((hb_font_t*)val_data (font));
@@ -2064,6 +2100,7 @@ namespace lime {
 	DEFINE_PRIME1 (lime_hb_blob_is_immutable);
 	DEFINE_PRIME1v (lime_hb_blob_make_immutable);
 	DEFINE_PRIME3v (lime_hb_buffer_add);
+	DEFINE_PRIME4v (lime_hb_buffer_add_hxstring);
 	DEFINE_PRIME5v (lime_hb_buffer_add_codepoints);
 	DEFINE_PRIME4v (lime_hb_buffer_add_utf8);
 	DEFINE_PRIME5v (lime_hb_buffer_add_utf16);
@@ -2135,6 +2172,7 @@ namespace lime {
 	DEFINE_PRIME5v (lime_hb_font_subtract_glyph_origin_for_direction);
 	DEFINE_PRIME1 (lime_hb_ft_font_create);
 	DEFINE_PRIME1 (lime_hb_ft_font_create_referenced);
+	DEFINE_PRIME1v (lime_hb_ft_font_changed);
 	DEFINE_PRIME1 (lime_hb_ft_font_get_load_flags);
 	DEFINE_PRIME2v (lime_hb_ft_font_set_load_flags);
 	DEFINE_PRIME1 (lime_hb_language_from_string);
@@ -2181,6 +2219,7 @@ namespace lime {
 	DEFINE_HL_PRIM (_BOOL, hl_hb_blob_is_immutable, _TCFFIPOINTER);
 	DEFINE_HL_PRIM (_VOID, hl_hb_blob_make_immutable, _TCFFIPOINTER);
 	DEFINE_HL_PRIM (_VOID, hl_hb_buffer_add, _TCFFIPOINTER _I32 _I32);
+	DEFINE_HL_PRIM (_VOID, hl_hb_buffer_add_hxstring, _TCFFIPOINTER _STRING _I32 _I32);
 	DEFINE_HL_PRIM (_VOID, hl_hb_buffer_add_codepoints, _TCFFIPOINTER _F64 _I32 _I32 _I32);
 	DEFINE_HL_PRIM (_VOID, hl_hb_buffer_add_utf8, _TCFFIPOINTER _STRING _I32 _I32);
 	DEFINE_HL_PRIM (_VOID, hl_hb_buffer_add_utf16, _TCFFIPOINTER _F64 _I32 _I32 _I32);
@@ -2252,6 +2291,7 @@ namespace lime {
 	DEFINE_HL_PRIM (_VOID, hl_hb_font_subtract_glyph_origin_for_direction, _TCFFIPOINTER _I32 _I32 _I32 _I32);
 	DEFINE_HL_PRIM (_TCFFIPOINTER, hl_hb_ft_font_create, _TCFFIPOINTER);
 	DEFINE_HL_PRIM (_TCFFIPOINTER, hl_hb_ft_font_create_referenced, _TCFFIPOINTER);
+	DEFINE_HL_PRIM (_VOID, hl_hb_ft_font_changed, _TCFFIPOINTER);
 	DEFINE_HL_PRIM (_I32, hl_hb_ft_font_get_load_flags, _TCFFIPOINTER);
 	DEFINE_HL_PRIM (_VOID, hl_hb_ft_font_set_load_flags, _TCFFIPOINTER _I32);
 	DEFINE_HL_PRIM (_TCFFIPOINTER, hl_hb_language_from_string, _STRING);

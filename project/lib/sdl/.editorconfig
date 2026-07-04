@@ -7,6 +7,8 @@ root = true
 [*.{c,cg,cpp,gradle,h,java,m,metal,pl,py,S,sh,txt}]
 indent_size = 4
 indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
 
 [*.{html,js,json,m4,yml,yaml,vcxproj,vcxproj.filters}]
 indent_size = 2
@@ -47,7 +49,7 @@ indent_style = space
 indent_size = 2
 indent_style = space
 
-[src/joystick/controller_type.h]
+[src/joystick/controller_type.*]
 indent_style = tab
 
 [src/joystick/hidapi/steam/*.h]
@@ -63,7 +65,7 @@ indent_style = space
 [src/video/yuv2rgb/*.{c,h}]
 indent_style = tab
 
-[src/wayland-protocols/*.xml]
+[wayland-protocols/*.xml]
 indent_size = 2
 indent_style = space
 

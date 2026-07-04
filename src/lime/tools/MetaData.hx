@@ -10,17 +10,20 @@ abstract MetaData({
 	@:optional var packageName:String;
 	@:optional var title:String;
 	@:optional var version:String;
+	@:optional var copyrightYears:String;
 }) from Dynamic
 {
 	@:noCompletion
-	public static var expectedFields:MetaData = {
-		buildNumber: "",
-		company: "",
-		companyId: "",
-		companyUrl: "",
-		description: "",
-		packageName: "",
-		title: "",
-		version: ""
-	};
+	public static var expectedFields:MetaData =
+		{
+			buildNumber: "",
+			company: "",
+			companyId: "",
+			companyUrl: "",
+			description: "",
+			packageName: "",
+			title: "",
+			version: "",
+			copyrightYears: ""
+		};
 }

@@ -12,7 +12,8 @@ namespace lime {
 			static void AddMapping (const char* content);
 			static const char* GetDeviceGUID (int id);
 			static const char* GetDeviceName (int id);
-			static void Rumble(int id, double lowFrequencyRumble, double highFrequencyRumble, int duration);
+			static void Rumble (int id, double lowFrequencyRumble, double highFrequencyRumble, int duration);
+
 	};
 
 

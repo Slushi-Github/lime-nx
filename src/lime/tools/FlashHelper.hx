@@ -2,6 +2,7 @@ package lime.tools;
 
 // import openfl.text.Font;
 // import openfl.utils.ByteArray;
+import sys.io.FileInput;
 import haxe.io.Bytes;
 import hxp.*;
 import lime._internal.format.Base64;
@@ -447,7 +448,7 @@ class FlashHelper
 			{
 				var length = font.kerning.length;
 				if (length > 0xFFFF) length = 0xFFFF;
-				var k;
+				var k:NativeKerningData;
 
 				for (i in 0...length)
 				{
@@ -622,7 +623,22 @@ class FlashHelper
 		var label = (id > 0 ? Std.string(id + 1) : "");
 
 		var swfVersions = [
-			9, 10, /*10.1,*/ 10.2, 10.3, 11, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12, 13, 14
+			9,
+			10, /*10.1,*/
+			10.2,
+			10.3,
+			11,
+			11.1,
+			11.2,
+			11.3,
+			11.4,
+			11.5,
+			11.6,
+			11.7,
+			11.8,
+			12,
+			13,
+			14
 		];
 
 		var flashVersion = 9;
@@ -765,11 +781,11 @@ class FlashHelper
 	public static function embedAssets(project:HXProject, targetDirectory:String):Bool
 	{
 		var embed = "";
-		var assets = [];
+		var assets:Array<Asset> = [];
 		var maxSize = 1024 * 1024 * 16;
 		var currentSize = 0;
 		var id = 0;
-		var tempFiles = [];
+		var tempFiles:Array<String> = [];
 
 		for (asset in project.assets)
 		{
@@ -796,7 +812,7 @@ class FlashHelper
 				}
 
 				var ignoreAsset = false;
-				var sourcePath = null;
+				var sourcePath:String = null;
 
 				if (asset.data != null)
 				{
@@ -973,7 +989,7 @@ class FlashHelper
 
 				while (true)
 				{
-					var input = null;
+					var input:FileInput = null;
 
 					try
 					{

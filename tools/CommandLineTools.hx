@@ -137,6 +137,10 @@ class CommandLineTools
 
 					if (haxelibPath != "" && haxelibPath != null)
 					{
+						if (Log.verbose)
+						{
+							Log.println('Rebuilding tools for haxelib: ${words[0]}');
+						}
 						words.push("tools");
 					}
 				}
@@ -155,10 +159,9 @@ class CommandLineTools
 
 				var targets = words[1].split(",");
 
-				var haxelib = null;
-				var path = null;
-				var hxmlPath = null;
-				var project = null;
+				var haxelib:Haxelib = null;
+				var path:String = null;
+				var hxmlPath:String = null;
 
 				if (!FileSystem.exists(words[0]))
 				{
@@ -313,6 +316,17 @@ class CommandLineTools
 								Sys.putEnv("HAXELIB_PATH", cacheValue);
 							}
 						}
+						else
+						{
+							if (haxelib != null)
+							{
+								Log.warn('No rebuild script found for haxelib "${haxelib.name}"');
+							}
+							else
+							{
+								Log.warn('No rebuild script found at "${words[0]}"');
+							}
+						}
 					}
 					else
 					{
@@ -323,7 +337,7 @@ class CommandLineTools
 						HXProject._targetFlags = targetFlags;
 						HXProject._userDefines = userDefines;
 
-						var project = null;
+						var project:HXProject = null;
 
 						if (haxelib != null)
 						{
@@ -410,8 +424,7 @@ class CommandLineTools
 				publishProject();
 
 			case "installer", "copy-if-newer":
-
-			// deprecated?
+				// deprecated?
 
 			default:
 				Log.error("'" + command + "' is not a valid command");
@@ -501,7 +514,7 @@ class CommandLineTools
 			case LINUX:
 				var arguments = Sys.args();
 
-				if (System.hostArchitecture == ARMV7 )
+				if (System.hostArchitecture == ARMV7)
 				{
 					untyped $loader.path = $array(path + "LinuxArm/", $loader.path);
 				}
@@ -517,9 +530,6 @@ class CommandLineTools
 				{
 					untyped $loader.path = $array(path + "Linux/", $loader.path);
 				}
-
-			// case SWITCH:
-			// 	untyped $loader.path = $array(path + "Switch/", $loader.path);
 
 			default:
 		}
@@ -593,19 +603,16 @@ class CommandLineTools
 					platform = new AndroidPlatform(command, project, targetFlags);
 
 				case BLACKBERRY:
-
-				// platform = new BlackBerryPlatform (command, project, targetFlags);
+					// platform = new BlackBerryPlatform (command, project, targetFlags);
 
 				case IOS:
 					platform = new IOSPlatform(command, project, targetFlags);
 
 				case TIZEN:
-
-				// platform = new TizenPlatform (command, project, targetFlags);
+					// platform = new TizenPlatform (command, project, targetFlags);
 
 				case WEBOS:
-
-				// platform = new WebOSPlatform (command, project, targetFlags);
+					// platform = new WebOSPlatform (command, project, targetFlags);
 
 				case WINDOWS:
 					platform = new WindowsPlatform(command, project, targetFlags);
@@ -673,8 +680,8 @@ class CommandLineTools
 		{
 			var colonIndex = words[0].indexOf(":");
 
-			var projectName = null;
-			var sampleName = null;
+			var projectName:String = null;
+			var sampleName:String = null;
 
 			if (colonIndex == -1)
 			{
@@ -784,14 +791,22 @@ class CommandLineTools
 	{
 		var commands = [
 
-			         "config" => "Display or set command-line configuration values",    "create" => "Create a new project or extension using templates",
-			                    "clean" => "Clean the specified project and target",     "update" => "Copy assets for the specified project and target",
-			  "build" => "Compile and package for the specified project and target",    "run" => "Install and run for the specified project and target",
-			                       "test" => "Update, build and run in one command",                                  "help" => "Show this information",
-			          "trace" => "Trace output for the specifed project and target",                            "deploy" => "Archive and upload builds",
-			"display" => "Display information for the specified project and target",             "rebuild" => "Recompile native binaries for libraries",
-			       "install" => "Install a library from haxelib, plus dependencies",                        "remove" => "Remove a library from haxelib",
-			                          "upgrade" => "Upgrade a library from haxelib", "setup" => "Setup " + defaultLibraryName + " or a specific platform"
+			"config" => "Display or set command-line configuration values",
+			"create" => "Create a new project or extension using templates",
+			"clean" => "Clean the specified project and target",
+			"update" => "Copy assets for the specified project and target",
+			"build" => "Compile and package for the specified project and target",
+			"run" => "Install and run for the specified project and target",
+			"test" => "Update, build and run in one command",
+			"help" => "Show this information",
+			"trace" => "Trace output for the specifed project and target",
+			"deploy" => "Archive and upload builds",
+			"display" => "Display information for the specified project and target",
+			"rebuild" => "Recompile native binaries for libraries",
+			"install" => "Install a library from haxelib, plus dependencies",
+			"remove" => "Remove a library from haxelib",
+			"upgrade" => "Upgrade a library from haxelib",
+			"setup" => "Setup " + defaultLibraryName + " or a specific platform"
 
 		];
 
@@ -1652,7 +1667,7 @@ class CommandLineTools
 			if (environment.get("JAVA_HOME") != null)
 			{
 				var javaPath = Path.combine(environment.get("JAVA_HOME"), "bin");
-				var value;
+				var value:String;
 
 				if (System.hostPlatform == WINDOWS)
 				{
@@ -1837,7 +1852,9 @@ class CommandLineTools
 
 					var projectDirectory = Path.directory(projectFile);
 					var localRepository = Path.combine(projectDirectory, ".haxelib");
-					if (FileSystem.exists(localRepository) && FileSystem.isDirectory(localRepository) && StringTools.startsWith(path, localRepository))
+					if (FileSystem.exists(localRepository)
+						&& FileSystem.isDirectory(localRepository)
+						&& StringTools.startsWith(path, localRepository))
 					{
 						args.push("-nolocalrepocheck");
 					}
@@ -2009,7 +2026,7 @@ class CommandLineTools
 
 		if (!runFromHaxelib)
 		{
-			var path = null;
+			var path:String = null;
 
 			if (FileSystem.exists("tools.n"))
 			{

@@ -22,6 +22,10 @@
 #include <hl.h>
 
 HL_PRIM varray *hl_alloc_array( hl_type *at, int size ) {
+	if( size == 0 && at->kind == HDYN ) {
+		static varray empty_array = { &hlt_array, &hlt_dyn };
+		return &empty_array;
+	}
 	int esize = hl_type_size(at);
 	varray *a;
 	if( size < 0 ) hl_error("Invalid array size");
@@ -44,3 +48,32 @@ HL_PRIM hl_type *hl_array_type( varray *a ) {
 DEFINE_PRIM(_ARR,alloc_array,_TYPE _I32);
 DEFINE_PRIM(_VOID,array_blit,_ARR _I32 _ARR _I32 _I32);
 DEFINE_PRIM(_TYPE,array_type,_ARR);
+
+HL_PRIM void *hl_alloc_carray( hl_type *at, int size ) {
+	if( at->kind != HOBJ && at->kind != HSTRUCT )
+		hl_error("Invalid array type");
+	if( size < 0 )
+		hl_error("Invalid array size");
+
+	hl_runtime_obj *rt = at->obj->rt;
+	if( rt == NULL || rt->methods == NULL ) rt = hl_get_obj_proto(at);
+	int osize = rt->size;
+	if( osize & (HL_WSIZE-1) ) osize += HL_WSIZE - (osize & (HL_WSIZE-1));
+	char *arr = hl_gc_alloc_gen(at, size * osize, (rt->hasPtr ? MEM_KIND_RAW : MEM_KIND_NOPTR) | MEM_ZERO);
+	if( at->kind == HOBJ || rt->nbindings ) {
+		int i,k;
+		for(k=0;k<size;k++) {
+			char *o = arr + osize * k;
+			if( at->kind == HOBJ )
+				((vobj*)o)->t = at;
+			for(i=0;i<rt->nbindings;i++) {
+				hl_runtime_binding *b = rt->bindings + i;
+				*(void**)(o + rt->fields_indexes[b->fid]) = b->closure ? hl_alloc_closure_ptr(b->closure,b->ptr,o) : b->ptr;
+			}
+		}
+	}
+	return arr;
+}
+
+#define _CARRAY _ABSTRACT(hl_carray)
+DEFINE_PRIM(_CARRAY,alloc_carray,_TYPE _I32);

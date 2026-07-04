@@ -55,20 +55,24 @@ import sys.FileSystem;
 
 		if (rootPath == null) {
 
-			#if (ios || tvos || webassembly)
+			#if (ios || tvos)
 			rootPath = "assets/";
 			#elseif android
+			rootPath = "";
+			#elseif (emscripten || webassembly)
 			rootPath = "";
 			#elseif (console || sys)
 			rootPath = lime.system.System.applicationDirectory;
 			#else
 			rootPath = "./";
 			#end
+
 		}
 
 		#if switch
 		rootPath = "romfs:/";
 		#end
+
 
 		#if (openfl && !flash && !display)
 		::if (assets != null)::::foreach assets::::if (type == "font")::openfl.text.Font.registerFont (__ASSET__OPENFL__::flatName::);

@@ -43,8 +43,9 @@
 // #define CAIRO_HAS_SYMBOL_LOOKUP 1
 #define CAIRO_HAS_DLSYM 1
 
-
+#if !defined(__NX__)
 #define HAVE_BYTESWAP_H 1
+#endif
 // #define HAVE_INTTYPES_H 1
 #define HAVE_STDINT_H 1
 // #define HAVE_SYS_INT_TYPES_H 1

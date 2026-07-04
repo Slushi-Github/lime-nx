@@ -24,7 +24,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include <pixman-config.h>
 #endif
 #include "pixman-private.h"
 
@@ -37,6 +37,21 @@ static void __attribute__((constructor))
 pixman_constructor (void)
 {
     global_implementation = _pixman_choose_implementation ();
+}
+#endif
+
+#ifdef TOOLCHAIN_SUPPORTS_ATTRIBUTE_DESTRUCTOR
+static void __attribute__((destructor))
+pixman_destructor (void)
+{
+    pixman_implementation_t *imp = global_implementation;
+
+    while (imp)
+    {
+        pixman_implementation_t *cur = imp;
+        imp = imp->fallback;
+        free (cur);
+    }
 }
 #endif
 
@@ -182,7 +197,7 @@ clip_general_image (pixman_region32_t * region,
 	    return FALSE;
 	}
     }
-    else if (!pixman_region32_not_empty (clip))
+    else if (pixman_region32_empty (clip))
     {
 	return FALSE;
     }
@@ -277,7 +292,7 @@ _pixman_compute_composite_region32 (pixman_region32_t * region,
 	{
 	    return FALSE;
 	}
-	if (!pixman_region32_not_empty (region))
+	if (pixman_region32_empty (region))
 	    return FALSE;
 	if (dest_image->common.alpha_map->common.have_clip_region)
 	{
@@ -1020,6 +1035,7 @@ pixman_format_supported_source (pixman_format_code_t format)
     case PIXMAN_x2r10g10b10:
     case PIXMAN_a8r8g8b8:
     case PIXMAN_a8r8g8b8_sRGB:
+    case PIXMAN_r8g8b8_sRGB:
     case PIXMAN_x8r8g8b8:
     case PIXMAN_a8b8g8r8:
     case PIXMAN_x8b8g8r8:

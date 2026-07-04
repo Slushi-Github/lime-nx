@@ -251,7 +251,7 @@ class SwitchPlatform extends PlatformTarget
         return context;
     }
 
-    private function getDisplayHXML():HXML
+    private override function getDisplayHXML():HXML
     {
         var path = targetDirectory + "/haxe/" + buildType + ".hxml";
 

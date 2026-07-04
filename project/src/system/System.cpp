@@ -4,7 +4,7 @@
 #include <wbemidl.h>
 #include <comutil.h>
 #pragma comment(lib, "wbemuuid.lib")
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <system/System.h>
@@ -124,7 +124,7 @@ namespace lime {
 
 		}
 
-		hres = pSvc->ExecQuery (bstr_t ("WQL"), query, WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, NULL, &pEnumerator);
+		hres = pSvc->ExecQuery (bstr_t (L"WQL"), query, WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, NULL, &pEnumerator);
 
 		if (FAILED (hres)) {
 
@@ -164,7 +164,7 @@ namespace lime {
 	std::wstring* System::GetDeviceModel () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_ComputerSystemProduct"), L"Version");
+		return GetWMIValue (bstr_t (L"SELECT * FROM Win32_ComputerSystemProduct"), bstr_t (L"Version"));
 		#endif
 
 		return NULL;
@@ -175,7 +175,7 @@ namespace lime {
 	std::wstring* System::GetDeviceVendor () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_ComputerSystemProduct"), L"Vendor");
+		return GetWMIValue (bstr_t (L"SELECT * FROM Win32_ComputerSystemProduct"), bstr_t (L"Vendor"));
 		#endif
 
 		return NULL;
@@ -186,7 +186,7 @@ namespace lime {
 	std::wstring* System::GetPlatformLabel () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_OperatingSystem"), L"Caption");
+		return GetWMIValue (bstr_t (L"SELECT * FROM Win32_OperatingSystem"), bstr_t (L"Caption"));
 		#endif
 
 		return NULL;
@@ -204,7 +204,7 @@ namespace lime {
 	std::wstring* System::GetPlatformVersion () {
 
 		#if defined (HX_WINDOWS) && !defined (HX_WINRT)
-		return GetWMIValue (bstr_t ("SELECT * FROM Win32_OperatingSystem"), L"Version");
+		return GetWMIValue (bstr_t (L"SELECT * FROM Win32_OperatingSystem"), bstr_t (L"Version"));
 		#endif
 
 		return NULL;
@@ -246,11 +246,18 @@ namespace lime {
 	}
 	#endif
 
+	int System::GetDeviceOrientation () {
+
+		return 0; // SDL_ORIENTATION_UNKNOWN
+
+	}
+
+	void System::EnableDeviceOrientationChange (bool enable) {
+
+	}
 
 }
 
-// Condición mejorada: Solo para Linux, no para Switch
-// Asegura que no se active en plataformas distintas de Linux real
 #if defined(HX_LINUX) && !defined(__SWITCH__) && !defined(NX) && !defined(HX_NX)
 
 // Improve compatibility with old glibc
@@ -259,20 +266,21 @@ namespace lime {
 #include <sys/select.h>
 #undef __fdelt_chk
 
-long int __fdelt_chk(long int d)
-{
+long int __fdelt_chk (long int d) {
 
-	if (d >= FD_SETSIZE)
-	{
+	if (d >= FD_SETSIZE) {
 
-		// printf("Select - bad fd.\n");
+		//printf("Select - bad fd.\n");
 		return 0;
+
 	}
 
 	return d / __NFDBITS;
+
 }
 
-#endif // defined(HX_LINUX) && !defined(__SWITCH__) && !defined(NX) && !defined(HX_NX)
+#endif
+
 
 #if defined(ANDROID) && !defined(HXCPP_CLANG)
 

@@ -93,14 +93,10 @@ misrepresented as being the original software.
  #include <limits.h>
  #include <unistd.h>
  #include <dirent.h> /* on old systems try <sys/dir.h> instead */
-#if defined(__NX__)
-#include <machine/termios.h>
-#else
-#include <termios.h>
-#endif
-#include <sys/utsname.h>
-#include <signal.h> /* on old systems try <sys/signal.h> instead */
-#define TINYFD_SLASH "/"
+ #include <termios.h>
+ #include <sys/utsname.h>
+ #include <signal.h> /* on old systems try <sys/signal.h> instead */
+ #define TINYFD_SLASH "/"
 #endif /* _WIN32 */
 
 #include "tinyfiledialogs.h"

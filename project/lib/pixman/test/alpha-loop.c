@@ -29,6 +29,8 @@ main (int argc, char **argv)
 
     pixman_image_composite (PIXMAN_OP_SRC, s, NULL, d, 0, 0, 0, 0, 0, 0, WIDTH, HEIGHT);
 
+    pixman_image_unref (a);
+    pixman_image_unref (d);
     pixman_image_unref (s);
 
     return 0;
