@@ -2,6 +2,8 @@
 
 **This fork is based on the commit ``68107ee`` (From  Sep 18, 2025) of the original [Lime](https://github.com/openfl/lime)**
 
+There is a <ins>new</ins> version based on the commit ``9778682`` from **July 2, 2026**, [check it out now!](https://github.com/Slushi-Github/lime-nx/tree/lime-9778682)
+
 ![](./switchExamples/switchlimelibcapture.png)
 
 ## Examples
