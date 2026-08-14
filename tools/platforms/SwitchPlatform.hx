@@ -182,24 +182,38 @@ class SwitchPlatform extends PlatformTarget
 
             CPPHelper.compile(project, targetDirectory + "/obj", flags);
             
-            var libName = project.debug ? "libApplicationMain-debug.a" : "libApplicationMain.a";
-            var staticLib = targetDirectory + "/obj/" + libName;
+            final libName = project.debug ? "libApplicationMain-debug.a" : "libApplicationMain.a";
+            final staticLib = targetDirectory + "/obj/" + libName;
             Log.info("Static library created: " + staticLib);
             
-            var limePath = getLimePath();
-            var path = Path.combine(limePath, "templates/switch/MakeFileNRO");
+            final limePath = getLimePath();
+            final path = Path.combine(limePath, "templates/switch/MakeFileNRO");
             
             if (!FileSystem.exists(path)) {
                 Log.error("Could not find Makefile template at: " + path);
                 return;
             }
 
-            var makefileTemplate = File.getContent(path);
+            final makefileTemplate = File.getContent(path);
 
-            var additionalLibs = [];
-            var libsStr = project.config.getString("switch.libs");
-            if (libsStr == null || libsStr == "") libsStr = "";
-            additionalLibs = libsStr.split(",").map(s -> s.trim());
+            var additionalLibs:Array<String> = [];
+            final rawStr = project.config.getString("switch.libs") ?? "";
+            for (lib in rawStr.split(",")) {
+                final trimmed = lib.trim();
+                if (trimmed != "" && additionalLibs.indexOf(trimmed) == -1) {
+                    additionalLibs.push(trimmed);
+                }
+            }
+
+            if (project.haxedefs.exists("LIME_SWITCH_LIBS")) {
+                final rawStr:String = project.haxedefs.get("LIME_SWITCH_LIBS");
+                for (lib in rawStr.split(",")) {
+                    final trimmed = lib.trim();
+                    if (trimmed != "" && additionalLibs.indexOf(trimmed) == -1) {
+                        additionalLibs.push(trimmed);
+                    }
+                }
+            }
 
             SwitchLinker.finalBuild({
                 switchExportPath: targetDirectory,

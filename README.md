@@ -129,10 +129,16 @@ haxelib run lime run switch --ip=192.168.x.x
 
 If the IP is not set, nxlink (The program that sends the project to the Switch) will try to find the Switch automatically if your console is waiting for it, **but is recommended to set the IP!**
 
-For add more libs (which must be installed in DevKitPro) to the MakeFile (the one responsible for generating the final executable) you need to add this to your `project.xml`:
+For add more libs (which must be installed in DevKitPro) to the MakeFile (the one responsible for generating the final executable) you need to add this to your `Project.xml`:
 
 ```xml
 <config:switch libs="yourLib1, yourLib2" if="switch"/>
+```
+
+In `include.xml` files (used on libraries), you can add this for adding the libs to the MakeFile:
+
+```xml
+<haxedef name="LIME_SWITCH_LIBS" value="yourLib1, yourLib2" if="switch" />
 ```
 
 ## Use with the Lime VSCode extension
