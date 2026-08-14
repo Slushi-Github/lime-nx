@@ -138,6 +138,12 @@ For add more libs (which must be installed in DevKitPro) to the MakeFile (the on
 <config:switch libs="yourLib1, yourLib2" if="switch"/>
 ```
 
+In `include.xml` files (used on libraries), you can add this for adding the libs to the MakeFile:
+
+```xml
+<haxedef name="LIME_SWITCH_LIBS" value="yourLib1, yourLib2" if="switch" />
+```
+
 ## Use with the Lime VSCode extension
 
 Just add the following to your VSCode settings JSON file or the `settings.json` file in your project folder:
