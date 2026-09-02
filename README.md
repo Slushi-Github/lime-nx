@@ -197,6 +197,14 @@ Just add the following to your VSCode settings JSON file or the `settings.json` 
 
 Then the defines for the Switch target (`HX_NX`, `switch`) will be valid in your project.
 
+## Custom defines
+
+- `LIMENX_AUDIO_DEBUG`: Use this to enable some logging for the audio system on `lime._internal.backend.native.NativeAudioSource` when the target is `switch`
+
+### Credits
+
+* [@doggywatty](https://github.com/doggywatty): Who found out the most about the audio issues with Lime-NX on the Switch target
+
 ----
 
 (Original Lime README.md):

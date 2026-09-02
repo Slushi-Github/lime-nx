@@ -21,13 +21,25 @@ import lime.utils.UInt8Array;
 @:access(lime.media.AudioBuffer)
 class NativeAudioSource
 {
+	#if switch
+	private static var STREAM_BUFFER_SIZE = 96000;
+	#else
 	private static var STREAM_BUFFER_SIZE = 48000;
+	#end
 	#if (native_audio_buffers && !macro)
 	private static var STREAM_NUM_BUFFERS = Std.parseInt(haxe.macro.Compiler.getDefine("native_audio_buffers"));
 	#else
+	#if switch
+	private static var STREAM_NUM_BUFFERS = 6;
+	#else
 	private static var STREAM_NUM_BUFFERS = 3;
 	#end
+	#end
+	#if switch
+	private static var STREAM_TIMER_FREQUENCY = 50;
+	#else
 	private static var STREAM_TIMER_FREQUENCY = 100;
+	#end
 
 	#if lime_openalsoft
 	private static var hasDirectChannelsExt:Null<Bool>;
@@ -67,7 +79,31 @@ class NativeAudioSource
 	private var streamCanSeek:Bool;
 	private var streamExhausted:Bool;
 	private var streamPosition:Float;
+	#if switch
+	/*
+		Background streaming thread, runs independently of the Haxe event loop.
+		Replaces haxe.Timer which can stall on Switch when the main thread is busy.
+	*/
+	private var decodeThread:cpp.vm.Thread;
+	private var decodeThreadRunning:Bool;
+
+	// Guards access to handle/buffers/vorbisStream against dispose() or
+	// context recovery running while the decode thread is still mid-iteration.
+	private var streamMutex:cpp.vm.Mutex = new cpp.vm.Mutex();
+	private var threadActive:Bool;
+
+	// Error tracking, so a failing stream is detected and reported instead
+	// of failing silently.
+	private var streamErrorCount:Int = 0;
+	private var lastStreamError:String;
+
+	// Watchdog: detects a stream that claims to be playing but whose
+	// position has stopped advancing (stuck buffers, lost AL context, etc).
+	private var lastWatchdogTime:Float;
+	private var lastWatchdogPosition:Int;
+	#else
 	private var streamTimer:Timer;
+	#end
 	private var timer:Timer;
 	private var vorbisStream:VorbisFile;
 
@@ -104,6 +140,11 @@ class NativeAudioSource
 		if (handle != null)
 		{
 			stop();
+
+			#if switch
+			streamMutex.acquire();
+			#end
+
 			AL.sourcei(handle, AL.BUFFER, null);
 			AL.deleteSource(handle);
 			if (buffers != null)
@@ -115,6 +156,10 @@ class NativeAudioSource
 				buffers = null;
 			}
 			handle = null;
+
+			#if switch
+			streamMutex.release();
+			#end
 		}
 
 		clearSDLSoundStream();
@@ -315,8 +360,12 @@ class NativeAudioSource
 			var time = completed ? 0 : getCurrentTime();
 			setCurrentTime(time);
 
+			#if switch
+			startStreamThread();
+			#else
 			streamTimer = new Timer(STREAM_TIMER_FREQUENCY);
 			streamTimer.run = streamTimer_onRun;
+			#end
 		}
 		else
 		{
@@ -333,11 +382,15 @@ class NativeAudioSource
 		if (handle == null) return;
 		AL.sourcePause(handle);
 
+		#if switch
+		stopStreamThread();
+		#else
 		if (streamTimer != null)
 		{
 			streamTimer.stop();
 			streamTimer = null;
 		}
+		#end
 
 		if (timer != null)
 		{
@@ -641,11 +694,16 @@ class NativeAudioSource
 		recoveryPosition = getPosition().clone();
 		recoveryTime = getCurrentTime();
 
+		#if switch
+		stopStreamThread();
+		streamMutex.acquire();
+		#else
 		if (streamTimer != null)
 		{
 			streamTimer.stop();
 			streamTimer = null;
 		}
+		#end
 
 		if (timer != null)
 		{
@@ -669,6 +727,10 @@ class NativeAudioSource
 
 		clearSDLSoundStream();
 		clearVorbisStream();
+
+		#if switch
+		streamMutex.release();
+		#end
 	}
 
 	private function restoreAudioContextRecoverySource():Void
@@ -975,10 +1037,32 @@ class NativeAudioSource
 			// of data, which typically happens if an operation (such as
 			// resizing a window) freezes the main thread.
 			// If AL is supposed to be playing but isn't, restart it here.
+			#if switch
+			if (playing && handle != null)
+			{
+				var sourceState = AL.getSourcei(handle, AL.SOURCE_STATE);
+				if (sourceState == AL.STOPPED)
+				{
+					if (queuedBufferCount > 0)
+					{
+						AL.sourcePlay(handle);
+					}
+					else if (!streamExhausted)
+					{
+						refillBuffers(buffers);
+						if (queuedBufferCount > 0)
+						{
+							AL.sourcePlay(handle);
+						}
+					}
+				}
+			}
+			#else
 			if (playing && handle != null && queuedBufferCount > 0 && AL.getSourcei(handle, AL.SOURCE_STATE) == AL.STOPPED)
 			{
 				AL.sourcePlay(handle);
 			}
+			#end
 		}
 	}
 
@@ -991,11 +1075,15 @@ class NativeAudioSource
 
 		playing = false;
 
+		#if switch
+		stopStreamThread();
+		#else
 		if (streamTimer != null)
 		{
 			streamTimer.stop();
 			streamTimer = null;
 		}
+		#end
 
 		if (timer != null)
 		{
@@ -1005,6 +1093,122 @@ class NativeAudioSource
 
 		setCurrentTime(0);
 	}
+
+	#if switch
+	/*
+		Background streaming thread, it runs independently of the Haxe event loop.
+		On Switch, haxe.Timer can stall when the main thread is busy (GC, loading, rendering),
+		this thread uses Sys.sleep() which runs on a native OS thread independent of the event loop.
+	*/
+	private function startStreamThread():Void
+	{
+		decodeThreadRunning = true;
+		threadActive = true;
+		streamErrorCount = 0;
+		lastStreamError = null;
+		lastWatchdogTime = Timer.stamp();
+		lastWatchdogPosition = getCurrentTime();
+		decodeThread = cpp.vm.Thread.create(streamThreadFunc);
+	}
+
+	private function stopStreamThread():Void
+	{
+		decodeThreadRunning = false;
+
+		// Give the thread a short window to notice and exit before the
+		// caller (dispose / context recovery) is allowed to null out
+		// handle/buffers/vorbisStream out from under it.
+		var waited = 0.0;
+		while (threadActive && waited < 0.5)
+		{
+			Sys.sleep(0.005);
+			waited += 0.005;
+		}
+
+		if (threadActive)
+		{
+			#if LIMENX_AUDIO_DEBUG
+			trace("NativeAudioSource: stream thread did not stop within timeout");
+			#end
+		}
+
+		decodeThread = null;
+	}
+
+	private function streamThreadFunc():Void
+	{
+		var intervalMs = STREAM_TIMER_FREQUENCY;
+
+		while (decodeThreadRunning)
+		{
+			Sys.sleep(intervalMs / 1000.0);
+
+			if (!decodeThreadRunning) break;
+			if (!playing || handle == null) break;
+
+			streamMutex.acquire();
+
+			try
+			{
+				// Re-check after acquiring the lock: state may have changed
+				// while we were waiting for it (e.g. dispose() ran first).
+				if (decodeThreadRunning && playing && handle != null)
+				{
+					streamTimer_onRun();
+					watchdogCheck();
+					streamErrorCount = 0;
+				}
+			}
+			catch (e:Dynamic)
+			{
+				streamErrorCount++;
+				lastStreamError = Std.string(e);
+
+				#if LIMENX_AUDIO_DEBUG
+				trace('NativeAudioSource stream error (#' + streamErrorCount + '): ' + lastStreamError);
+				#end
+
+				if (streamErrorCount >= 5)
+				{
+					// Stop retrying instead of looping forever on a broken stream.
+					decodeThreadRunning = false;
+
+					#if LIMENX_AUDIO_DEBUG
+					trace("NativeAudioSource: giving up on stream after repeated errors: " + lastStreamError);
+					#end
+				}
+			}
+
+			streamMutex.release();
+		}
+
+		threadActive = false;
+	}
+
+	private function watchdogCheck():Void
+	{
+		var current = getCurrentTime();
+		var now = Timer.stamp();
+
+		if (current != lastWatchdogPosition)
+		{
+			lastWatchdogPosition = current;
+			lastWatchdogTime = now;
+			return;
+		}
+
+		if ((now - lastWatchdogTime) > 2.0)
+		{
+			lastWatchdogTime = now;
+			lastStreamError = "stream stalled: position not advancing";
+			streamErrorCount++;
+
+			#if LIMENX_AUDIO_DEBUG
+			trace('NativeAudioSource watchdog: ' + lastStreamError);
+			#end
+		}
+	}
+	#end
 
 	// Event Handlers
 	private function streamTimer_onRun():Void
@@ -1016,6 +1220,32 @@ class NativeAudioSource
 
 		refillBuffers();
 
+		#if switch
+		// if playback stopped but we still have data or can refill, restart
+		if (playing && handle != null && AL.getSourcei(handle, AL.SOURCE_STATE) != AL.PLAYING)
+		{
+			if (streamExhausted && queuedBufferCount == 0)
+			{
+				if (timer == null)
+				{
+					if (length == null && parent.buffer.__srcSDLSoundDuration <= 0)
+					{
+						length = Std.int(streamPosition * 1000) - parent.offset;
+						if (length < 0)
+						{
+							length = 0;
+						}
+					}
+
+					timer_onRun();
+				}
+			}
+			else if (queuedBufferCount > 0)
+			{
+				AL.sourcePlay(handle);
+			}
+		}
+		#else
 		if (playing
 			&& timer == null
 			&& streamExhausted
@@ -1034,6 +1264,7 @@ class NativeAudioSource
 
 			timer_onRun();
 		}
+		#end
 	}
 
 	private function timer_onRun():Void
