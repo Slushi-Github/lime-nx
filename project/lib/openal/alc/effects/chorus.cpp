@@ -21,159 +21,174 @@
 #include "config.h"
 
 #include <algorithm>
-#include <climits>
+#include <array>
 #include <cmath>
 #include <cstdlib>
-#include <iterator>
+#include <limits>
+#include <numbers>
+#include <ranges>
+#include <span>
+#include <variant>
+#include <vector>
 
-#include "AL/al.h"
-#include "AL/alc.h"
-#include "AL/efx.h"
-
-#include "al/auxeffectslot.h"
-#include "alcmain.h"
-#include "alcontext.h"
-#include "almalloc.h"
+#include "alc/effects/base.h"
 #include "alnumeric.h"
-#include "alspan.h"
-#include "alu.h"
-#include "ambidefs.h"
-#include "effects/base.h"
-#include "math_defs.h"
+#include "core/ambidefs.h"
+#include "core/bufferline.h"
+#include "core/context.h"
+#include "core/cubic_tables.h"
+#include "core/device.h"
+#include "core/effects/base.h"
+#include "core/effectslot.h"
+#include "core/mixer.h"
+#include "core/mixer/defs.h"
+#include "core/resampler_limits.h"
+#include "intrusive_ptr.h"
 #include "opthelpers.h"
-#include "vector.h"
 
+struct BufferStorage;
 
 namespace {
 
-static_assert(AL_CHORUS_WAVEFORM_SINUSOID == AL_FLANGER_WAVEFORM_SINUSOID, "Chorus/Flanger waveform value mismatch");
-static_assert(AL_CHORUS_WAVEFORM_TRIANGLE == AL_FLANGER_WAVEFORM_TRIANGLE, "Chorus/Flanger waveform value mismatch");
+constexpr auto NumLines = 4_uz;
 
-enum class WaveForm {
-    Sinusoid,
-    Triangle
-};
+/* The B-Format to A-Format conversion matrix. This produces a tetrahedral
+ * array of discrete signals. Note that A0 and A1 are left responses while A2
+ * and A3 are right responses.
+ */
+constexpr auto DecodeCoeff = static_cast<float>(0.25 / std::numbers::sqrt3);
+alignas(16) constexpr std::array<std::array<float, NumLines>, NumLines> B2A{{
+    /*   W          Y             Z             X      */
+    {{ 0.25f,  DecodeCoeff,  DecodeCoeff,  DecodeCoeff }}, /* A0 */
+    {{ 0.25f,  DecodeCoeff, -DecodeCoeff, -DecodeCoeff }}, /* A1 */
+    {{ 0.25f, -DecodeCoeff, -DecodeCoeff,  DecodeCoeff }}, /* A2 */
+    {{ 0.25f, -DecodeCoeff,  DecodeCoeff, -DecodeCoeff }}  /* A3 */
+}};
 
-void GetTriangleDelays(ALuint *delays, const ALuint start_offset, const ALuint lfo_range,
-    const ALfloat lfo_scale, const ALfloat depth, const ALsizei delay, const size_t todo)
-{
-    ASSUME(lfo_range > 0);
-    ASSUME(todo > 0);
+/* Converts A-Format to B-Format for output. */
+constexpr auto EncodeCoeff = static_cast<float>(0.5 * std::numbers::sqrt3);
+alignas(16) constexpr std::array<std::array<float, NumLines>, NumLines> A2B{{
+    /*     A0            A1            A2            A3      */
+    {{        1.0f,         1.0f,         1.0f,         1.0f }}, /* W */
+    {{ EncodeCoeff,  EncodeCoeff, -EncodeCoeff, -EncodeCoeff }}, /* Y */
+    {{ EncodeCoeff, -EncodeCoeff, -EncodeCoeff,  EncodeCoeff }}, /* Z */
+    {{ EncodeCoeff, -EncodeCoeff,  EncodeCoeff, -EncodeCoeff }}  /* X */
+}};
 
-    ALuint offset{start_offset};
-    auto gen_lfo = [&offset,lfo_range,lfo_scale,depth,delay]() -> ALuint
-    {
-        offset = (offset+1)%lfo_range;
-        const float offset_norm{static_cast<float>(offset) * lfo_scale};
-        return static_cast<ALuint>(fastf2i((1.0f-std::abs(2.0f-offset_norm)) * depth) + delay);
-    };
-    std::generate_n(delays, todo, gen_lfo);
-}
-
-void GetSinusoidDelays(ALuint *delays, const ALuint start_offset, const ALuint lfo_range,
-    const ALfloat lfo_scale, const ALfloat depth, const ALsizei delay, const size_t todo)
-{
-    ASSUME(lfo_range > 0);
-    ASSUME(todo > 0);
-
-    ALuint offset{start_offset};
-    auto gen_lfo = [&offset,lfo_range,lfo_scale,depth,delay]() -> ALuint
-    {
-        offset = (offset+1)%lfo_range;
-        const float offset_norm{static_cast<float>(offset) * lfo_scale};
-        return static_cast<ALuint>(fastf2i(std::sin(offset_norm)*depth) + delay);
-    };
-    std::generate_n(delays, todo, gen_lfo);
-}
 
 struct ChorusState final : public EffectState {
-    al::vector<ALfloat,16> mSampleBuffer;
-    ALuint mOffset{0};
+    std::vector<float> mDelayBuffers;
+    unsigned mOffset{0};
 
-    ALuint mLfoOffset{0};
-    ALuint mLfoRange{1};
-    ALfloat mLfoScale{0.0f};
-    ALuint mLfoDisp{0};
+    unsigned mLfoOffset{0};
+    unsigned mLfoRange{1};
+    float mLfoScale{0.0f};
+    unsigned mLfoDisp{0};
 
-    /* Gains for left and right sides */
-    struct {
-        ALfloat Current[MAX_OUTPUT_CHANNELS]{};
-        ALfloat Target[MAX_OUTPUT_CHANNELS]{};
-    } mGains[2];
+    /* Calculated delays to apply to the left and right outputs. */
+    std::array<std::array<unsigned, BufferLineSize>, 2> mModDelays{};
+
+    /* Temp storage for the A-Format-converted input and the B-Format output. */
+    alignas(16) std::array<FloatBufferLine, NumLines> mABuffer{};
+    alignas(16) FloatBufferLine mTempLine{};
+    alignas(16) std::array<FloatBufferLine, NumLines> mBBuffer{};
 
     /* effect parameters */
-    WaveForm mWaveform{};
-    ALint mDelay{0};
-    ALfloat mDepth{0.0f};
-    ALfloat mFeedback{0.0f};
+    ChorusWaveform mWaveform{};
+    int mDelay{0};
+    float mDepth{0.0f};
+    float mFeedback{0.0f};
 
 
-    ALboolean deviceUpdate(const ALCdevice *device) override;
-    void update(const ALCcontext *context, const ALeffectslot *slot, const EffectProps *props, const EffectTarget target) override;
-    void process(const size_t samplesToDo, const al::span<const FloatBufferLine> samplesIn, const al::span<FloatBufferLine> samplesOut) override;
+    struct OutParams {
+        unsigned mTargetChannel{InvalidChannelIndex.c_val};
 
-    DEF_NEWDEL(ChorusState)
+        /* Current and target gain for this channel. */
+        float mCurrentGain{};
+        float mTargetGain{};
+    };
+    std::array<OutParams, NumLines> mChans;
+
+    /* When the device is mixing to higher-order B-Format, the output needs
+     * high-frequency adjustment and (potentially) mixing into higher order
+     * channels to compensate.
+     */
+    struct UpsampleParams {
+        float mHfScale{1.0f};
+        BandSplitter mSplitter;
+        std::array<float, MaxAmbiChannels> mCurrentGains{};
+        std::array<float, MaxAmbiChannels> mTargetGains{};
+    };
+    std::optional<std::array<UpsampleParams, NumLines>> mUpsampler;
+
+
+    void calcTriangleDelays(const size_t todo);
+    void calcSinusoidDelays(const size_t todo);
+
+    void deviceUpdate(const DeviceBase *device, const BufferStorage*) final;
+    void update(const ContextBase *context, const EffectSlotBase *slot, const EffectProps *props_,
+        const EffectTarget target) final;
+    void process(const size_t samplesToDo, const std::span<const FloatBufferLine> samplesIn,
+        const std::span<FloatBufferLine> samplesOut) final;
 };
 
-ALboolean ChorusState::deviceUpdate(const ALCdevice *Device)
+
+void ChorusState::deviceUpdate(const DeviceBase *device, const BufferStorage*)
 {
-    constexpr ALfloat max_delay{maxf(AL_CHORUS_MAX_DELAY, AL_FLANGER_MAX_DELAY)};
+    static constexpr auto MaxDelay = std::max(ChorusMaxDelay, FlangerMaxDelay);
+    const auto frequency = static_cast<float>(device->mSampleRate);
 
-    const auto frequency = static_cast<float>(Device->Frequency);
-    const size_t maxlen{NextPowerOf2(float2uint(max_delay*2.0f*frequency) + 1u)};
-    if(maxlen != mSampleBuffer.size())
+    const auto maxlen = std::size_t{NextPowerOf2(float2uint(MaxDelay*2.0f*frequency) + 1u)}
+        * NumLines;
+    if(maxlen != mDelayBuffers.size())
+        decltype(mDelayBuffers)(maxlen).swap(mDelayBuffers);
+    std::ranges::fill(mDelayBuffers, 0.0f);
+
+    mChans.fill(OutParams{});
+    mUpsampler.reset();
+
+    if(device->mAmbiOrder > 1)
     {
-        mSampleBuffer.resize(maxlen);
-        mSampleBuffer.shrink_to_fit();
-    }
+        auto const hfscales = AmbiScale::GetHFOrderScales(1, device->mAmbiOrder,
+            device->m2DMixing);
+        auto idx = 0_uz;
 
-    std::fill(mSampleBuffer.begin(), mSampleBuffer.end(), 0.0f);
-    for(auto &e : mGains)
-    {
-        std::fill(std::begin(e.Current), std::end(e.Current), 0.0f);
-        std::fill(std::begin(e.Target), std::end(e.Target), 0.0f);
-    }
+        auto const splitter = BandSplitter{device->mXOverFreq
+            / static_cast<float>(device->mSampleRate)};
 
-    return AL_TRUE;
+        auto &upsampler = mUpsampler.emplace();
+        for(auto &chandata : upsampler)
+        {
+            chandata.mHfScale = hfscales[idx];
+            idx = 1;
+
+            chandata.mSplitter = splitter;
+        }
+    }
 }
 
-void ChorusState::update(const ALCcontext *Context, const ALeffectslot *Slot, const EffectProps *props, const EffectTarget target)
+void ChorusState::update(const ContextBase *context, const EffectSlotBase *slot,
+    const EffectProps *props_, const EffectTarget target)
 {
-    constexpr ALsizei mindelay{(MAX_RESAMPLER_PADDING>>1) << FRACTIONBITS};
-
-    switch(props->Chorus.Waveform)
-    {
-        case AL_CHORUS_WAVEFORM_TRIANGLE:
-            mWaveform = WaveForm::Triangle;
-            break;
-        case AL_CHORUS_WAVEFORM_SINUSOID:
-            mWaveform = WaveForm::Sinusoid;
-            break;
-    }
+    static constexpr auto mindelay = int{MaxResamplerEdge << gCubicTable.sTableBits};
+    auto &props = std::get<ChorusProps>(*props_);
 
     /* The LFO depth is scaled to be relative to the sample delay. Clamp the
      * delay and depth to allow enough padding for resampling.
      */
-    const ALCdevice *device{Context->mDevice.get()};
-    const auto frequency = static_cast<float>(device->Frequency);
+    auto const device = al::get_not_null(context->mDevice);
+    auto const frequency = static_cast<float>(device->mSampleRate);
 
-    mDelay = maxi(float2int(props->Chorus.Delay*frequency*FRACTIONONE + 0.5f), mindelay);
-    mDepth = minf(props->Chorus.Depth * static_cast<float>(mDelay),
+    mWaveform = props.Waveform;
+
+    const auto stepscale = float{frequency * gCubicTable.sTableSteps};
+    mDelay = std::max(float2int(std::round(props.Delay * stepscale)), mindelay);
+    mDepth = std::min(static_cast<float>(mDelay) * props.Depth,
         static_cast<float>(mDelay - mindelay));
 
-    mFeedback = props->Chorus.Feedback;
+    mFeedback = props.Feedback;
 
-    /* Gains for left and right sides */
-    ALfloat coeffs[2][MAX_AMBI_CHANNELS];
-    CalcDirectionCoeffs({-1.0f, 0.0f, 0.0f}, 0.0f, coeffs[0]);
-    CalcDirectionCoeffs({ 1.0f, 0.0f, 0.0f}, 0.0f, coeffs[1]);
-
-    mOutTarget = target.Main->Buffer;
-    ComputePanGains(target.Main, coeffs[0], Slot->Params.Gain, mGains[0].Target);
-    ComputePanGains(target.Main, coeffs[1], Slot->Params.Gain, mGains[1].Target);
-
-    ALfloat rate{props->Chorus.Rate};
-    if(!(rate > 0.0f))
+    if(!(props.Rate > 0.0f))
     {
         mLfoOffset = 0;
         mLfoRange = 1;
@@ -185,350 +200,238 @@ void ChorusState::update(const ALCcontext *Context, const ALeffectslot *Slot, co
         /* Calculate LFO coefficient (number of samples per cycle). Limit the
          * max range to avoid overflow when calculating the displacement.
          */
-        ALuint lfo_range{float2uint(minf(frequency/rate + 0.5f, ALfloat{INT_MAX/360 - 180}))};
+        static constexpr auto range_limit = std::numeric_limits<int>::max()/360 - 180;
+        const auto range = std::round(frequency / props.Rate);
+        const auto lfo_range = float2uint(std::min(range, float{range_limit}));
 
         mLfoOffset = mLfoOffset * lfo_range / mLfoRange;
         mLfoRange = lfo_range;
         switch(mWaveform)
         {
-            case WaveForm::Triangle:
-                mLfoScale = 4.0f / static_cast<float>(mLfoRange);
-                break;
-            case WaveForm::Sinusoid:
-                mLfoScale = al::MathDefs<float>::Tau() / static_cast<float>(mLfoRange);
-                break;
+        case ChorusWaveform::Triangle:
+            mLfoScale = 4.0f / static_cast<float>(mLfoRange);
+            break;
+        case ChorusWaveform::Sinusoid:
+            mLfoScale = std::numbers::pi_v<float>*2.0f / static_cast<float>(mLfoRange);
+            break;
         }
 
         /* Calculate lfo phase displacement */
-        ALint phase{props->Chorus.Phase};
-        if(phase < 0) phase = 360 + phase;
-        mLfoDisp = (mLfoRange*static_cast<ALuint>(phase) + 180) / 360;
+        auto phase = props.Phase;
+        if(phase < 0) phase += 360;
+        mLfoDisp = (mLfoRange*static_cast<unsigned>(phase) + 180) / 360;
+    }
+
+    mOutTarget = target.Main->Buffer;
+    target.Main->setAmbiMixParams(slot->Wet, slot->Gain,
+        [this](std::size_t const idx, u8 const outchan, float const outgain)
+    {
+        if(idx < mChans.size())
+        {
+            mChans[idx].mTargetChannel = outchan.c_val;
+            mChans[idx].mTargetGain = outgain;
+        }
+    });
+
+    if(mUpsampler.has_value())
+    {
+        auto &upsampler = mUpsampler.value();
+        const auto upmatrix = std::span{AmbiScale::FirstOrderUp};
+
+        auto const outgain = slot->Gain;
+        for(auto const idx : std::views::iota(0_uz, mChans.size()))
+        {
+            if(mChans[idx].mTargetChannel != InvalidChannelIndex)
+                ComputePanGains(target.Main, upmatrix[idx], outgain, upsampler[idx].mTargetGains);
+        }
     }
 }
 
-void ChorusState::process(const size_t samplesToDo, const al::span<const FloatBufferLine> samplesIn, const al::span<FloatBufferLine> samplesOut)
+
+void ChorusState::calcTriangleDelays(const size_t todo)
 {
-    const size_t bufmask{mSampleBuffer.size()-1};
-    const ALfloat feedback{mFeedback};
-    const ALuint avgdelay{(static_cast<ALuint>(mDelay) + (FRACTIONONE>>1)) >> FRACTIONBITS};
-    ALfloat *RESTRICT delaybuf{mSampleBuffer.data()};
-    ALuint offset{mOffset};
+    const auto lfo_range = mLfoRange;
+    const auto lfo_scale = mLfoScale;
+    const auto depth = mDepth;
+    const auto delay = mDelay;
 
-    for(size_t base{0u};base < samplesToDo;)
+    auto gen_lfo = [lfo_scale,depth,delay](unsigned const offset) -> unsigned
     {
-        const size_t todo{minz(256, samplesToDo-base)};
+        const float offset_norm{static_cast<float>(offset) * lfo_scale};
+        return static_cast<unsigned>(fastf2i((1.0f-std::abs(2.0f-offset_norm)) * depth) + delay);
+    };
 
-        ALuint moddelays[2][256];
-        if(mWaveform == WaveForm::Sinusoid)
+    auto offset = mLfoOffset;
+    ASSUME(lfo_range > offset);
+    auto ldelays = mModDelays[0].begin();
+    for(size_t i{0};i < todo;)
+    {
+        const auto rem = std::min(todo-i, size_t{lfo_range-offset});
+        ldelays = std::generate_n(ldelays, rem, [&offset,gen_lfo] { return gen_lfo(offset++); });
+        if(offset == lfo_range) offset = 0;
+        i += rem;
+    }
+
+    offset = (mLfoOffset+mLfoDisp) % lfo_range;
+    auto rdelays = mModDelays[1].begin();
+    for(size_t i{0};i < todo;)
+    {
+        const auto rem = std::min(todo-i, size_t{lfo_range-offset});
+        rdelays = std::generate_n(rdelays, rem, [&offset,gen_lfo] { return gen_lfo(offset++); });
+        if(offset == lfo_range) offset = 0;
+        i += rem;
+    }
+
+    mLfoOffset = static_cast<unsigned>(mLfoOffset+todo) % lfo_range;
+}
+
+void ChorusState::calcSinusoidDelays(const size_t todo)
+{
+    const auto lfo_range = mLfoRange;
+    const auto lfo_scale = mLfoScale;
+    const auto depth = mDepth;
+    const auto delay = mDelay;
+
+    auto gen_lfo = [lfo_scale,depth,delay](unsigned const offset) -> unsigned
+    {
+        auto const offset_norm = float{static_cast<float>(offset) * lfo_scale};
+        return static_cast<unsigned>(fastf2i(std::sin(offset_norm)*depth) + delay);
+    };
+
+    auto offset = mLfoOffset;
+    ASSUME(lfo_range > offset);
+    auto ldelays = mModDelays[0].begin();
+    for(size_t i{0};i < todo;)
+    {
+        const auto rem = std::min(todo-i, size_t{lfo_range-offset});
+        ldelays = std::generate_n(ldelays, rem, [&offset,gen_lfo] { return gen_lfo(offset++); });
+        if(offset == lfo_range) offset = 0;
+        i += rem;
+    }
+
+    offset = (mLfoOffset+mLfoDisp) % lfo_range;
+    auto rdelays = mModDelays[1].begin();
+    for(size_t i{0};i < todo;)
+    {
+        const auto rem = std::min(todo-i, size_t{lfo_range-offset});
+        rdelays = std::generate_n(rdelays, rem, [&offset,gen_lfo] { return gen_lfo(offset++); });
+        if(offset == lfo_range) offset = 0;
+        i += rem;
+    }
+
+    mLfoOffset = static_cast<unsigned>(mLfoOffset+todo) % lfo_range;
+}
+
+void ChorusState::process(const size_t samplesToDo,
+    const std::span<const FloatBufferLine> samplesIn, const std::span<FloatBufferLine> samplesOut)
+{
+    /* Convert B-Format to A-Format for processing. */
+    const auto numInput = std::min(samplesIn.size(), NumLines);
+    for(const auto c : std::views::iota(0_uz, NumLines))
+    {
+        const auto tmpspan = std::span{mABuffer[c]}.first(samplesToDo);
+        std::ranges::fill(tmpspan, 0.0f);
+        for(const auto i : std::views::iota(0_uz, numInput))
         {
-            GetSinusoidDelays(moddelays[0], mLfoOffset, mLfoRange, mLfoScale, mDepth, mDelay,
-                              todo);
-            GetSinusoidDelays(moddelays[1], (mLfoOffset+mLfoDisp)%mLfoRange, mLfoRange, mLfoScale,
-                              mDepth, mDelay, todo);
+            std::ranges::transform(tmpspan, samplesIn[i], tmpspan.begin(),
+                [gain=B2A[c][i]](float const sample, float const in) noexcept -> float
+            { return sample + in*gain; });
         }
-        else /*if(mWaveform == WaveForm::Triangle)*/
+    }
+
+    /* Clear the B-Format buffer that accumulates the result. */
+    for(auto &outbuf : mBBuffer)
+        std::ranges::fill(outbuf | std::views::take(samplesToDo), 0.0f);
+
+    if(mWaveform == ChorusWaveform::Sinusoid)
+        calcSinusoidDelays(samplesToDo);
+    else /*if(mWaveform == ChorusWaveform::Triangle)*/
+        calcTriangleDelays(samplesToDo);
+
+    const auto bufmask = mDelayBuffers.size()/NumLines - 1;
+    const auto feedback = mFeedback;
+    const auto avgdelay = (static_cast<unsigned>(mDelay) + MixerFracHalf) >> MixerFracBits;
+
+    for(const auto c : std::views::iota(0_uz, NumLines))
+    {
+        auto const moddelays = (c < NumLines/2) ? std::span{mModDelays[0]}
+            : std::span{mModDelays[1]};
+
+        auto const delaybuf = std::span{mDelayBuffers}.subspan((bufmask+1)*c, bufmask+1);
+        auto offset = mOffset;
+        std::ranges::transform(mABuffer[c] | std::views::take(samplesToDo), moddelays,
+            mTempLine.begin(),
+            [bufmask, feedback, avgdelay, delaybuf, &offset](float const input,
+                unsigned const moddelay)
         {
-            GetTriangleDelays(moddelays[0], mLfoOffset, mLfoRange, mLfoScale, mDepth, mDelay,
-                              todo);
-            GetTriangleDelays(moddelays[1], (mLfoOffset+mLfoDisp)%mLfoRange, mLfoRange, mLfoScale,
-                              mDepth, mDelay, todo);
-        }
-        mLfoOffset = (mLfoOffset+static_cast<ALuint>(todo)) % mLfoRange;
+            /* Feed the buffer's input first (necessary for delays < 1). */
+            delaybuf[offset&bufmask] = input;
 
-        alignas(16) ALfloat temps[2][256];
-        for(size_t i{0u};i < todo;i++)
-        {
-            // Feed the buffer's input first (necessary for delays < 1).
-            delaybuf[offset&bufmask] = samplesIn[0][base+i];
+            /* Tap for this output. */
+            auto const delay = offset - (moddelay >> gCubicTable.sTableBits);
+            auto const phase = moddelay & gCubicTable.sTableMask;
+            auto const sample = delaybuf[(delay+1) & bufmask]*gCubicTable.getCoeff0(phase) +
+                delaybuf[(delay  ) & bufmask]*gCubicTable.getCoeff1(phase) +
+                delaybuf[(delay-1) & bufmask]*gCubicTable.getCoeff2(phase) +
+                delaybuf[(delay-2) & bufmask]*gCubicTable.getCoeff3(phase);
 
-            // Tap for the left output.
-            ALuint delay{offset - (moddelays[0][i]>>FRACTIONBITS)};
-            ALfloat mu{static_cast<float>(moddelays[0][i]&FRACTIONMASK) * (1.0f/FRACTIONONE)};
-            temps[0][i] = cubic(delaybuf[(delay+1) & bufmask], delaybuf[(delay  ) & bufmask],
-                delaybuf[(delay-1) & bufmask], delaybuf[(delay-2) & bufmask], mu);
-
-            // Tap for the right output.
-            delay = offset - (moddelays[1][i]>>FRACTIONBITS);
-            mu = static_cast<float>(moddelays[1][i]&FRACTIONMASK) * (1.0f/FRACTIONONE);
-            temps[1][i] = cubic(delaybuf[(delay+1) & bufmask], delaybuf[(delay  ) & bufmask],
-                delaybuf[(delay-1) & bufmask], delaybuf[(delay-2) & bufmask], mu);
-
-            // Accumulate feedback from the average delay of the taps.
+            /* Accumulate feedback from the average delay of the taps. */
             delaybuf[offset&bufmask] += delaybuf[(offset-avgdelay) & bufmask] * feedback;
             ++offset;
+
+            return sample;
+        });
+
+        for(const auto i : std::views::iota(0_uz, NumLines))
+        {
+            const auto tmpspan = std::span{mBBuffer[i]}.first(samplesToDo);
+            std::ranges::transform(tmpspan, mTempLine, tmpspan.begin(),
+                [gain=A2B[i][c]](float const sample, float const in) noexcept -> float
+            { return sample + in*gain; });
         }
-
-        for(ALsizei c{0};c < 2;c++)
-            MixSamples({temps[c], todo}, samplesOut, mGains[c].Current, mGains[c].Target,
-                samplesToDo-base, base);
-
-        base += todo;
     }
+    mOffset += gsl::narrow_cast<unsigned>(samplesToDo);
 
-    mOffset = offset;
-}
-
-
-void Chorus_setParami(EffectProps *props, ALCcontext *context, ALenum param, ALint val)
-{
-    switch(param)
+    if(mUpsampler.has_value())
     {
-        case AL_CHORUS_WAVEFORM:
-            if(!(val >= AL_CHORUS_MIN_WAVEFORM && val <= AL_CHORUS_MAX_WAVEFORM))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Invalid chorus waveform");
-            props->Chorus.Waveform = val;
-            break;
-
-        case AL_CHORUS_PHASE:
-            if(!(val >= AL_CHORUS_MIN_PHASE && val <= AL_CHORUS_MAX_PHASE))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Chorus phase out of range");
-            props->Chorus.Phase = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid chorus integer property 0x%04x", param);
+        auto &upsampler = mUpsampler.value();
+        auto chandata = mChans.begin();
+        for(const auto c : std::views::iota(0_uz, NumLines))
+        {
+            auto &upchan = upsampler[c];
+            if(chandata->mTargetChannel != InvalidChannelIndex)
+            {
+                auto src = std::span{mBBuffer[c]}.first(samplesToDo);
+                upchan.mSplitter.processHfScale(src, src, upchan.mHfScale);
+                MixSamples(src, samplesOut, upchan.mCurrentGains, upchan.mTargetGains, samplesToDo,
+                    0);
+            }
+            ++chandata;
+        }
     }
-}
-void Chorus_setParamiv(EffectProps *props, ALCcontext *context, ALenum param, const ALint *vals)
-{ Chorus_setParami(props, context, param, vals[0]); }
-void Chorus_setParamf(EffectProps *props, ALCcontext *context, ALenum param, ALfloat val)
-{
-    switch(param)
+    else
     {
-        case AL_CHORUS_RATE:
-            if(!(val >= AL_CHORUS_MIN_RATE && val <= AL_CHORUS_MAX_RATE))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Chorus rate out of range");
-            props->Chorus.Rate = val;
-            break;
-
-        case AL_CHORUS_DEPTH:
-            if(!(val >= AL_CHORUS_MIN_DEPTH && val <= AL_CHORUS_MAX_DEPTH))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Chorus depth out of range");
-            props->Chorus.Depth = val;
-            break;
-
-        case AL_CHORUS_FEEDBACK:
-            if(!(val >= AL_CHORUS_MIN_FEEDBACK && val <= AL_CHORUS_MAX_FEEDBACK))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Chorus feedback out of range");
-            props->Chorus.Feedback = val;
-            break;
-
-        case AL_CHORUS_DELAY:
-            if(!(val >= AL_CHORUS_MIN_DELAY && val <= AL_CHORUS_MAX_DELAY))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Chorus delay out of range");
-            props->Chorus.Delay = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid chorus float property 0x%04x", param);
+        auto chandata = mChans.begin();
+        for(const auto c : std::views::iota(0_uz, NumLines))
+        {
+            if(auto const outidx = chandata->mTargetChannel; outidx != InvalidChannelIndex)
+                MixSamples(std::span{mBBuffer[c]}.first(samplesToDo), samplesOut[outidx],
+                    chandata->mCurrentGain, chandata->mTargetGain, samplesToDo);
+            ++chandata;
+        }
     }
 }
-void Chorus_setParamfv(EffectProps *props, ALCcontext *context, ALenum param, const ALfloat *vals)
-{ Chorus_setParamf(props, context, param, vals[0]); }
-
-void Chorus_getParami(const EffectProps *props, ALCcontext *context, ALenum param, ALint *val)
-{
-    switch(param)
-    {
-        case AL_CHORUS_WAVEFORM:
-            *val = props->Chorus.Waveform;
-            break;
-
-        case AL_CHORUS_PHASE:
-            *val = props->Chorus.Phase;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid chorus integer property 0x%04x", param);
-    }
-}
-void Chorus_getParamiv(const EffectProps *props, ALCcontext *context, ALenum param, ALint *vals)
-{ Chorus_getParami(props, context, param, vals); }
-void Chorus_getParamf(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *val)
-{
-    switch(param)
-    {
-        case AL_CHORUS_RATE:
-            *val = props->Chorus.Rate;
-            break;
-
-        case AL_CHORUS_DEPTH:
-            *val = props->Chorus.Depth;
-            break;
-
-        case AL_CHORUS_FEEDBACK:
-            *val = props->Chorus.Feedback;
-            break;
-
-        case AL_CHORUS_DELAY:
-            *val = props->Chorus.Delay;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid chorus float property 0x%04x", param);
-    }
-}
-void Chorus_getParamfv(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *vals)
-{ Chorus_getParamf(props, context, param, vals); }
-
-DEFINE_ALEFFECT_VTABLE(Chorus);
 
 
 struct ChorusStateFactory final : public EffectStateFactory {
-    EffectState *create() override { return new ChorusState{}; }
-    EffectProps getDefaultProps() const noexcept override;
-    const EffectVtable *getEffectVtable() const noexcept override { return &Chorus_vtable; }
+    al::intrusive_ptr<EffectState> create() override
+    { return al::intrusive_ptr<EffectState>{new ChorusState{}}; }
 };
-
-EffectProps ChorusStateFactory::getDefaultProps() const noexcept
-{
-    EffectProps props{};
-    props.Chorus.Waveform = AL_CHORUS_DEFAULT_WAVEFORM;
-    props.Chorus.Phase = AL_CHORUS_DEFAULT_PHASE;
-    props.Chorus.Rate = AL_CHORUS_DEFAULT_RATE;
-    props.Chorus.Depth = AL_CHORUS_DEFAULT_DEPTH;
-    props.Chorus.Feedback = AL_CHORUS_DEFAULT_FEEDBACK;
-    props.Chorus.Delay = AL_CHORUS_DEFAULT_DELAY;
-    return props;
-}
-
-
-void Flanger_setParami(EffectProps *props, ALCcontext *context, ALenum param, ALint val)
-{
-    switch(param)
-    {
-        case AL_FLANGER_WAVEFORM:
-            if(!(val >= AL_FLANGER_MIN_WAVEFORM && val <= AL_FLANGER_MAX_WAVEFORM))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Invalid flanger waveform");
-            props->Chorus.Waveform = val;
-            break;
-
-        case AL_FLANGER_PHASE:
-            if(!(val >= AL_FLANGER_MIN_PHASE && val <= AL_FLANGER_MAX_PHASE))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Flanger phase out of range");
-            props->Chorus.Phase = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid flanger integer property 0x%04x", param);
-    }
-}
-void Flanger_setParamiv(EffectProps *props, ALCcontext *context, ALenum param, const ALint *vals)
-{ Flanger_setParami(props, context, param, vals[0]); }
-void Flanger_setParamf(EffectProps *props, ALCcontext *context, ALenum param, ALfloat val)
-{
-    switch(param)
-    {
-        case AL_FLANGER_RATE:
-            if(!(val >= AL_FLANGER_MIN_RATE && val <= AL_FLANGER_MAX_RATE))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Flanger rate out of range");
-            props->Chorus.Rate = val;
-            break;
-
-        case AL_FLANGER_DEPTH:
-            if(!(val >= AL_FLANGER_MIN_DEPTH && val <= AL_FLANGER_MAX_DEPTH))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Flanger depth out of range");
-            props->Chorus.Depth = val;
-            break;
-
-        case AL_FLANGER_FEEDBACK:
-            if(!(val >= AL_FLANGER_MIN_FEEDBACK && val <= AL_FLANGER_MAX_FEEDBACK))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Flanger feedback out of range");
-            props->Chorus.Feedback = val;
-            break;
-
-        case AL_FLANGER_DELAY:
-            if(!(val >= AL_FLANGER_MIN_DELAY && val <= AL_FLANGER_MAX_DELAY))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Flanger delay out of range");
-            props->Chorus.Delay = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid flanger float property 0x%04x", param);
-    }
-}
-void Flanger_setParamfv(EffectProps *props, ALCcontext *context, ALenum param, const ALfloat *vals)
-{ Flanger_setParamf(props, context, param, vals[0]); }
-
-void Flanger_getParami(const EffectProps *props, ALCcontext *context, ALenum param, ALint *val)
-{
-    switch(param)
-    {
-        case AL_FLANGER_WAVEFORM:
-            *val = props->Chorus.Waveform;
-            break;
-
-        case AL_FLANGER_PHASE:
-            *val = props->Chorus.Phase;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid flanger integer property 0x%04x", param);
-    }
-}
-void Flanger_getParamiv(const EffectProps *props, ALCcontext *context, ALenum param, ALint *vals)
-{ Flanger_getParami(props, context, param, vals); }
-void Flanger_getParamf(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *val)
-{
-    switch(param)
-    {
-        case AL_FLANGER_RATE:
-            *val = props->Chorus.Rate;
-            break;
-
-        case AL_FLANGER_DEPTH:
-            *val = props->Chorus.Depth;
-            break;
-
-        case AL_FLANGER_FEEDBACK:
-            *val = props->Chorus.Feedback;
-            break;
-
-        case AL_FLANGER_DELAY:
-            *val = props->Chorus.Delay;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid flanger float property 0x%04x", param);
-    }
-}
-void Flanger_getParamfv(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *vals)
-{ Flanger_getParamf(props, context, param, vals); }
-
-DEFINE_ALEFFECT_VTABLE(Flanger);
-
-
-/* Flanger is basically a chorus with a really short delay. They can both use
- * the same processing functions, so piggyback flanger on the chorus functions.
- */
-struct FlangerStateFactory final : public EffectStateFactory {
-    EffectState *create() override { return new ChorusState{}; }
-    EffectProps getDefaultProps() const noexcept override;
-    const EffectVtable *getEffectVtable() const noexcept override { return &Flanger_vtable; }
-};
-
-EffectProps FlangerStateFactory::getDefaultProps() const noexcept
-{
-    EffectProps props{};
-    props.Chorus.Waveform = AL_FLANGER_DEFAULT_WAVEFORM;
-    props.Chorus.Phase = AL_FLANGER_DEFAULT_PHASE;
-    props.Chorus.Rate = AL_FLANGER_DEFAULT_RATE;
-    props.Chorus.Depth = AL_FLANGER_DEFAULT_DEPTH;
-    props.Chorus.Feedback = AL_FLANGER_DEFAULT_FEEDBACK;
-    props.Chorus.Delay = AL_FLANGER_DEFAULT_DELAY;
-    return props;
-}
 
 } // namespace
 
-EffectStateFactory *ChorusStateFactory_getFactory()
+auto ChorusStateFactory_getFactory() -> gsl::not_null<EffectStateFactory*>
 {
     static ChorusStateFactory ChorusFactory{};
-    return &ChorusFactory;
-}
-
-EffectStateFactory *FlangerStateFactory_getFactory()
-{
-    static FlangerStateFactory FlangerFactory{};
-    return &FlangerFactory;
+    return gsl::make_not_null(&ChorusFactory);
 }

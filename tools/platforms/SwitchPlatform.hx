@@ -1,6 +1,5 @@
 package;
 
-import lime.tools.HashlinkHelper;
 import hxp.Haxelib;
 import hxp.HXML;
 import hxp.Path;
@@ -13,9 +12,6 @@ import lime.tools.AssetType;
 import lime.tools.CPPHelper;
 import lime.tools.DeploymentHelper;
 import lime.tools.HXProject;
-import lime.tools.JavaHelper;
-import lime.tools.NekoHelper;
-import lime.tools.NodeJSHelper;
 import lime.tools.Orientation;
 import lime.tools.Platform;
 import lime.tools.PlatformTarget;
@@ -161,16 +157,16 @@ class SwitchPlatform extends PlatformTarget
 
             var hxcpp_xlinux64_cxx = project.defines.get("HXCPP_XLINUX64_CXX");
             if (hxcpp_xlinux64_cxx == null) hxcpp_xlinux64_cxx = '$dkp/devkitA64/bin/aarch64-none-elf-g++';
-            
+
             var hxcpp_xlinux64_strip = project.defines.get("HXCPP_XLINUX64_STRIP");
             if (hxcpp_xlinux64_strip == null) hxcpp_xlinux64_strip = '$dkp/devkitA64/bin/aarch64-none-elf-strip';
-            
+
             var hxcpp_xlinux64_ranlib = project.defines.get("HXCPP_XLINUX64_RANLIB");
             if (hxcpp_xlinux64_ranlib == null) hxcpp_xlinux64_ranlib = '$dkp/devkitA64/bin/aarch64-none-elf-ranlib';
-            
+
             var hxcpp_xlinux64_ar = project.defines.get("HXCPP_XLINUX64_AR");
             if (hxcpp_xlinux64_ar == null) hxcpp_xlinux64_ar = '$dkp/devkitA64/bin/aarch64-none-elf-ar';
-            
+
             flags.push('-DHXCPP_XLINUX64_CXX=$hxcpp_xlinux64_cxx');
             flags.push('-DHXCPP_XLINUX64_STRIP=$hxcpp_xlinux64_strip');
             flags.push('-DHXCPP_XLINUX64_RANLIB=$hxcpp_xlinux64_ranlib');
@@ -181,14 +177,14 @@ class SwitchPlatform extends PlatformTarget
             if (noOutput) return;
 
             CPPHelper.compile(project, targetDirectory + "/obj", flags);
-            
+
             final libName = project.debug ? "libApplicationMain-debug.a" : "libApplicationMain.a";
             final staticLib = targetDirectory + "/obj/" + libName;
             Log.info("Static library created: " + staticLib);
-            
+
             final limePath = getLimePath();
             final path = Path.combine(limePath, "templates/switch/MakeFileNRO");
-            
+
             if (!FileSystem.exists(path)) {
                 Log.error("Could not find Makefile template at: " + path);
                 return;
@@ -265,7 +261,7 @@ class SwitchPlatform extends PlatformTarget
         return context;
     }
 
-    private function getDisplayHXML():HXML
+    private override function getDisplayHXML():HXML
     {
         var path = targetDirectory + "/haxe/" + buildType + ".hxml";
 
@@ -309,7 +305,7 @@ class SwitchPlatform extends PlatformTarget
     public override function run():Void
     {
         var nroPath = Path.combine(applicationDirectory, project.app.file + ".nro");
-        
+
         var consoleIP = project.config.getString("switch.ip");
         if (targetFlags.exists("ip")) consoleIP = targetFlags.get("ip");
 
@@ -351,7 +347,7 @@ class SwitchPlatform extends PlatformTarget
         else
             arguments.push("-s");
 
-        var exitCode = System.runCommand("", nxlinkProgram, arguments);        
+        var exitCode = System.runCommand("", nxlinkProgram, arguments);
         if (exitCode != 0) {
             Log.error("nxlink: Transfer failed with code " + exitCode);
         }
@@ -368,7 +364,7 @@ class SwitchPlatform extends PlatformTarget
         System.mkdir(targetDirectory + "/obj");
         System.mkdir(targetDirectory + "/haxe");
         System.mkdir(applicationDirectory);
-        
+
         var limePath = getLimePath();
 
         var limeLibDest = Path.combine(targetDirectory, "obj/LIME_LIB/lib");
@@ -379,6 +375,16 @@ class SwitchPlatform extends PlatformTarget
             File.copy(limeSource, Path.combine(limeLibDest, "liblime.a"));
         }
 
+        var sdl3Source = Path.combine(limePath, "templates/switch/libSDL3.a");
+        if (FileSystem.exists(sdl3Source)) {
+            File.copy(sdl3Source, Path.combine(limeLibDest, "libSDL3.a"));
+        }
+
+        // var openalSource = Path.combine(limePath, "templates/switch/libopenalSwitch.a");
+        // if (FileSystem.exists(openalSource)) {
+        //     File.copy(openalSource, Path.combine(limeLibDest, "libopenalSwitch.a"));
+        // }
+
         var romfsDirectory = Path.combine(applicationDirectory, "SWITCH_ASSETS/romfs");
         System.mkdir(romfsDirectory);
 
@@ -388,25 +394,25 @@ class SwitchPlatform extends PlatformTarget
             var defaultIconPath = System.findTemplate(project.templatePaths, "default/icon.svg");
             if (defaultIconPath != null) {
                 Log.info("Using default icon for Switch: " + defaultIconPath);
-                
+
                 var switchAssetsDir = Path.combine(applicationDirectory, "SWITCH_ASSETS");
                 System.mkdir(switchAssetsDir);
-                
+
                 var iconPngPath = Path.combine(switchAssetsDir, "icon_temp.png");
                 var iconJpgPath = Path.combine(switchAssetsDir, "icon.jpg");
-                
+
                 if (IconHelper.createIcon([new Icon(defaultIconPath)], 256, 256, iconPngPath)) {
                     try {
                         var image = Image.fromFile(iconPngPath);
-                        
+
                         if (image != null) {
                             if (image.width != 256 || image.height != 256) {
                                 Log.info("Resizing default icon to 256x256...");
                                 image.resize(256, 256);
                             }
-                            
+
                             var jpegBytes = image.encode(ImageFileFormat.JPEG, 100);
-                            
+
                             if (jpegBytes != null) {
                                 File.saveBytes(iconJpgPath, jpegBytes);
                                 Log.info("Switch icon created from default at: " + iconJpgPath + " (256x256)");
@@ -420,7 +426,7 @@ class SwitchPlatform extends PlatformTarget
                     } catch (e:Dynamic) {
                         Log.warn("Error converting default icon to JPG: " + e);
                     }
-                    
+
                     if (FileSystem.exists(iconPngPath)) {
                         FileSystem.deleteFile(iconPngPath);
                     }
@@ -436,19 +442,19 @@ class SwitchPlatform extends PlatformTarget
 
             var iconPngPath = Path.combine(switchAssetsDir, "icon_temp.png");
             var iconJpgPath = Path.combine(switchAssetsDir, "icon.jpg");
-            
+
             if (IconHelper.createIcon(icons, 256, 256, iconPngPath)) {
                 try {
                     var image = Image.fromFile(iconPngPath);
-                    
+
                     if (image != null) {
                         if (image.width != 256 || image.height != 256) {
                             Log.info("Resizing icon to 256x256...");
                             image.resize(256, 256);
                         }
-                        
+
                         var jpegBytes = image.encode(ImageFileFormat.JPEG, 100);
-                        
+
                         if (jpegBytes != null) {
                             File.saveBytes(iconJpgPath, jpegBytes);
                             Log.info("Switch icon created at: " + iconJpgPath + " (256x256)");
@@ -462,7 +468,7 @@ class SwitchPlatform extends PlatformTarget
                 } catch (e:Dynamic) {
                     Log.error("Error converting icon to JPG: " + e);
                 }
-                
+
                 if (FileSystem.exists(iconPngPath)) {
                     FileSystem.deleteFile(iconPngPath);
                 }

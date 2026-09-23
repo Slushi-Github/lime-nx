@@ -1,20 +1,25 @@
 package lime.tools;
 
-#if lime
-import haxe.io.Bytes as HaxeBytes;
 import haxe.Serializer;
 import haxe.Unserializer;
-import hxp.*;
+import haxe.io.Bytes as HaxeBytes;
+
+import hxp.Haxelib;
+import hxp.Log;
+import hxp.Path;
+import hxp.System;
+
 import lime._internal.format.Base64;
-import lime.tools.AssetType;
 import lime.tools.Asset;
+import lime.tools.AssetType;
 import lime.tools.HXProject;
 import lime.tools.Library;
 import lime.utils.AssetManifest;
 import lime.utils.Bytes;
+
+import sys.FileSystem;
 import sys.io.File;
 import sys.io.FileOutput;
-import sys.FileSystem;
 
 class AssetHelper
 {
@@ -25,12 +30,65 @@ class AssetHelper
 	{
 		knownExtensions = [
 
-			"jpg" => IMAGE, "jpeg" => IMAGE, "png" => IMAGE, "gif" => IMAGE, "webp" => IMAGE, "bmp" => IMAGE, "tiff" => IMAGE, "jfif" => IMAGE, "otf" => FONT,
-			"ttf" => FONT, "wav" => SOUND, "wave" => SOUND, "mp3" => MUSIC, "mp2" => MUSIC, "exe" => BINARY, "bin" => BINARY, "so" => BINARY, "pch" => BINARY,
-			"dll" => BINARY, "zip" => BINARY, "tar" => BINARY, "gz" => BINARY, "fla" => BINARY, "swf" => BINARY, "atf" => BINARY, "psd" => BINARY,
-			"awd" => BINARY, "txt" => TEXT, "text" => TEXT, "xml" => TEXT, "java" => TEXT, "hx" => TEXT, "cpp" => TEXT, "c" => TEXT, "h" => TEXT,
-			"cs" => TEXT, "js" => TEXT, "mm" => TEXT, "hxml" => TEXT, "html" => TEXT, "json" => TEXT, "css" => TEXT, "gpe" => TEXT, "pbxproj" => TEXT,
-			"plist" => TEXT, "properties" => TEXT, "ini" => TEXT, "hxproj" => TEXT, "nmml" => TEXT, "lime" => TEXT, "svg" => TEXT,
+			"jpg" => IMAGE,
+			"jpeg" => IMAGE,
+			"png" => IMAGE,
+			"gif" => IMAGE,
+			"webp" => IMAGE,
+			"bmp" => IMAGE,
+			"tiff" => IMAGE,
+			"jfif" => IMAGE,
+			"otf" => FONT,
+			"ttf" => FONT,
+			"wav" => SOUND,
+			"wave" => SOUND,
+			"flac" => SOUND,
+			"mid" => SOUND,
+			"midi" => SOUND,
+			"ogg" => SOUND,
+			"spx" => SOUND,
+			"au" => SOUND,
+			"aiff" => SOUND,
+			"oga" => SOUND,
+			"mp3" => MUSIC,
+			"mp2" => MUSIC,
+			"exe" => BINARY,
+			"bin" => BINARY,
+			"so" => BINARY,
+			"pch" => BINARY,
+			"dll" => BINARY,
+			"zip" => BINARY,
+			"tar" => BINARY,
+			"gz" => BINARY,
+			"fla" => BINARY,
+			"swf" => BINARY,
+			"atf" => BINARY,
+			"psd" => BINARY,
+			"awd" => BINARY,
+			"txt" => TEXT,
+			"text" => TEXT,
+			"xml" => TEXT,
+			"java" => TEXT,
+			"hx" => TEXT,
+			"cpp" => TEXT,
+			"c" => TEXT,
+			"h" => TEXT,
+			"cs" => TEXT,
+			"js" => TEXT,
+			"mm" => TEXT,
+			"hxml" => TEXT,
+			"html" => TEXT,
+			"json" => TEXT,
+			"css" => TEXT,
+			"gpe" => TEXT,
+			"pbxproj" => TEXT,
+			"plist" => TEXT,
+			"properties" => TEXT,
+			"ini" => TEXT,
+			"hxproj" => TEXT,
+			"nmml" => TEXT,
+			"lime" => TEXT,
+			"svg" => TEXT,
 
 		];
 	}
@@ -108,14 +166,15 @@ class AssetHelper
 		var pathGroups = new Map<String, Array<String>>();
 
 		var libraries = new Map<String, Library>();
-		if (library == null) library = DEFAULT_LIBRARY_NAME;
+		if (library == null)
+			library = DEFAULT_LIBRARY_NAME;
 
 		for (lib in project.libraries)
 		{
 			libraries[lib.name] = lib;
 		}
 
-		var assetData;
+		var assetData:Dynamic;
 
 		for (asset in project.assets)
 		{
@@ -155,8 +214,8 @@ class AssetHelper
 			}
 		}
 
-		var manifest = null;
-		var manifests = [];
+		var manifest:AssetManifest = null;
+		var manifests:Array<AssetManifest> = [];
 
 		if (!hasManifest.exists(DEFAULT_LIBRARY_NAME))
 		{
@@ -178,7 +237,7 @@ class AssetHelper
 		if (targetDirectory != null)
 		{
 			System.mkdir(targetDirectory);
-			var targetPath;
+			var targetPath:String;
 
 			for (manifest in manifests)
 			{
@@ -194,8 +253,10 @@ class AssetHelper
 	private static function getAssetData(project:HXProject, pathGroups:Map<String, Array<String>>, libraries:Map<String, Library>, library:String,
 			asset:Asset):Dynamic
 	{
-		if ((asset.library != null && asset.library != library) || asset.type == TEMPLATE) return null;
-		if (asset.library == null && library != DEFAULT_LIBRARY_NAME) return null;
+		if ((asset.library != null && asset.library != library) || asset.type == TEMPLATE)
+			return null;
+		if (asset.library == null && library != DEFAULT_LIBRARY_NAME)
+			return null;
 
 		var size = 100;
 
@@ -204,30 +265,13 @@ class AssetHelper
 			size = FileSystem.stat(asset.sourcePath).size;
 		}
 
-		var assetData:Dynamic =
-			{
-				id: asset.id,
-				size: size,
-				type: Std.string(asset.type)
-			};
+		var assetData:Dynamic = {
+			id: asset.id,
+			size: size,
+			type: Std.string(asset.type)
+		};
 
-		if (project.target == FLASH || project.target == AIR)
-		{
-			if (asset.embed != false || asset.type == FONT)
-			{
-				assetData.className = "__ASSET__" + asset.flatName;
-			}
-			else
-			{
-				assetData.path = asset.resourceName;
-			}
-
-			if (asset.embed == false && asset.library != null && libraries.exists(asset.library))
-			{
-				assetData.preload = libraries[asset.library].preload;
-			}
-		}
-		else if (project.target == HTML5)
+		if (project.target == HTML5)
 		{
 			if (asset.type == FONT)
 			{
@@ -264,13 +308,6 @@ class AssetHelper
 		}
 		else
 		{
-			if (project.target == WEB_ASSEMBLY
-				&& (asset.embed != false
-					|| (asset.library != null && libraries.exists(asset.library) && libraries[asset.library].preload)))
-			{
-				assetData.preload = true;
-			}
-
 			if (asset.embed == true || asset.type == FONT)
 			{
 				assetData.className = "__ASSET__" + asset.flatName;
@@ -292,7 +329,8 @@ class AssetHelper
 			return getAssetData(project, pathGroups, libraries, library.name, asset);
 		}
 
-		if (asset.type == TEMPLATE) return null;
+		if (asset.type == TEMPLATE)
+			return null;
 		if (asset.library == library.name || (asset.library == null && library.name == DEFAULT_LIBRARY_NAME))
 		{
 			if (output.tell() == 0)
@@ -302,13 +340,12 @@ class AssetHelper
 				output.writeString("lime-asset-pack");
 			}
 
-			var assetData:Dynamic =
-				{
-					id: asset.id,
-					size: 0,
-					type: Std.string(asset.type),
-					position: output.tell()
-				};
+			var assetData:Dynamic = {
+				id: asset.id,
+				size: 0,
+				type: Std.string(asset.type),
+				position: output.tell()
+			};
 
 			if (project.target == HTML5 && asset.type == FONT)
 			{
@@ -390,8 +427,6 @@ class AssetHelper
 
 	private static function isPackedLibrary(project:HXProject, library:Library)
 	{
-		if (project.target == FLASH && library.embed != false) return false;
-
 		return switch (library.type)
 		{
 			case "pak", "pack", "gzip", "zip", "deflate": true;
@@ -409,7 +444,7 @@ class AssetHelper
 			libraryMap[library.name] = true;
 		}
 
-		var library;
+		var library:Library;
 
 		for (asset in project.assets)
 		{
@@ -435,7 +470,7 @@ class AssetHelper
 
 		var handlers = new Array<String>();
 		var hasPackedLibraries = false;
-		var type;
+		var type:String;
 
 		for (library in project.libraries)
 		{
@@ -492,7 +527,7 @@ class AssetHelper
 				}
 				catch (e:Dynamic)
 				{
-					var types = [];
+					var types:Array<String> = [];
 
 					for (library in project.libraries)
 					{
@@ -545,18 +580,18 @@ class AssetHelper
 			project.haxedefs.set("disable_preloader_assets", "1");
 		}
 
-		var manifest, embed, asset;
+		var manifest:AssetManifest;
+		var embed:Bool;
+		var asset:Asset;
 
 		for (library in project.libraries)
 		{
-			if (library.type == null
-				|| (project.target == FLASH
-					&& library.embed != false
-					&& ["pak", "pack", "gzip", "zip", "deflate"].indexOf(library.type) > -1))
+			if (library.type == null)
 			{
 				if (library.name == DEFAULT_LIBRARY_NAME)
 				{
-					library.preload = true;
+					var shouldPreload = (project.haxedefs.get("disable_preload_default_library") != "1") ?? true;
+					library.preload = shouldPreload;
 				}
 
 				if (!hasManifest.exists(library.name))
@@ -583,7 +618,8 @@ class AssetHelper
 							}
 						}
 
-						if (allEmbedded) embed = true;
+						if (allEmbedded)
+							embed = true;
 					}
 
 					asset = new Asset("", "manifest/" + library.name + ".json", AssetType.MANIFEST);
@@ -609,7 +645,10 @@ class AssetHelper
 
 	public static function processPackedLibraries(project:HXProject, targetDirectory:String = null):Void
 	{
-		var type, asset, cacheAvailable, cacheDirectory, filename;
+		var type:String;
+		var cacheAvailable:Bool;
+		var cacheDirectory:String;
+		var filename:String;
 		var output, manifest, position, assetData:Dynamic, input;
 		var embeddedLibrary = false;
 
@@ -627,8 +666,8 @@ class AssetHelper
 			if (isPackedLibrary(project, library))
 			{
 				// TODO
-				#if !nodejs
-				if (type == "zip") type = "deflate";
+				if (type == "zip")
+					type = "deflate";
 
 				// TODO: Support library.embed=true by embedding all the assets instead of packing
 
@@ -656,7 +695,7 @@ class AssetHelper
 
 					try
 					{
-						var assetData;
+						var assetData:Dynamic;
 
 						for (asset in project.assets)
 						{
@@ -672,10 +711,6 @@ class AssetHelper
 					{
 						output.close();
 						FileSystem.deleteFile(cacheDirectory + filename);
-
-						#if neko
-						neko.Lib.rethrow(e);
-						#end
 					}
 
 					output.close();
@@ -700,7 +735,6 @@ class AssetHelper
 				{
 					library.preload = true;
 				}
-				#end
 			}
 		}
 
@@ -710,4 +744,3 @@ class AssetHelper
 		}
 	}
 }
-#end

@@ -1,29 +1,28 @@
 #ifndef ROUTER_ROUTER_H
 #define ROUTER_ROUTER_H
 
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <winnt.h>
 
-#include <stdio.h>
-
-#include <vector>
-#include <string>
 #include <atomic>
+#include <iostream>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "AL/alc.h"
 #include "AL/al.h"
 #include "AL/alext.h"
 
+#include "fmt/base.h"
+#include "fmt/ostream.h"
 
-#define MAKE_ALC_VER(major, minor) (((major)<<8) | (minor))
+
+constexpr auto MakeALCVer(int const major, int const minor) noexcept -> int
+{ return (major<<8) | minor; }
 
 struct DriverIface {
-    std::wstring Name;
-    HMODULE Module{nullptr};
-    int ALCVer{0};
-
     LPALCCREATECONTEXT alcCreateContext{nullptr};
     LPALCMAKECONTEXTCURRENT alcMakeContextCurrent{nullptr};
     LPALCPROCESSCONTEXT alcProcessContext{nullptr};
@@ -47,6 +46,10 @@ struct DriverIface {
 
     PFNALCSETTHREADCONTEXTPROC alcSetThreadContext{nullptr};
     PFNALCGETTHREADCONTEXTPROC alcGetThreadContext{nullptr};
+
+    LPALCLOOPBACKOPENDEVICESOFT alcLoopbackOpenDeviceSOFT{nullptr};
+    LPALCISRENDERFORMATSUPPORTEDSOFT alcIsRenderFormatSupportedSOFT{nullptr};
+    LPALCRENDERSAMPLESSOFT alcRenderSamplesSOFT{nullptr};
 
     LPALENABLE alEnable{nullptr};
     LPALDISABLE alDisable{nullptr};
@@ -122,71 +125,112 @@ struct DriverIface {
     LPALSPEEDOFSOUND alSpeedOfSound{nullptr};
     LPALDISTANCEMODEL alDistanceModel{nullptr};
 
-    DriverIface(std::wstring name, HMODULE mod)
-      : Name(std::move(name)), Module(mod)
-    { }
-    ~DriverIface()
+    /* Functions to load after first context creation. */
+    LPALGENFILTERS alGenFilters{nullptr};
+    LPALDELETEFILTERS alDeleteFilters{nullptr};
+    LPALISFILTER alIsFilter{nullptr};
+    LPALFILTERF alFilterf{nullptr};
+    LPALFILTERFV alFilterfv{nullptr};
+    LPALFILTERI alFilteri{nullptr};
+    LPALFILTERIV alFilteriv{nullptr};
+    LPALGETFILTERF alGetFilterf{nullptr};
+    LPALGETFILTERFV alGetFilterfv{nullptr};
+    LPALGETFILTERI alGetFilteri{nullptr};
+    LPALGETFILTERIV alGetFilteriv{nullptr};
+    LPALGENEFFECTS alGenEffects{nullptr};
+    LPALDELETEEFFECTS alDeleteEffects{nullptr};
+    LPALISEFFECT alIsEffect{nullptr};
+    LPALEFFECTF alEffectf{nullptr};
+    LPALEFFECTFV alEffectfv{nullptr};
+    LPALEFFECTI alEffecti{nullptr};
+    LPALEFFECTIV alEffectiv{nullptr};
+    LPALGETEFFECTF alGetEffectf{nullptr};
+    LPALGETEFFECTFV alGetEffectfv{nullptr};
+    LPALGETEFFECTI alGetEffecti{nullptr};
+    LPALGETEFFECTIV alGetEffectiv{nullptr};
+    LPALGENAUXILIARYEFFECTSLOTS alGenAuxiliaryEffectSlots{nullptr};
+    LPALDELETEAUXILIARYEFFECTSLOTS alDeleteAuxiliaryEffectSlots{nullptr};
+    LPALISAUXILIARYEFFECTSLOT alIsAuxiliaryEffectSlot{nullptr};
+    LPALAUXILIARYEFFECTSLOTF alAuxiliaryEffectSlotf{nullptr};
+    LPALAUXILIARYEFFECTSLOTFV alAuxiliaryEffectSlotfv{nullptr};
+    LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti{nullptr};
+    LPALAUXILIARYEFFECTSLOTIV alAuxiliaryEffectSlotiv{nullptr};
+    LPALGETAUXILIARYEFFECTSLOTF alGetAuxiliaryEffectSlotf{nullptr};
+    LPALGETAUXILIARYEFFECTSLOTFV alGetAuxiliaryEffectSlotfv{nullptr};
+    LPALGETAUXILIARYEFFECTSLOTI alGetAuxiliaryEffectSloti{nullptr};
+    LPALGETAUXILIARYEFFECTSLOTIV alGetAuxiliaryEffectSlotiv{nullptr};
+
+    std::wstring const Name;
+    HMODULE const Module{nullptr};
+    int ALCVer{0};
+    std::once_flag InitOnceCtx;
+
+    template<typename T>
+    DriverIface(T&& name, HMODULE const mod) : Name(std::forward<T>(name)), Module(mod) { }
+    ~DriverIface() { if(Module) FreeLibrary(Module); }
+
+    DriverIface(const DriverIface&) = delete;
+    DriverIface(DriverIface&&) = delete;
+    DriverIface& operator=(const DriverIface&) = delete;
+    DriverIface& operator=(DriverIface&&) = delete;
+};
+using DriverIfacePtr = std::unique_ptr<DriverIface>;
+using LPCDriverIface = DriverIface const*;
+
+inline auto DriverList = std::vector<DriverIfacePtr>{};
+
+inline thread_local auto ThreadCtxDriver = LPCDriverIface{};
+inline auto CurrentCtxDriver = std::atomic<LPCDriverIface>{};
+
+inline auto GetThreadDriver() noexcept -> LPCDriverIface { return ThreadCtxDriver; }
+inline void SetThreadDriver(LPCDriverIface const driver) noexcept { ThreadCtxDriver = driver; }
+
+
+enum class eLogLevel {
+    None  = 0,
+    Error = 1,
+    Warn  = 2,
+    Trace = 3,
+};
+inline auto LogLevel = eLogLevel::Error;
+inline auto LogFile = std::ofstream{}; /* NOLINT(cert-err58-cpp) */
+
+template<typename ...Args>
+void TRACE(fmt::format_string<Args...> const fmt, Args&& ...args)
+{
+    if(LogLevel >= eLogLevel::Trace)
     {
-        if(Module)
-            FreeLibrary(Module);
-        Module = nullptr;
+        auto &file = LogFile ? LogFile : std::cerr;
+        auto msg = fmt::vformat(fmt, fmt::make_format_args(args...));
+        fmt::vprint(file, "AL Router (II): {}\n", fmt::make_format_args(msg));
+        file.flush();
     }
-};
+}
 
-extern std::vector<DriverIface> DriverList;
+template<typename ...Args>
+void WARN(fmt::format_string<Args...> const fmt, Args&& ...args)
+{
+    if(LogLevel >= eLogLevel::Warn)
+    {
+        auto &file = LogFile ? LogFile : std::cerr;
+        auto msg = fmt::vformat(fmt, fmt::make_format_args(args...));
+        fmt::vprint(file, "AL Router (WW): {}\n", fmt::make_format_args(msg));
+        file.flush();
+    }
+}
 
-extern thread_local DriverIface *ThreadCtxDriver;
-extern std::atomic<DriverIface*> CurrentCtxDriver;
+template<typename ...Args>
+void ERR(fmt::format_string<Args...> const fmt, Args&& ...args)
+{
+    if(LogLevel >= eLogLevel::Error)
+    {
+        auto &file = LogFile ? LogFile : std::cerr;
+        auto msg = fmt::vformat(fmt, fmt::make_format_args(args...));
+        fmt::vprint(file, "AL Router (EE): {}\n", fmt::make_format_args(msg));
+        file.flush();
+    }
+}
 
-
-class PtrIntMap {
-    ALvoid **mKeys{nullptr};
-    /* Shares memory with keys. */
-    ALint *mValues{nullptr};
-
-    ALsizei mSize{0};
-    ALsizei mCapacity{0};
-    std::mutex mLock;
-
-public:
-    PtrIntMap() = default;
-    ~PtrIntMap();
-
-    ALenum insert(ALvoid *key, ALint value);
-    ALint removeByKey(ALvoid *key);
-    ALint lookupByKey(ALvoid *key);
-};
-
-
-enum LogLevel {
-    LogLevel_None  = 0,
-    LogLevel_Error = 1,
-    LogLevel_Warn  = 2,
-    LogLevel_Trace = 3,
-};
-extern enum LogLevel LogLevel;
-extern FILE *LogFile;
-
-#define TRACE(...) do {                                   \
-    if(LogLevel >= LogLevel_Trace)                        \
-    {                                                     \
-        fprintf(LogFile, "AL Router (II): " __VA_ARGS__); \
-        fflush(LogFile);                                  \
-    }                                                     \
-} while(0)
-#define WARN(...) do {                                    \
-    if(LogLevel >= LogLevel_Warn)                         \
-    {                                                     \
-        fprintf(LogFile, "AL Router (WW): " __VA_ARGS__); \
-        fflush(LogFile);                                  \
-    }                                                     \
-} while(0)
-#define ERR(...) do {                                     \
-    if(LogLevel >= LogLevel_Error)                        \
-    {                                                     \
-        fprintf(LogFile, "AL Router (EE): " __VA_ARGS__); \
-        fflush(LogFile);                                  \
-    }                                                     \
-} while(0)
+void LoadDriverList();
 
 #endif /* ROUTER_ROUTER_H */

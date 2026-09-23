@@ -1,0 +1,99 @@
+name: Build and Push
+on: workflow_dispatch
+
+jobs:
+  android:
+    uses: ./.github/workflows/android.yml
+  ios:
+    uses: ./.github/workflows/ios.yml
+  linux:
+    uses: ./.github/workflows/linux.yml
+  mac:
+    uses: ./.github/workflows/mac.yml
+  windows:
+    uses: ./.github/workflows/windows.yml
+  miscellaneous:
+    uses: ./.github/workflows/miscellaneous.yml
+
+  publisher:
+    needs: [android, ios, linux, mac, windows, miscellaneous]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Delete old NDLL's
+        run: |
+          rm -rf ndll
+          mkdir ndll
+
+      - name: Download Android-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Android-NDLL
+          path: ndll/Android
+
+      - name: Download iPhone-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: iPhone-NDLL
+          path: ndll/iPhone
+
+      - name: Download Linux64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux64-NDLL
+          path: ndll/Linux64
+
+      - name: Download Mac64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Mac64-NDLL
+          path: ndll/Mac64
+
+      - name: Download MacArm64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: MacArm64-NDLL
+          path: ndll/MacArm64
+
+      - name: Download Windows64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Windows64-NDLL
+          path: ndll/Windows64
+
+      - name: Download Windows-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Windows-NDLL
+          path: ndll/Windows
+
+      - name: Download Miscellaneous artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Miscellaneous
+          path: ./
+
+      - name: Push to GitHub
+        run: |
+          USERACTOR=${{ github.actor }}
+          USER_INFO=$(curl -s "https://api.github.com/users/$USERACTOR")
+          USERID=$(echo "$USER_INFO" | jq -r '.id')
+          USERNAME=$(echo "$USER_INFO" | jq -r '.name')
+
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add -f ndll
+          git add -f tools/tools.n
+          git add -f run.n
+          # git add -f templates/bin/lime.exe
+          git commit --author="${USERNAME} <${USERID}+$(echo "$USERACTOR" | sed 's/ /-/g')@users.noreply.github.com>" -m "Built and Pushed New NDLL's." || {
+              echo "Didn't commit anything, skipping git push."
+              exit 0
+          }
+          git push

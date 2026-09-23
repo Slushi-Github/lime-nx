@@ -1,9 +1,7 @@
-#ifndef LIME_TEXT_FONT_H
-#define LIME_TEXT_FONT_H
-
+#pragma once
 
 #include <graphics/ImageBuffer.h>
-#include <system/CFFI.h>
+#include <hx/CFFIPrime.h>
 #include <system/System.h>
 #include <utils/Resource.h>
 
@@ -11,12 +9,11 @@
 #undef GetGlyphIndices
 #endif
 
+namespace lime
+{
 
-namespace lime {
-
-
-	typedef struct {
-
+	typedef struct
+	{
 		unsigned long codepoint;
 		size_t size;
 		int index;
@@ -24,9 +21,8 @@ namespace lime {
 
 	} GlyphInfo;
 
-
-	typedef struct {
-
+	typedef struct
+	{
 		uint32_t index;
 		uint32_t width;
 		uint32_t height;
@@ -36,43 +32,38 @@ namespace lime {
 
 	} GlyphImage;
 
+	class Font
+	{
+	  public:
+		static void InitializeLibrary();
+		static void ShutdownLibrary();
 
-	class Font {
+		Font(Resource *resource, int faceIndex = 0);
+		~Font();
 
+		int GetAscender();
+		int GetDescender();
+		wchar_t *GetFamilyName();
+		int GetGlyphIndex(const char *character);
+		void *GetGlyphIndices(const char *characters);
+		void *GetGlyphMetrics(int index);
+		void *GetKerning(int leftIndex, int rightIndex);
+		int GetHeight();
+		int GetNumGlyphs();
+		int GetUnderlinePosition();
+		int GetUnderlineThickness();
+		int GetStrikethroughPosition();
+		int GetStrikethroughThickness();
+		int GetUnitsPerEM();
+		int RenderGlyph(int index, Bytes *bytes, int offset, int flags);
+		int RenderGlyphs(int *indices, int numIndices, Bytes *bytes, int flags);
+		void SetSize(size_t size);
 
-		public:
+		void *face;
+		void *faceMemory;
 
-			Font (Resource *resource, int faceIndex = 0);
-			~Font ();
-
-			void* Decompose (bool useCFFIValue, int em);
-			int GetAscender ();
-			int GetDescender ();
-			wchar_t *GetFamilyName ();
-			int GetGlyphIndex (const char* character);
-			void* GetGlyphIndices (bool useCFFIValue, const char* characters);
-			void* GetGlyphMetrics (bool useCFFIValue, int index);
-			int GetHeight ();
-			int GetNumGlyphs ();
-			int GetUnderlinePosition ();
-			int GetUnderlineThickness ();
-			int GetUnitsPerEM ();
-			int RenderGlyph (int index, Bytes *bytes, int offset = 0);
-			int RenderGlyphs (value indices, Bytes *bytes);
-			void SetSize (size_t size, size_t dpi);
-
-			void* library;
-			void* face;
-			void* faceMemory;
-
-		private:
-
-			size_t mSize;
-
+	  private:
+		static void *library;
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

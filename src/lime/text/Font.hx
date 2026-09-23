@@ -1,6 +1,7 @@
 package lime.text;
 
 import haxe.io.Bytes;
+
 import lime._internal.backend.native.NativeCFFI;
 import lime.app.Future;
 import lime.app.Promise;
@@ -8,26 +9,21 @@ import lime.graphics.Image;
 import lime.graphics.ImageBuffer;
 import lime.math.Vector2;
 import lime.net.HTTPRequest;
-import lime.system.CFFI;
-import lime.system.System;
 import lime.utils.Assets;
-import lime.utils.Log;
 import lime.utils.UInt8Array;
+
 #if (js && html5)
+import js.Browser;
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
 import js.html.SpanElement;
-import js.Browser;
 #end
+
 #if (lime_cffi && !macro)
 import haxe.io.Path;
 #end
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
-#if (!display && !flash && !nodejs && !macro)
+#if (!display && !macro)
 @:autoBuild(lime._internal.macros.AssetsMacro.embedFont())
 #end
 @:access(lime._internal.backend.native.NativeCFFI)
@@ -35,46 +31,75 @@ import haxe.io.Path;
 class Font
 {
 	/**
-     	* The ascender value of the font.
-     	*/
-	public var ascender:Int;
-	
-	 /**
-     	* The descender value of the font.
-     	*/
-	public var descender:Int;
-	
+	 * Initialize the library instance for all fonts.
+	 */
+	public static function init():Void
+	{
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_font_initialize_library();
+		#end
+	}
+
 	/**
-     	* The height of the font.
-     	*/
+	 * Shutdown the library instance for all fonts.
+	 */
+	public static function shutdown():Void
+	{
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_font_shutdown_library();
+		#end
+	}
+
+	/**
+	 * The ascender value of the font.
+	 */
+	public var ascender:Int;
+
+	/**
+	 * The descender value of the font.
+	 */
+	public var descender:Int;
+
+	/**
+	 * The height of the font.
+	 */
 	public var height:Int;
 
 	/**
-     	* The name of the font.
-    	 */
+	 * The name of the font.
+	 */
 	public var name(default, null):String;
 
 	/**
-     	* The number of glyphs in the font.
-     	*/
+	 * The number of glyphs in the font.
+	 */
 	public var numGlyphs:Int;
 
-	
 	public var src:Dynamic;
 
 	/**
-    	* The underline position of the font.
-    	*/
+	 * The underline position of the font.
+	 */
 	public var underlinePosition:Int;
 
 	/**
-    	* The underline thickness of the font.
-    	*/
+	 * The underline thickness of the font.
+	 */
 	public var underlineThickness:Int;
 
 	/**
-     	* The units per EM of the font.
-     	*/
+	 * The underline position of the font.
+	 */
+	public var strikethroughPosition:Int;
+
+	/**
+	 * The underline thickness of the font.
+	 */
+	public var strikethroughThickness:Int;
+
+	/**
+	 * The units per EM of the font.
+	 */
 	public var unitsPerEM:Int;
 
 	@:noCompletion private var __fontID:String;
@@ -85,10 +110,10 @@ class Font
 	@:noCompletion private var __init:Bool;
 
 	/**
-     	* Creates a new instance of a Font object.
-     	*
-     	* @param name Optional name of the font.
-     	*/
+	 * Creates a new instance of a Font object.
+	 *
+	 * @param name Optional name of the font.
+	 */
 	public function new(name:String = null)
 	{
 		if (name != null)
@@ -98,29 +123,29 @@ class Font
 
 		if (!__init)
 		{
-			#if js if (ascender == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined")) #end ascender = 0;
+			#if js if (ascender == untyped js.Syntax.code("undefined")) #end ascender = 0;
 			#if js
-			if (descender == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (descender == untyped js.Syntax.code("undefined"))
 			#end
 			descender = 0;
 			#if js
-			if (height == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (height == untyped js.Syntax.code("undefined"))
 			#end
 			height = 0;
 			#if js
-			if (numGlyphs == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (numGlyphs == untyped js.Syntax.code("undefined"))
 			#end
 			numGlyphs = 0;
 			#if js
-			if (underlinePosition == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (underlinePosition == untyped js.Syntax.code("undefined"))
 			#end
 			underlinePosition = 0;
 			#if js
-			if (underlineThickness == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (underlineThickness == untyped js.Syntax.code("undefined"))
 			#end
 			underlineThickness = 0;
 			#if js
-			if (unitsPerEM == untyped #if haxe4 js.Syntax.code #else __js__ #end ("undefined"))
+			if (unitsPerEM == untyped js.Syntax.code("undefined"))
 			#end
 			unitsPerEM = 0;
 
@@ -139,37 +164,15 @@ class Font
 	}
 
 	/**
-     	* Decomposes the font into outline data.
-     	*
-     	* @return An instance of `NativeFontData` that contains decomposed font outline information.
-     	*/
-	public function decompose():NativeFontData
-	{
-		#if (lime_cffi && !macro)
-		if (src == null) throw "Uninitialized font handle.";
-		var data:Dynamic = NativeCFFI.lime_font_outline_decompose(src, 1024 * 20);
-		#if hl
-		if (data != null)
-		{
-			data.family_name = @:privateAccess String.fromUCS2(data.family_name);
-			data.style_name = @:privateAccess String.fromUTF8(data.style_name);
-		}
-		#end
-		return data;
-		#else
-		return null;
-		#end
-	}
-
-	/**
-     	* Creates a Font instance from byte data.
-     	*
-     	* @param bytes The byte data containing the font.
-     	* @return A `Font` instance.
-     	*/
+	 * Creates a Font instance from byte data.
+	 *
+	 * @param bytes The byte data containing the font.
+	 * @return A `Font` instance.
+	 */
 	public static function fromBytes(bytes:Bytes):Font
 	{
-		if (bytes == null) return null;
+		if (bytes == null)
+			return null;
 
 		var font = new Font();
 		font.__fromBytes(bytes);
@@ -182,14 +185,15 @@ class Font
 	}
 
 	/**
-     	* Creates a Font instance from a file path.
-     	*
-     	* @param path The file path of the font.
-     	* @return A `Font` instance.
-     	*/
+	 * Creates a Font instance from a file path.
+	 *
+	 * @param path The file path of the font.
+	 * @return A `Font` instance.
+	 */
 	public static function fromFile(path:String):Font
 	{
-		if (path == null) return null;
+		if (path == null)
+			return null;
 
 		var font = new Font();
 		font.__fromFile(path);
@@ -202,22 +206,22 @@ class Font
 	}
 
 	/**
-     	* Loads a Font from byte data asynchronously.
-     	*
-     	* @param bytes The byte data containing the font.
-     	* @return A `Future` containing a `Font` instance.
-     	*/
+	 * Loads a Font from byte data asynchronously.
+	 *
+	 * @param bytes The byte data containing the font.
+	 * @return A `Future` containing a `Font` instance.
+	 */
 	public static function loadFromBytes(bytes:Bytes):Future<Font>
 	{
 		return Future.withValue(fromBytes(bytes));
 	}
 
 	/**
-     	* Loads a Font from a file path asynchronously.
-     	*
-     	* @param path The file path of the font.
-     	* @return A `Future` containing a `Font` instance.
-     	*/
+	 * Loads a Font from a file path asynchronously.
+	 *
+	 * @param path The file path of the font.
+	 * @return A `Future` containing a `Font` instance.
+	 */
 	public static function loadFromFile(path:String):Future<Font>
 	{
 		var request = new HTTPRequest<Font>();
@@ -235,11 +239,11 @@ class Font
 	}
 
 	/**
-     	* Loads a Font by its name asynchronously.
-     	*
-     	* @param path The name of the font.
-     	* @return A `Future` containing a `Font` instance.
-     	*/
+	 * Loads a Font by its name asynchronously.
+	 *
+	 * @param path The name of the font.
+	 * @return A `Future` containing a `Font` instance.
+	 */
 	public static function loadFromName(path:String):Future<Font>
 	{
 		#if (js && html5)
@@ -251,11 +255,11 @@ class Font
 	}
 
 	/**
-     	* Retrieves a glyph from the font by a character.
-     	*
-     	* @param character The character whose glyph to retrieve.
-     	* @return A `Glyph` instance representing the glyph of the character.
-     	*/
+	 * Retrieves a glyph from the font by a character.
+	 *
+	 * @param character The character whose glyph to retrieve.
+	 * @return A `Glyph` instance representing the glyph of the character.
+	 */
 	public function getGlyph(character:String):Glyph
 	{
 		#if (lime_cffi && !macro)
@@ -266,41 +270,36 @@ class Font
 	}
 
 	/**
-     	* Retrieves an array of glyphs for a set of characters.
-     	*
-     	* @param characters The string containing characters to retrieve glyphs for.
-     	* @return An array of `Glyph` instances representing the glyphs of the characters.
-     	*/
+	 * Retrieves an array of glyphs for a set of characters.
+	 *
+	 * @param characters The string containing characters to retrieve glyphs for.
+	 * @return An array of `Glyph` instances representing the glyphs of the characters.
+	 */
 	public function getGlyphs(characters:String = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^`'\"/\\&*()[]{}<>|:;_-+=?,. "):Array<Glyph>
 	{
 		#if (lime_cffi && !macro)
-		#if hl
-		return [for (index in NativeCFFI.lime_font_get_glyph_indices(src, characters)) new Glyph(index)];
-		#else
 		return NativeCFFI.lime_font_get_glyph_indices(src, characters);
-		#end
 		#else
 		return null;
 		#end
 	}
 
 	/**
-     	* Retrieves metrics for a given glyph.
-     	*
-     	* @param glyph The glyph whose metrics to retrieve.
-     	* @return A `GlyphMetrics` instance containing the metrics of the glyph.
-     	*/
+	 * Retrieves metrics for a given glyph.
+	 *
+	 * @param glyph The glyph whose metrics to retrieve.
+	 * @return A `GlyphMetrics` instance containing the metrics of the glyph.
+	 */
 	public function getGlyphMetrics(glyph:Glyph):GlyphMetrics
 	{
 		#if (lime_cffi && !macro)
 		var value:Dynamic = NativeCFFI.lime_font_get_glyph_metrics(src, glyph);
-		var metrics = new GlyphMetrics();
 
+		var metrics = new GlyphMetrics();
 		metrics.advance = new Vector2(value.horizontalAdvance, value.verticalAdvance);
 		metrics.height = value.height;
 		metrics.horizontalBearing = new Vector2(value.horizontalBearingX, value.horizontalBearingY);
 		metrics.verticalBearing = new Vector2(value.verticalBearingX, value.verticalBearingY);
-
 		return metrics;
 		#else
 		return null;
@@ -308,22 +307,53 @@ class Font
 	}
 
 	/**
-     	* Renders a specific glyph to an image.
-     	*
-     	* @param glyph The glyph to render.
-     	* @param fontSize The size to render the glyph at.
-     	* @return An `Image` instance representing the rendered glyph.
-     	*/
-	public function renderGlyph(glyph:Glyph, fontSize:Int):Image
+	 * Retrieves kerning vector between two glyphs.
+	 *
+	 * @param leftGlyph The left glyph in the kern pair.
+	 * @param rightGlyph The right glyph in the kern pair.
+	 * @return A `GlyphKerning` instance containing the kerning vector between the given glyphs.
+	 */
+	public function getGlyphKerning(leftGlyph:Glyph, rightGlyph:Glyph):GlyphKerning
 	{
 		#if (lime_cffi && !macro)
-		__setSize(fontSize, 96);
+		var value:Dynamic = NativeCFFI.lime_font_get_glyph_kerning(src, leftGlyph, rightGlyph);
 
-		// Allocate an estimated buffer size - adjust if necessary
-		var bytes:Bytes = Bytes.alloc(0); // Allocate some reasonable initial size
+		var kerning = new GlyphKerning();
+		kerning.x = value.x;
+		kerning.y = value.y;
+		return kerning;
+		#else
+		return null;
+		#end
+	}
+
+	/**
+	 * Sets the font size.
+	 *
+	 * @param size The size to set the font to.
+	 */
+	public function setSize(size:Int):Void
+	{
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_font_set_size(src, size);
+		#end
+	}
+
+	/**
+	 * Renders a specific glyph to an image.
+	 *
+	 * @param glyph The glyph to render.
+	 * @param flags Additional FreeType load flags to apply when rasterizing.
+	 * @return An `Image` instance representing the rendered glyph.
+	 */
+	public function renderGlyph(glyph:Glyph, ?flags:Int = 0):Image
+	{
+		#if (lime_cffi && !macro)
+		// Allocate an estimated buffer size
+		var bytes:Bytes = Bytes.alloc(0);
 
 		// Call native function to render glyph and get byte data
-		bytes = NativeCFFI.lime_font_render_glyph(src, glyph, bytes);
+		bytes = NativeCFFI.lime_font_render_glyph(src, glyph, bytes, flags);
 
 		if (bytes != null && bytes.length > 0)
 		{
@@ -352,7 +382,7 @@ class Font
 			}
 
 			// Extract pixel data from the byte array, accounting for 32-bit RGBA data
-			var pitch = width * 4; // 32-bit color data
+			var pitch = width * 4;
 
 			// Create a new Bytes array to store the extracted bitmap data without padding
 			var dataBytes = Bytes.alloc(width * height * 4);
@@ -375,14 +405,15 @@ class Font
 
 		return null;
 	}
+
 	/**
-     	* Renders a set of glyphs to images.
-     	*
-     	* @param glyphs The glyphs to render.
-     	* @param fontSize The size to render the glyphs at.
-     	* @return A `Map` containing glyphs mapped to their corresponding images.
-     	*/
-	public function renderGlyphs(glyphs:Array<Glyph>, fontSize:Int):Map<Glyph, Image>
+	 * Renders a set of glyphs to images.
+	 *
+	 * @param glyphs The glyphs to render.
+	 * @param flags Additional FreeType load flags to apply when rasterizing.
+	 * @return A `Map` containing glyphs mapped to their corresponding images.
+	 */
+	public function renderGlyphs(glyphs:Array<Glyph>, ?flags:Int = 0):Map<Glyph, Image>
 	{
 		#if (lime_cffi && !macro)
 		var uniqueGlyphs = new Map<Int, Bool>();
@@ -399,21 +430,11 @@ class Font
 			glyphList.push(key);
 		}
 
-		#if hl
-		var _glyphList = new hl.NativeArray<Glyph>(glyphList.length);
+		// Allocate an estimated buffer size
+		var bytes:Bytes = Bytes.alloc(0);
 
-		for (i in 0...glyphList.length)
-		{
-			_glyphList[i] = glyphList[i];
-		}
-
-		var glyphList = _glyphList;
-		#end
-
-		__setSize(fontSize, 96);
-
-		var bytes = Bytes.alloc(0);
-		bytes = NativeCFFI.lime_font_render_glyphs(src, glyphList, bytes);
+		// Call native function to render glyphs and get byte data
+		bytes = NativeCFFI.lime_font_render_glyphs(src, glyphList, bytes, flags);
 
 		if (bytes != null && bytes.length > 0)
 		{
@@ -427,7 +448,8 @@ class Font
 			var offsetY = 0;
 			var maxRows = 0;
 
-			var width, height;
+			var width:Int;
+			var height:Int;
 			var i = 0;
 
 			while (i < count)
@@ -461,9 +483,6 @@ class Font
 					offsetX = 0;
 					offsetY = 0;
 					maxRows = 0;
-
-					// TODO: make this better
-
 					bytesPosition = 4;
 					i = 0;
 					continue;
@@ -489,7 +508,10 @@ class Font
 			offsetY = 0;
 			maxRows = 0;
 
-			var index, x, y, image;
+			var index:Int;
+			var x:Int;
+			var y:Int;
+			var image:Image;
 
 			for (i in 0...count)
 			{
@@ -532,11 +554,7 @@ class Font
 				}
 			}
 
-			#if js
-			buffer.data = data.byteView;
-			#else
 			buffer.data = new UInt8Array(data);
-			#end
 
 			return map;
 		}
@@ -603,7 +621,7 @@ class Font
 		{
 			if (name == null)
 			{
-				name = CFFI.stringValue(cast NativeCFFI.lime_font_get_family_name(src));
+				name = NativeCFFI.lime_font_get_family_name(src);
 			}
 
 			ascender = NativeCFFI.lime_font_get_ascender(src);
@@ -612,6 +630,8 @@ class Font
 			numGlyphs = NativeCFFI.lime_font_get_num_glyphs(src);
 			underlinePosition = NativeCFFI.lime_font_get_underline_position(src);
 			underlineThickness = NativeCFFI.lime_font_get_underline_thickness(src);
+			strikethroughPosition = NativeCFFI.lime_font_get_strikethrough_position(src);
+			strikethroughThickness = NativeCFFI.lime_font_get_strikethrough_thickness(src);
 			unitsPerEM = NativeCFFI.lime_font_get_units_per_em(src);
 		}
 		#end
@@ -653,7 +673,8 @@ class Font
 			var timeout = 3000;
 			var intervalLength = 50;
 			var intervalCount = 0;
-			var loaded, timeExpired;
+			var loaded:Bool;
+			var timeExpired:Bool;
 
 			var checkFont = function()
 			{
@@ -713,57 +734,4 @@ class Font
 		return node;
 	}
 	#end
-
-	@:noCompletion private function __setSize(size:Int, dpi:Int = 72):Void
-	{
-		#if (lime_cffi && !macro)
-		NativeCFFI.lime_font_set_size(src, size, dpi);
-		#end
-	}
-}
-
-/**
-* Represents decomposed font data, containing kerning information, glyphs, and other properties.
-*/
-typedef NativeFontData =
-{
-	var has_kerning:Bool;
-	var is_fixed_width:Bool;
-	var has_glyph_names:Bool;
-	var is_italic:Bool;
-	var is_bold:Bool;
-	var num_glyphs:Int;
-	var family_name:String;
-	var style_name:String;
-	var em_size:Int;
-	var ascend:Int;
-	var descend:Int;
-	var height:Int;
-	var glyphs:Array<NativeGlyphData>;
-	var kerning:Array<NativeKerningData>;
-}
-
-/**
-* Represents data for an individual glyph, including dimensions and control points.
-*/
-typedef NativeGlyphData =
-{
-	var char_code:Int;
-	var advance:Int;
-	var min_x:Int;
-	var max_x:Int;
-	var min_y:Int;
-	var max_y:Int;
-	var points:Array<Int>;
-}
-
-/**
-* Represents kerning information between two glyphs.
-*/
-typedef NativeKerningData =
-{
-	var left_glyph:Int;
-	var right_glyph:Int;
-	var x:Int;
-	var y:Int;
 }

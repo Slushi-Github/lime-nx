@@ -1,22 +1,18 @@
 package lime.graphics;
 
 import haxe.io.Bytes;
+
 import lime.graphics.cairo.CairoSurface;
 import lime.utils.UInt8Array;
 #if (js && html5)
 import lime._internal.graphics.ImageCanvasUtil;
+
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
 import js.html.Image as HTMLImage;
 import js.html.ImageData;
 import js.Browser;
-#if haxe4
 import js.lib.Uint8ClampedArray;
-#else
-import js.html.Uint8ClampedArray;
-#end
-#elseif flash
-import flash.display.BitmapData;
 #end
 
 /**
@@ -24,13 +20,6 @@ import flash.display.BitmapData;
 
 	For higher-level operations, use the `Image` class.
 **/
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
-#if hl
-@:keep
-#end
 @:allow(lime.graphics.Image)
 class ImageBuffer
 {
@@ -60,7 +49,7 @@ class ImageBuffer
 	public var premultiplied:Bool;
 
 	/**
-		The data for this image, represented as a `js.html.CanvasElement`, `js.html.Image` or `flash.display.BitmapData`
+		The data for this image, represented as a `js.html.CanvasElement` or `js.html.Image`
 	**/
 	public var src(get, set):Dynamic;
 
@@ -79,7 +68,6 @@ class ImageBuffer
 	**/
 	public var width:Int;
 
-	@:noCompletion private var __srcBitmapData:#if flash BitmapData #else Dynamic #end;
 	@:noCompletion private var __srcCanvas:#if (js && html5) CanvasElement #else Dynamic #end;
 	@:noCompletion private var __srcContext:#if (js && html5) CanvasRenderingContext2D #else Dynamic #end;
 	@:noCompletion private var __srcCustom:Dynamic;
@@ -90,11 +78,10 @@ class ImageBuffer
 	private static function __init__()
 	{
 		var p = untyped ImageBuffer.prototype;
-		untyped Object.defineProperties(p,
-			{
-				"src": {get: p.get_src, set: p.set_src},
-				"stride": {get: p.get_stride}
-			});
+		untyped Object.defineProperties(p, {
+			"src": {get: p.get_src, set: p.set_src},
+			"stride": {get: p.get_stride}
+		});
 	}
 	#end
 
@@ -128,9 +115,7 @@ class ImageBuffer
 	{
 		var buffer = new ImageBuffer(data, width, height, bitsPerPixel);
 
-		#if flash
-		if (__srcBitmapData != null) buffer.__srcBitmapData = __srcBitmapData.clone();
-		#elseif (js && html5)
+		#if (js && html5)
 		if (data != null)
 		{
 			buffer.data = new UInt8Array(data.byteLength);
@@ -159,14 +144,6 @@ class ImageBuffer
 		{
 			buffer.__srcImage = __srcImage;
 		}
-		#elseif nodejs
-		if (data != null)
-		{
-			buffer.data = new UInt8Array(data.byteLength);
-			var copy = new UInt8Array(data);
-			buffer.data.set(copy);
-		}
-		buffer.__srcCustom = __srcCustom;
 		#else
 		if (data != null)
 		{
@@ -187,10 +164,9 @@ class ImageBuffer
 	@:noCompletion private function get_src():Dynamic
 	{
 		#if (js && html5)
-		if (__srcImage != null) return __srcImage;
+		if (__srcImage != null)
+			return __srcImage;
 		return __srcCanvas;
-		#elseif flash
-		return __srcBitmapData;
 		#else
 		return __srcCustom;
 		#end
@@ -208,8 +184,6 @@ class ImageBuffer
 			__srcCanvas = cast value;
 			__srcContext = cast __srcCanvas.getContext("2d");
 		}
-		#elseif flash
-		__srcBitmapData = cast value;
 		#else
 		__srcCustom = value;
 		#end

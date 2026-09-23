@@ -1,36 +1,22 @@
-#ifndef LIME_APP_APPLICATION_H
-#define LIME_APP_APPLICATION_H
+#pragma once
 
+#include <hx/CFFIPrime.h>
 
-#include <system/CFFI.h>
+namespace lime
+{
 
+	class Application
+	{
+	  public:
+		virtual ~Application() {};
 
-namespace lime {
-
-
-	class Application {
-
-
-		public:
-
-			virtual ~Application () {};
-
-			static AutoGCRoot* callback;
-
-			virtual int Exec () = 0;
-			virtual void Init () = 0;
-			virtual int Quit () = 0;
-			virtual void SetFrameRate (double frameRate) = 0;
-			virtual bool Update () = 0;
-
-
+		virtual int Exec() = 0;
+		virtual void Init() = 0;
+		virtual int Quit() = 0;
+		virtual void SetFrameRate(double frameRate) = 0;
+		virtual bool Update() = 0;
 	};
 
+	Application *CreateApplication();
 
-	Application* CreateApplication ();
-
-
-}
-
-
-#endif
+} // namespace lime

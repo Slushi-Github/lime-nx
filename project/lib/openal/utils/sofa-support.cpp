@@ -22,22 +22,25 @@
  * Or visit:  http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  */
 
-#include "sofa-support.h"
+#include "config.h"
 
-#include <stdio.h>
+#include "sofa-support.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <span>
 #include <utility>
 #include <vector>
 
-#include "mysofa.h"
+#include "fmt/base.h"
+#include "fmt/ranges.h"
 
+#include "mysofa.h"
 
 namespace {
 
-using uint = unsigned int;
 using double3 = std::array<double,3>;
 
 
@@ -46,15 +49,15 @@ using double3 = std::array<double,3>;
  * of other axes as necessary.  The epsilons are used to constrain the
  * equality of unique elements.
  */
-std::vector<double> GetUniquelySortedElems(const std::vector<double3> &aers, const uint axis,
-    const double *const (&filters)[3], const double (&epsilons)[3])
+std::vector<double> GetUniquelySortedElems(const std::vector<double3> &aers, const unsigned axis,
+    const std::array<const double*,3> &filters, const std::array<double,3> &epsilons)
 {
     std::vector<double> elems;
     for(const double3 &aer : aers)
     {
         const double elem{aer[axis]};
 
-        uint j;
+        auto j = unsigned{};
         for(j = 0;j < 3;j++)
         {
             if(filters[j] && std::abs(aer[j] - *filters[j]) > epsilons[j])
@@ -91,7 +94,7 @@ double GetUniformAzimStep(const double epsilon, const std::vector<double> &elems
      * be impossible to have more than this since the first element must be
      * included.
      */
-    uint count{static_cast<uint>(std::ceil(360.0 / (elems[1]-elems[0])))};
+    auto count = static_cast<unsigned>(std::ceil(360.0 / (elems[1]-elems[0])));
     count = std::min(count, 255u);
 
     for(;count >= 5;--count)
@@ -102,7 +105,7 @@ double GetUniformAzimStep(const double epsilon, const std::vector<double> &elems
         const double step{360.0 / count};
         bool good{true};
         size_t idx{1u};
-        for(uint mult{1u};mult < count && good;++mult)
+        for(auto mult=1u;mult < count && good;++mult)
         {
             const double target{step*mult + elems[0]};
             while(idx < elems.size() && target-elems[idx] > epsilon)
@@ -126,10 +129,10 @@ double GetUniformElevStep(const double epsilon, std::vector<double> &elems)
     /* Reverse the elevations so it increments starting with -90 (flipped from
      * +90). This makes it easier to work out a proper stepping value.
      */
-    std::reverse(elems.begin(), elems.end());
+    std::ranges::reverse(elems);
     for(auto &v : elems) v *= -1.0;
 
-    uint count{static_cast<uint>(std::ceil(180.0 / (elems[1]-elems[0])))};
+    auto count = static_cast<unsigned>(std::ceil(180.0 / (elems[1]-elems[0])));
     count = std::min(count, 255u);
 
     double ret{0.0};
@@ -141,7 +144,7 @@ double GetUniformElevStep(const double epsilon, std::vector<double> &elems)
         /* Elevations don't need to match all multiples if there's not enough
          * elements to check. Missing elevations can be synthesized.
          */
-        for(uint mult{1u};mult <= count && idx < elems.size() && good;++mult)
+        for(auto mult=1u;mult <= count && idx < elems.size() && good;++mult)
         {
             const double target{step*mult + elems[0]};
             while(idx < elems.size() && target-elems[idx] > epsilon)
@@ -156,7 +159,7 @@ double GetUniformElevStep(const double epsilon, std::vector<double> &elems)
     }
     /* Re-reverse the elevations to restore the correct order. */
     for(auto &v : elems) v *= -1.0;
-    std::reverse(elems.begin(), elems.end());
+    std::ranges::reverse(elems);
 
     return ret;
 }
@@ -178,18 +181,18 @@ const char *SofaErrorStr(int err)
     return "Unknown";
 }
 
-std::vector<SofaField> GetCompatibleLayout(const size_t m, const float *xyzs)
+auto GetCompatibleLayout(const std::span<const float> xyzs) -> std::vector<SofaField>
 {
-    auto aers = std::vector<double3>(m, double3{});
-    for(size_t i{0u};i < m;++i)
+    auto aers = std::vector(xyzs.size()/3, double3{});
+    for(size_t i{0u};i < aers.size();++i)
     {
-        float vals[3]{xyzs[i*3], xyzs[i*3 + 1], xyzs[i*3 + 2]};
-        mysofa_c2s(&vals[0]);
+        std::array vals{xyzs[i*3], xyzs[i*3 + 1], xyzs[i*3 + 2]};
+        mysofa_c2s(vals.data());
         aers[i] = {vals[0], vals[1], vals[2]};
     }
 
-    auto radii = GetUniquelySortedElems(aers, 2, {}, {0.1, 0.1, 0.001});
-    std::vector<SofaField> fds;
+    const auto radii = GetUniquelySortedElems(aers, 2, {}, {0.1, 0.1, 0.001});
+    auto fds = std::vector<SofaField>{};
     fds.reserve(radii.size());
 
     for(const double dist : radii)
@@ -197,57 +200,54 @@ std::vector<SofaField> GetCompatibleLayout(const size_t m, const float *xyzs)
         auto elevs = GetUniquelySortedElems(aers, 1, {nullptr, nullptr, &dist}, {0.1, 0.1, 0.001});
 
         /* Remove elevations that don't have a valid set of azimuths. */
-        auto invalid_elev = [&dist,&aers](const double ev) -> bool
+        std::erase_if(elevs, [&dist,&aers](const double ev) -> bool
         {
-            auto azims = GetUniquelySortedElems(aers, 0, {nullptr, &ev, &dist}, {0.1, 0.1, 0.001});
+            const auto azims = GetUniquelySortedElems(aers, 0, {nullptr, &ev, &dist},
+                {0.1, 0.1, 0.001});
 
             if(std::abs(ev) > 89.999)
                 return azims.size() != 1;
             if(azims.empty() || !(std::abs(azims[0]) < 0.1))
                 return true;
             return GetUniformAzimStep(0.1, azims) <= 0.0;
-        };
-        elevs.erase(std::remove_if(elevs.begin(), elevs.end(), invalid_elev), elevs.end());
+        });
 
         double step{GetUniformElevStep(0.1, elevs)};
         if(step <= 0.0)
         {
             if(elevs.empty())
-                fprintf(stdout, "No usable elevations on field distance %f.\n", dist);
+                fmt::println("No usable elevations on field distance {:f}.", dist);
             else
             {
-                fprintf(stdout, "Non-uniform elevations on field distance %.3f.\nGot: %+.2f", dist,
-                    elevs[0]);
-                for(size_t ei{1u};ei < elevs.size();++ei)
-                    fprintf(stdout, ", %+.2f", elevs[ei]);
-                fputc('\n', stdout);
+                fmt::println("Non-uniform elevations on field distance {:.3f}.\nGot: {:+.2f}",
+                    dist, fmt::join(elevs, ", "));
             }
             continue;
         }
 
-        uint evStart{0u};
-        for(uint ei{0u};ei < elevs.size();ei++)
+        auto evStart = 0u;
+        for(auto ei=0u;ei < elevs.size();ei++)
         {
             if(!(elevs[ei] < 0.0))
             {
-                fprintf(stdout, "Too many missing elevations on field distance %f.\n", dist);
+                fmt::println("Too many missing elevations on field distance {:f}.", dist);
                 return fds;
             }
 
-            double eif{(90.0+elevs[ei]) / step};
-            const double ev_start{std::round(eif)};
+            const auto eif = (90.0+elevs[ei]) / step;
+            const auto ev_start = std::round(eif);
 
             if(std::abs(eif - ev_start) < (0.1/step))
             {
-                evStart = static_cast<uint>(ev_start);
+                evStart = static_cast<unsigned>(ev_start);
                 break;
             }
         }
 
-        const auto evCount = static_cast<uint>(std::round(180.0 / step)) + 1;
+        const auto evCount = static_cast<unsigned>(std::round(180.0 / step)) + 1;
         if(evCount < 5)
         {
-            fprintf(stdout, "Too few uniform elevations on field distance %f.\n", dist);
+            fmt::println("Too few uniform elevations on field distance {:f}.", dist);
             continue;
         }
 
@@ -258,7 +258,7 @@ std::vector<SofaField> GetCompatibleLayout(const size_t m, const float *xyzs)
         field.mAzCounts.resize(evCount, 0u);
         auto &azCounts = field.mAzCounts;
 
-        for(uint ei{evStart};ei < evCount;ei++)
+        for(unsigned ei{evStart};ei < evCount;ei++)
         {
             double ev{-90.0 + ei*180.0/(evCount - 1)};
             auto azims = GetUniquelySortedElems(aers, 0, {nullptr, &ev, &dist}, {0.1, 0.1, 0.001});
@@ -267,7 +267,7 @@ std::vector<SofaField> GetCompatibleLayout(const size_t m, const float *xyzs)
             {
                 if(azims.size() != 1)
                 {
-                    fprintf(stdout, "Non-singular poles on field distance %f.\n", dist);
+                    fmt::println("Non-singular poles on field distance {:f}.", dist);
                     return fds;
                 }
                 azCounts[ei] = 1;
@@ -277,11 +277,11 @@ std::vector<SofaField> GetCompatibleLayout(const size_t m, const float *xyzs)
                 step = GetUniformAzimStep(0.1, azims);
                 if(step <= 0.0)
                 {
-                    fprintf(stdout, "Non-uniform azimuths on elevation %f, field distance %f.\n",
+                    fmt::println("Non-uniform azimuths on elevation {:f}, field distance {:f}.",
                         ev, dist);
                     return fds;
                 }
-                azCounts[ei] = static_cast<uint>(std::round(360.0f / step));
+                azCounts[ei] = static_cast<unsigned>(std::round(360.0f / step));
             }
         }
 

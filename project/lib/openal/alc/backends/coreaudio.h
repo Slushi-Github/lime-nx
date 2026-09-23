@@ -1,19 +1,20 @@
 #ifndef BACKENDS_COREAUDIO_H
 #define BACKENDS_COREAUDIO_H
 
-#include "backends/base.h"
+#include "base.h"
 
-struct CoreAudioBackendFactory final : public BackendFactory {
-public:
-    bool init() override;
+struct CoreAudioBackendFactory final : BackendFactory {
+    auto init() -> bool final;
 
-    bool querySupport(BackendType type) override;
+    auto querySupport(BackendType type) -> bool final;
 
-    void probe(DevProbe type, std::string *outnames) override;
+    auto queryEventSupport(alc::EventType eventType, BackendType type) -> alc::EventSupport final;
 
-    BackendPtr createBackend(ALCdevice *device, BackendType type) override;
+    auto enumerate(BackendType type) -> std::vector<std::string> final;
 
-    static BackendFactory &getFactory();
+    auto createBackend(gsl::not_null<DeviceBase*> device, BackendType type) -> BackendPtr final;
+
+    static auto getFactory() -> BackendFactory&;
 };
 
 #endif /* BACKENDS_COREAUDIO_H */

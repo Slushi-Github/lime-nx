@@ -2,10 +2,6 @@ package lime.utils;
 
 import haxe.PosInfos;
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Log
 {
 	public static var level:LogLevel;
@@ -16,7 +12,7 @@ class Log
 		if (level >= LogLevel.DEBUG)
 		{
 			#if js
-			untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").debug("[" + info.className + "] " + message);
+			untyped js.Syntax.code("console").debug("[" + info.className + "] " + message);
 			#else
 			println("[" + info.className + "] " + Std.string(message));
 			#end
@@ -31,15 +27,12 @@ class Log
 
 			if (throwErrors)
 			{
-				#if webassembly
-				println(message);
-				#end
 				throw message;
 			}
 			else
 			{
 				#if js
-				untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").error(message);
+				untyped js.Syntax.code("console").error(message);
 				#else
 				println(message);
 				#end
@@ -52,7 +45,7 @@ class Log
 		if (level >= LogLevel.INFO)
 		{
 			#if js
-			untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").info("[" + info.className + "] " + message);
+			untyped js.Syntax.code("console").info("[" + info.className + "] " + message);
 			#else
 			println("[" + info.className + "] " + Std.string(message));
 			#end
@@ -63,10 +56,8 @@ class Log
 	{
 		#if sys
 		Sys.print(Std.string(message));
-		#elseif flash
-		untyped __global__["trace"](Std.string(message));
 		#elseif js
-		untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").log(message);
+		untyped js.Syntax.code("console").log(message);
 		#else
 		trace(message);
 		#end
@@ -76,10 +67,8 @@ class Log
 	{
 		#if sys
 		Sys.println(Std.string(message));
-		#elseif flash
-		untyped __global__["trace"](Std.string(message));
 		#elseif js
-		untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").log(message);
+		untyped js.Syntax.code("console").log(message);
 		#else
 		trace(Std.string(message));
 		#end
@@ -98,7 +87,7 @@ class Log
 		if (level >= LogLevel.WARN)
 		{
 			#if js
-			untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").warn("[" + info.className + "] WARNING: " + message);
+			untyped js.Syntax.code("console").warn("[" + info.className + "] WARNING: " + message);
 			#else
 			println("[" + info.className + "] WARNING: " + Std.string(message));
 			#end
@@ -130,13 +119,13 @@ class Log
 		#end
 
 		#if js
-		if (untyped #if haxe4 js.Syntax.code #else __js__ #end ("typeof console") == "undefined")
+		if (untyped js.Syntax.code("typeof console") == "undefined")
 		{
-			untyped #if haxe4 js.Syntax.code #else __js__ #end ("console = {}");
+			untyped js.Syntax.code("console = {}");
 		}
-		if (untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").log == null)
+		if (untyped js.Syntax.code("console").log == null)
 		{
-			untyped #if haxe4 js.Syntax.code #else __js__ #end ("console").log = function() {};
+			untyped js.Syntax.code("console").log = function() {};
 		}
 		#end
 	}

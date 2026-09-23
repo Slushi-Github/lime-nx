@@ -1,24 +1,13 @@
-#ifndef LIME_SYSTEM_LOCALE_H
-#define LIME_SYSTEM_LOCALE_H
-
+#pragma once
 #include <string>
 
+namespace lime
+{
 
-namespace lime {
-
-
-	class Locale {
-
-
-		public:
-
-			static std::string* GetSystemLocale ();
-
-
+	class Locale
+	{
+	  public:
+		static std::string *GetSystemLocale();
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

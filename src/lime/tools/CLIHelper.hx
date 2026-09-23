@@ -1,7 +1,8 @@
 package lime.tools;
 
 import haxe.io.Eof;
-import hxp.*;
+
+import hxp.Log;
 
 class CLIHelper
 {
@@ -51,7 +52,7 @@ class CLIHelper
 		if (passwd)
 		{
 			var s = new StringBuf();
-			var c;
+			var c:Int;
 			while ((c = getChar()) != 13)
 				s.addChar(c);
 

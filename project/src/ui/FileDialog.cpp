@@ -1,306 +1,190 @@
-#include <ui/FileDialog.h>
+#include "../backend/sdl/SDLWindow.h"
+
+#include <functional>
 #include <stdio.h>
-#include <cstdlib>
-#include <cstring>
-#include <sstream>
+#include <string>
+#include <ui/FileDialog.h>
+#include <vector>
 
-#include <tinyfiledialogs.h>
+namespace lime
+{
 
+	struct FileDialogData
+	{
+		std::function<void(const char *const *, int, int)> callback;
+		std::vector<SDL_DialogFileFilter> filters;
+	};
 
-namespace lime {
+	struct MainThreadCallbackData
+	{
+		const char **filelist;
+		int filecount;
+		int filter;
+		FileDialogData *dialogData;
+	};
 
+	static void SDLCALL mainThreadCallback(void *userdata)
+	{
+		auto *mainData = static_cast<MainThreadCallbackData *>(userdata);
 
-	std::string* wstring_to_string (std::wstring* source) {
+		if (mainData)
+		{
+			auto *data = mainData->dialogData;
 
-		if (!source) return NULL;
+			if (data)
+			{
+				if (data->callback)
+				{
+					data->callback(mainData->filelist, mainData->filecount, mainData->filter);
+				}
 
-		int size = std::wcslen (source->c_str ());
-		char* temp = (char*)malloc (size + 1);
-		std::wcstombs (temp, source->c_str (), size);
-		temp[size] = '\0';
+				for (auto &f : data->filters)
+				{
+					SDL_free((void *)f.name);
+					SDL_free((void *)f.pattern);
+				}
 
-		std::string* data = new std::string (temp);
-		free (temp);
-		return data;
+				if (mainData->filelist)
+				{
+					for (int i = 0; i < mainData->filecount; ++i)
+					{
+						SDL_free((void *)mainData->filelist[i]);
+					}
 
+					SDL_free((void *)mainData->filelist);
+				}
+
+				delete data;
+			}
+
+			delete mainData;
+		}
 	}
 
+	static void SDLCALL dialogFileCallbackThunk(void *userdata, const char *const *filelist, int filter)
+	{
+		auto *data = static_cast<FileDialogData *>(userdata);
 
-	std::wstring* FileDialog::OpenDirectory (std::wstring* title, std::wstring* filter, std::wstring* defaultPath) {
+		if (data)
+		{
+			int filecount = 0;
 
-		// TODO: Filter?
+			if (filelist && (*filelist))
+			{
+				while (filelist[filecount] != nullptr)
+				{
+					filecount++;
+				}
+			}
 
-		#ifdef HX_WINDOWS
+			auto *mainData = new MainThreadCallbackData;
 
-		const wchar_t* path = tinyfd_selectFolderDialogW (title ? title->c_str () : 0, defaultPath ? defaultPath->c_str () : 0);
+			mainData->filecount = filecount;
+			mainData->filter = filter;
+			mainData->dialogData = data;
 
-		if (path && std::wcslen(path) > 0) {
+			if (filecount > 0 && filelist)
+			{
+				mainData->filelist = static_cast<const char **>(SDL_malloc((filecount + 1) * sizeof(const char *)));
 
-			std::wstring* _path = new std::wstring (path);
-			return _path;
+				for (int i = 0; i < filecount; ++i)
+				{
+					mainData->filelist[i] = SDL_strdup(filelist[i]);
+				}
 
+				mainData->filelist[filecount] = nullptr;
+			}
+			else
+			{
+				mainData->filelist = nullptr;
+			}
+
+			SDL_RunOnMainThread(mainThreadCallback, mainData, false);
 		}
-
-		#else
-
-		std::string* _title = wstring_to_string (title);
-		//std::string* _filter = wstring_to_string (filter);
-		std::string* _defaultPath = wstring_to_string (defaultPath);
-
-		const char* path = tinyfd_selectFolderDialog (_title ? _title->c_str () : NULL, _defaultPath ? _defaultPath->c_str () : NULL);
-
-		if (_title) delete _title;
-		//if (_filter) delete _filter;
-		if (_defaultPath) delete _defaultPath;
-
-		if (path && std::strlen(path) > 0) {
-
-			std::string _path = std::string (path);
-			std::wstring* __path = new std::wstring (_path.begin (), _path.end ());
-			return __path;
-
-		}
-
-		#endif
-
-		return 0;
-
 	}
 
+	static std::vector<SDL_DialogFileFilter> buildFilters(const char **names, const char **patterns, int count)
+	{
+		std::vector<SDL_DialogFileFilter> filters;
 
-	std::wstring* FileDialog::OpenFile (std::wstring* title, std::wstring* filter, std::wstring* defaultPath) {
+		filters.reserve(count);
 
-		#ifdef HX_WINDOWS
-
-		std::vector<std::wstring> filters_vec;
-		if (filter) {
-			std::wstring temp (L"*.");
-			std::wstring line;
-			std::wstringstream ss(*filter);
-			while(std::getline(ss, line, L',')) {
-				filters_vec.push_back(temp + line);
-			}
+		for (int i = 0; i < count; ++i)
+		{
+			SDL_DialogFileFilter f;
+			f.name = SDL_strdup(names[i]);
+			f.pattern = SDL_strdup(patterns[i]);
+			filters.push_back(f);
 		}
 
-		const int numFilters = filter ? filters_vec.size() : 1;
-		const wchar_t **filters = new const wchar_t*[numFilters];
-		if (filter && numFilters > 0) {
-			for (int index = 0; index < numFilters; index++) {
-				filters[index] = const_cast<wchar_t*>(filters_vec[index].c_str());
-			}
-		} else {
-			filters[0] = NULL;
-		}
-
-		const wchar_t* path = tinyfd_openFileDialogW (title ? title->c_str () : 0, defaultPath ? defaultPath->c_str () : 0, filter ? numFilters : 0, filter ? filters : NULL, NULL, 0);
-
-		delete[] filters;
-
-		if (path && std::wcslen(path) > 0) {
-
-			std::wstring* _path = new std::wstring (path);
-			return _path;
-
-		}
-
-		#else
-
-		std::string* _title = wstring_to_string (title);
-		std::string* _filter = wstring_to_string (filter);
-		std::string* _defaultPath = wstring_to_string (defaultPath);
-
-		std::vector<std::string> filters_vec;
-		if (_filter) {
-			std::string line;
-			std::stringstream ss(*_filter);
-			while(std::getline(ss, line, ',')) {
-				line.insert (0, "*.");
-				filters_vec.push_back(line);
-			}
-		}
-
-		const int numFilters = _filter ? filters_vec.size() : 1;
-		const char **filters = new const char*[numFilters];
-		if (_filter && numFilters > 0) {
-			for (int index = 0; index < numFilters; index++) {
-				filters[index] = const_cast<char*>(filters_vec[index].c_str());
-			}
-		} else {
-			filters[0] = NULL;
-		}
-
-		const char* path = tinyfd_openFileDialog (_title ? _title->c_str () : NULL, _defaultPath ? _defaultPath->c_str () : NULL, _filter ? numFilters : 0, _filter ? filters : NULL, NULL, 0);
-
-		delete[] filters;
-
-		if (_title) delete _title;
-		if (_filter) delete _filter;
-		if (_defaultPath) delete _defaultPath;
-
-		if (path && std::strlen(path) > 0) {
-
-			std::string _path = std::string (path);
-			std::wstring* __path = new std::wstring (_path.begin (), _path.end ());
-			return __path;
-
-		}
-
-		#endif
-
-		return 0;
-
+		return filters;
 	}
 
+	void FileDialog::OpenDirectory(Window *window, const char *title, std::function<void(const char *const *, int, int)> callback, const char *defaultPath, bool allowMultiple)
+	{
+		SDL_PropertiesID props = SDL_CreateProperties();
 
-	void FileDialog::OpenFiles (std::vector<std::wstring*>* files, std::wstring* title, std::wstring* filter, std::wstring* defaultPath) {
+		SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window ? static_cast<SDLWindow *>(window)->sdlWindow : nullptr);
+		SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, defaultPath);
+		SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, allowMultiple);
 
-		std::wstring* __paths = 0;
-
-		#ifdef HX_WINDOWS
-
-		std::vector<std::wstring> filters_vec;
-		if (filter) {
-			std::wstring temp (L"*.");
-			std::wstring line;
-			std::wstringstream ss(*filter);
-			while(std::getline(ss, line, L',')) {
-				filters_vec.push_back(temp + line);
-			}
+		if (title)
+		{
+			SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
 		}
 
-		const int numFilters = filter ? filters_vec.size() : 1;
-		const wchar_t **filters = new const wchar_t*[numFilters];
-		if (filter && numFilters > 0) {
-			for (int index = 0; index < numFilters; index++) {
-				filters[index] = const_cast<wchar_t*>(filters_vec[index].c_str());
-			}
-		} else {
-			filters[0] = NULL;
-		}
+		auto *dialogData = new FileDialogData;
+		dialogData->callback = std::move(callback);
+		SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_OPENFOLDER, dialogFileCallbackThunk, dialogData, props);
 
-		const wchar_t* paths = tinyfd_openFileDialogW (title ? title->c_str () : 0, defaultPath ? defaultPath->c_str () : 0, filter ? numFilters : 0, filter ? filters : NULL, NULL, 1);
-
-		delete[] filters;
-
-		if (paths) {
-
-			__paths = new std::wstring (paths);
-
-		}
-
-		#else
-
-		std::string* _title = wstring_to_string (title);
-		std::string* _filter = wstring_to_string (filter);
-		std::string* _defaultPath = wstring_to_string (defaultPath);
-
-		std::vector<std::string> filters_vec;
-		if (_filter) {
-			std::string line;
-			std::stringstream ss(*_filter);
-			while(std::getline(ss, line, ',')) {
-				line.insert (0, "*.");
-				filters_vec.push_back(line);
-			}
-		}
-
-		const int numFilters = _filter ? filters_vec.size() : 1;
-		const char **filters = new const char*[numFilters];
-		if (_filter && numFilters > 0) {
-			for (int index = 0; index < numFilters; index++) {
-				filters[index] = const_cast<char*>(filters_vec[index].c_str());
-			}
-		} else {
-			filters[0] = NULL;
-		}
-
-		const char* paths = tinyfd_openFileDialog (_title ? _title->c_str () : NULL, _defaultPath ? _defaultPath->c_str () : NULL, _filter ? numFilters : 0, _filter ? filters : NULL, NULL, 1);
-
-		delete[] filters;
-
-		if (_title) delete _title;
-		if (_filter) delete _filter;
-		if (_defaultPath) delete _defaultPath;
-
-		if (paths) {
-
-			std::string _paths = std::string (paths);
-			__paths = new std::wstring (_paths.begin (), _paths.end ());
-
-		}
-
-		#endif
-
-		if (__paths) {
-
-			std::wstring sep = L"|";
-
-			std::size_t start = 0, end = 0;
-
-			while ((end = __paths->find (sep, start)) != std::wstring::npos) {
-
-				files->push_back (new std::wstring (__paths->substr (start, end - start).c_str ()));
-				start = end + 1;
-
-			}
-
-			files->push_back (new std::wstring (__paths->substr (start).c_str ()));
-
-		}
-
+		SDL_DestroyProperties(props);
 	}
 
+	void FileDialog::OpenFile(Window *window, const char *title, std::function<void(const char *const *, int, int)> callback, const char **names, const char **patterns, int filterCount, const char *defaultPath, bool allowMultiple)
+	{
+		auto *dialogData = new FileDialogData;
+		dialogData->callback = std::move(callback);
+		dialogData->filters = buildFilters(names, patterns, filterCount);
 
-	std::wstring* FileDialog::SaveFile (std::wstring* title, std::wstring* filter, std::wstring* defaultPath) {
+		SDL_PropertiesID props = SDL_CreateProperties();
 
-		#ifdef HX_WINDOWS
+		SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, (void *)dialogData->filters.data());
+		SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, static_cast<int>(dialogData->filters.size()));
+		SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window ? static_cast<SDLWindow *>(window)->sdlWindow : nullptr);
+		SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, defaultPath);
+		SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, allowMultiple);
 
-		std::wstring temp (L"*.");
-		const wchar_t* filters[] = { filter ? (temp + *filter).c_str () : NULL };
-
-		const wchar_t* path = tinyfd_saveFileDialogW (title ? title->c_str () : 0, defaultPath ? defaultPath->c_str () : 0, filter ? 1 : 0, filter ? filters : NULL, NULL);
-
-		if (path && std::wcslen(path) > 0) {
-
-			std::wstring* _path = new std::wstring (path);
-			return _path;
-
+		if (title)
+		{
+			SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
 		}
 
-		#else
+		SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_OPENFILE, dialogFileCallbackThunk, dialogData, props);
 
-		std::string* _title = wstring_to_string (title);
-		std::string* _filter = wstring_to_string (filter);
-		std::string* _defaultPath = wstring_to_string (defaultPath);
-
-		const char* filters[] = { NULL };
-
-		if (_filter) {
-
-			_filter->insert (0, "*.");
-			filters[0] = _filter->c_str ();
-
-		}
-
-		const char* path = tinyfd_saveFileDialog (_title ? _title->c_str () : NULL, _defaultPath ? _defaultPath->c_str () : NULL, _filter ? 1 : 0, _filter ? filters : NULL, NULL);
-
-		if (_title) delete _title;
-		if (_filter) delete _filter;
-		if (_defaultPath) delete _defaultPath;
-
-		if (path && std::strlen(path) > 0) {
-
-			std::string _path = std::string (path);
-			std::wstring* __path = new std::wstring (_path.begin (), _path.end ());
-			return __path;
-
-		}
-
-		#endif
-
-		return 0;
-
+		SDL_DestroyProperties(props);
 	}
 
+	void FileDialog::SaveFile(Window *window, const char *title, std::function<void(const char *const *, int, int)> callback, const char **names, const char **patterns, int filterCount, const char *defaultPath)
+	{
+		auto *dialogData = new FileDialogData;
+		dialogData->callback = std::move(callback);
+		dialogData->filters = buildFilters(names, patterns, filterCount);
 
-}
+		SDL_PropertiesID props = SDL_CreateProperties();
+
+		SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, (void *)dialogData->filters.data());
+		SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, static_cast<int>(dialogData->filters.size()));
+		SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window ? static_cast<SDLWindow *>(window)->sdlWindow : nullptr);
+		SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, defaultPath);
+
+		if (title)
+		{
+			SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
+		}
+
+		SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_SAVEFILE, dialogFileCallbackThunk, dialogData, props);
+
+		SDL_DestroyProperties(props);
+	}
+
+} // namespace lime

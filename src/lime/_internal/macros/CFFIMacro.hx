@@ -32,9 +32,12 @@ class CFFIMacro
 
 							if (Reflect.hasField(m, "params"))
 							{
-								if (m.params.length > 0) library = m.params[0].getValue();
-								if (m.params.length > 1) method = m.params[1].getValue();
-								if (m.params.length > 2) lazy = m.params[2].getValue();
+								if (m.params.length > 0)
+									library = m.params[0].getValue();
+								if (m.params.length > 1)
+									method = m.params[1].getValue();
+								if (m.params.length > 2)
+									lazy = m.params[2].getValue();
 							}
 
 							if (library == null || library == "")
@@ -60,7 +63,7 @@ class CFFIMacro
 							var typeSignature = type.signature;
 							var expr = "";
 
-							if (Context.defined("display") || Context.defined("disable_cffi"))
+							if (Context.defined("display"))
 							{
 								switch (type.result.toString())
 								{
@@ -105,13 +108,12 @@ class CFFIMacro
 
 								cffiType = TPath({pack: ["cpp"], name: "Callable", params: [TPType(TFun(type.args, type.result).toComplexType())]});
 
-								newFields.push(
-									{
-										name: cffiName,
-										access: [APrivate, AStatic],
-										kind: FieldType.FVar(cffiType, Context.parse(cffiExpr, field.pos)),
-										pos: field.pos
-									});
+								newFields.push({
+									name: cffiName,
+									access: [APrivate, AStatic],
+									kind: FieldType.FVar(cffiType, Context.parse(cffiExpr, field.pos)),
+									pos: field.pos
+								});
 
 								if (type.result.toString() != "Void" && type.result.toString() != "cpp.Void")
 								{
@@ -122,7 +124,8 @@ class CFFIMacro
 
 								for (i in 0...type.args.length)
 								{
-									if (i > 0) expr += ", ";
+									if (i > 0)
+										expr += ", ";
 									expr += type.args[i].name;
 								}
 
@@ -158,7 +161,7 @@ class CFFIMacro
 
 	private static function __getFunctionType(args:Array<{name:String, opt:Bool, t:Type}>, result:Type)
 	{
-		#if (!disable_cffi && !display)
+		#if !display
 		var useCPPTypes = Context.defined("cpp");
 		#else
 		var useCPPTypes = false;
@@ -183,7 +186,7 @@ class CFFIMacro
 				case "cpp.Float32":
 					if (useCPPTypes)
 					{
-						typeArgs.push({name: arg.name, opt: false, t: (macro:cpp.Float32).toType()});
+						typeArgs.push({name: arg.name, opt: false, t: (macro :cpp.Float32).toType()});
 					}
 					else
 					{
@@ -207,7 +210,7 @@ class CFFIMacro
 				case "Void", "cpp.Void":
 					if (useCPPTypes)
 					{
-						typeArgs.push({name: arg.name, opt: false, t: (macro:cpp.Void).toType()});
+						typeArgs.push({name: arg.name, opt: false, t: (macro :cpp.Void).toType()});
 					}
 					else
 					{
@@ -219,11 +222,11 @@ class CFFIMacro
 				default:
 					if (useCPPTypes)
 					{
-						typeArgs.push({name: arg.name, opt: false, t: (macro:cpp.Object).toType()});
+						typeArgs.push({name: arg.name, opt: false, t: (macro :cpp.Object).toType()});
 					}
 					else
 					{
-						typeArgs.push({name: arg.name, opt: false, t: (macro:Dynamic).toType()});
+						typeArgs.push({name: arg.name, opt: false, t: (macro :Dynamic).toType()});
 					}
 
 					typeSignature += "o";
@@ -243,7 +246,7 @@ class CFFIMacro
 			case "cpp.Float32":
 				if (useCPPTypes)
 				{
-					typeResult = (macro:cpp.Float32).toType();
+					typeResult = (macro :cpp.Float32).toType();
 				}
 				else
 				{
@@ -267,7 +270,7 @@ class CFFIMacro
 			case "Void", "cpp.Void":
 				if (useCPPTypes)
 				{
-					typeResult = (macro:cpp.Void).toType();
+					typeResult = (macro :cpp.Void).toType();
 				}
 				else
 				{
@@ -279,11 +282,11 @@ class CFFIMacro
 			default:
 				if (useCPPTypes)
 				{
-					typeResult = (macro:cpp.Object).toType();
+					typeResult = (macro :cpp.Object).toType();
 				}
 				else
 				{
-					typeResult = (macro:Dynamic).toType();
+					typeResult = (macro :Dynamic).toType();
 				}
 
 				typeSignature += "o";

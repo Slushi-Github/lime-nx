@@ -1,31 +1,20 @@
-#ifndef LIME_SYSTEM_MUTEX_H
-#define LIME_SYSTEM_MUTEX_H
+#pragma once
 
+namespace lime
+{
 
-namespace lime {
+	class Mutex
+	{
+	  public:
+		Mutex();
+		~Mutex();
 
+		void Lock() const;
+		bool TryLock() const;
+		void Unlock() const;
 
-	class Mutex {
-
-
-		public:
-
-			Mutex ();
-			~Mutex ();
-
-			bool Lock () const;
-			bool TryLock () const;
-			bool Unlock () const;
-
-		private:
-
-			void* mutex;
-
-
+	  private:
+		void *mutex;
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

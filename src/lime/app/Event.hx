@@ -19,10 +19,6 @@ package lime.app;
 #if !macro
 @:genericBuild(lime._internal.macros.EventMacro.build())
 #end
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Event<T>
 {
 	/**
@@ -128,7 +124,8 @@ class Event<T>
 		#if !macro
 		for (l in __listeners)
 		{
-			if (Reflect.compareMethods(l, listener)) return true;
+			if (Reflect.compareMethods(l, listener))
+				return true;
 		}
 		#end
 

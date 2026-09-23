@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -18,112 +18,200 @@
      misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
-#include "../../SDL_internal.h"
+#include "SDL_internal.h"
 
-#if SDL_VIDEO_DRIVER_WAYLAND
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
 
 #include "SDL_waylanddatamanager.h"
 #include "SDL_waylandevents_c.h"
 #include "SDL_waylandclipboard.h"
+#include "../SDL_clipboard_c.h"
+#include "../../events/SDL_events_c.h"
 
-int
-Wayland_SetClipboardText(_THIS, const char *text)
+bool Wayland_SetClipboardData(SDL_VideoDevice *_this)
 {
-    SDL_VideoData *video_data = NULL;
-    SDL_WaylandDataDevice *data_device = NULL;
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->last_implicit_grab_seat;
+    bool result = false;
 
-    int status = 0;
+    // If no implicit grab is available yet, just attach it to the first available seat.
+    if (!seat && !WAYLAND_wl_list_empty(&video_data->seat_list)) {
+        seat = wl_container_of(video_data->seat_list.next, seat, link);
+    }
 
-    if (_this == NULL || _this->driverdata == NULL) {
-        status = SDL_SetError("Video driver uninitialized");
-    } else {
-        video_data = _this->driverdata;
-        if (video_data->input != NULL && video_data->input->data_device != NULL) {
-            data_device = video_data->input->data_device;
-            if (text[0] != '\0') {
-                SDL_WaylandDataSource* source = Wayland_data_source_create(_this);
-                Wayland_data_source_add_data(source, TEXT_MIME, text,
-                                             SDL_strlen(text) + 1);
+    video_data->current_data_offer_seat = seat;
 
-                status = Wayland_data_device_set_selection(data_device, source);
-                if (status != 0) {
-                    Wayland_data_source_destroy(source);
+    if (seat && seat->data_device) {
+        /* Clear references to the clipboard held by other seats, as they are about to become invalid.
+         * For the target seat, the new source data is set before clearing the old source, as some
+         * clipboard managers prefer this behavior.
+         */
+        SDL_WaylandSeat *s;
+        wl_list_for_each (s, &video_data->seat_list, link) {
+            if (s->data_device) {
+                if (s != seat) {
+                    Wayland_DataSourceDestroy(s->data_device->selection_source);
+                    s->data_device->selection_source = NULL;
                 }
-            } else {
-                status = Wayland_data_device_clear_selection(data_device);
+
+                Wayland_DataOfferDestroy(s->data_device->selection_offer);
+                s->data_device->selection_offer = NULL;
             }
+        }
+
+        SDL_WaylandDataDevice *data_device = seat->data_device;
+
+        if (_this->clipboard_callback && _this->clipboard_mime_types) {
+            SDL_WaylandDataSource *source = Wayland_DataSourceCreate(video_data);
+            Wayland_DataSourceSetCallback(source, _this->clipboard_callback, _this->clipboard_userdata, _this->clipboard_sequence);
+
+            result = Wayland_DataDeviceSetSelection(data_device, source, (const char **)_this->clipboard_mime_types, _this->num_clipboard_mime_types);
+            if (!result) {
+                Wayland_DataSourceDestroy(source);
+            }
+        } else {
+            Wayland_DataSourceDestroy(data_device->selection_source);
+            data_device->selection_source = NULL;
+            result = true;
         }
     }
 
-    return status;
+    return result;
 }
 
-char *
-Wayland_GetClipboardText(_THIS)
+void *Wayland_GetClipboardData(SDL_VideoDevice *_this, const char *mime_type, size_t *length)
 {
-    SDL_VideoData *video_data = NULL;
-    SDL_WaylandDataDevice *data_device = NULL;
-
-    char *text = NULL;
-
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->current_data_offer_seat;
     void *buffer = NULL;
+
+    if (seat && seat->data_device) {
+        SDL_WaylandDataDevice *data_device = seat->data_device;
+        if (data_device->selection_source) {
+            buffer = SDL_GetInternalClipboardData(_this, mime_type, length);
+        } else if (Wayland_DataOfferHasMIME(data_device->selection_offer, mime_type)) {
+            buffer = Wayland_DataOfferReceive(data_device->selection_offer, mime_type, length, true);
+        }
+    }
+
+    return buffer;
+}
+
+bool Wayland_HasClipboardData(SDL_VideoDevice *_this, const char *mime_type)
+{
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->current_data_offer_seat;
+    bool result = false;
+
+    if (seat && seat->data_device) {
+        SDL_WaylandDataDevice *data_device = seat->data_device;
+        if (data_device->selection_source) {
+            result = SDL_HasInternalClipboardData(_this, mime_type);
+        } else {
+            result = Wayland_DataOfferHasMIME(data_device->selection_offer, mime_type);
+        }
+    }
+    return result;
+}
+
+static const char *const text_mime_types[] = {
+    TEXT_MIME,
+    "text/plain",
+    "TEXT",
+    "UTF8_STRING",
+    "STRING"
+};
+
+const char *const *Wayland_GetTextMimeTypes(SDL_VideoDevice *_this, size_t *num_mime_types)
+{
+    *num_mime_types = SDL_arraysize(text_mime_types);
+    return text_mime_types;
+}
+
+bool Wayland_SetPrimarySelectionText(SDL_VideoDevice *_this, const char *text)
+{
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->last_implicit_grab_seat;
+    bool result;
+
+    // If no implicit grab is available yet, just attach it to the first available seat.
+    if (!seat && !WAYLAND_wl_list_empty(&video_data->seat_list)) {
+        seat = wl_container_of(video_data->seat_list.next, seat, link);
+    }
+
+    video_data->current_primary_selection_seat = seat;
+
+    if (seat && seat->primary_selection_device) {
+        SDL_WaylandPrimarySelectionDevice *primary_selection_device = seat->primary_selection_device;
+        if (text[0] != '\0') {
+            SDL_WaylandPrimarySelectionSource *source = Wayland_PrimarySelectionSourceCreate(video_data);
+            Wayland_PrimarySelectionSourceSetCallback(source, SDL_ClipboardTextCallback, SDL_strdup(text));
+
+            result = Wayland_PrimarySelectionDeviceSetSelection(primary_selection_device, source, text_mime_types, SDL_arraysize(text_mime_types));
+            if (!result) {
+                Wayland_PrimarySelectionSourceDestroy(source);
+            }
+        } else {
+            Wayland_PrimarySelectionSourceDestroy(seat->primary_selection_device->selection_source);
+            seat->primary_selection_device->selection_source = NULL;
+            result = true;
+        }
+    } else {
+        result = SDL_SetError("Primary selection not supported");
+    }
+    return result;
+}
+
+char *Wayland_GetPrimarySelectionText(SDL_VideoDevice *_this)
+{
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->current_primary_selection_seat;
+    char *text = NULL;
     size_t length = 0;
 
-    if (_this == NULL || _this->driverdata == NULL) {
-        SDL_SetError("Video driver uninitialized");
-    } else {
-        video_data = _this->driverdata;
-        if (video_data->input != NULL && video_data->input->data_device != NULL) {
-            data_device = video_data->input->data_device;
-            if (data_device->selection_offer != NULL) {
-                buffer = Wayland_data_offer_receive(data_device->selection_offer,
-                                                    &length, TEXT_MIME, SDL_TRUE);
-                if (length > 0) {
-                    text = (char*) buffer;
-                }
-            }
-            if (length == 0 && data_device->selection_source != NULL) {
-                buffer = Wayland_data_source_get_data(data_device->selection_source,
-                                                      &length, TEXT_MIME, SDL_TRUE);
-                if (length > 0) {
-                    text = (char*) buffer;
+    if (seat && seat->primary_selection_device) {
+        SDL_WaylandPrimarySelectionDevice *primary_selection_device = seat->primary_selection_device;
+        if (primary_selection_device->selection_source) {
+            text = Wayland_PrimarySelectionSourceGetData(primary_selection_device->selection_source, TEXT_MIME, &length);
+        } else {
+            for (size_t i = 0; i < SDL_arraysize(text_mime_types); i++) {
+                if (Wayland_PrimarySelectionOfferHasMIME(primary_selection_device->selection_offer, text_mime_types[i])) {
+                    text = Wayland_PrimarySelectionOfferReceive(primary_selection_device->selection_offer, text_mime_types[i], &length);
+                    break;
                 }
             }
         }
     }
 
-    if (text == NULL) {
+    if (!text) {
         text = SDL_strdup("");
     }
 
     return text;
 }
 
-SDL_bool
-Wayland_HasClipboardText(_THIS)
+bool Wayland_HasPrimarySelectionText(SDL_VideoDevice *_this)
 {
-    SDL_VideoData *video_data = NULL;
-    SDL_WaylandDataDevice *data_device = NULL;
+    SDL_VideoData *video_data = _this->internal;
+    SDL_WaylandSeat *seat = video_data->current_primary_selection_seat;
+    bool result = false;
 
-    SDL_bool result = SDL_FALSE;
-    if (_this == NULL || _this->driverdata == NULL) {
-        SDL_SetError("Video driver uninitialized");
-    } else {
-        video_data = _this->driverdata;
-        if (video_data->input != NULL && video_data->input->data_device != NULL) {
-            data_device = video_data->input->data_device;
-            if (Wayland_data_offer_has_mime(
-                    data_device->selection_offer, TEXT_MIME)) {
-                result = SDL_TRUE;
-            } else if (Wayland_data_source_has_mime(
-                    data_device->selection_source, TEXT_MIME)) {
-                result = SDL_TRUE;
+    if (seat && seat->primary_selection_device) {
+        SDL_WaylandPrimarySelectionDevice *primary_selection_device = seat->primary_selection_device;
+        if (primary_selection_device->selection_source) {
+            result = true;
+        } else {
+            size_t mime_count = 0;
+            const char *const *mime_types = Wayland_GetTextMimeTypes(_this, &mime_count);
+            for (size_t i = 0; i < mime_count; i++) {
+                if (Wayland_PrimarySelectionOfferHasMIME(primary_selection_device->selection_offer, mime_types[i])) {
+                    result = true;
+                    break;
+                }
             }
         }
     }
     return result;
 }
 
-#endif /* SDL_VIDEO_DRIVER_WAYLAND */
-
-/* vi: set ts=4 sw=4 expandtab: */
+#endif // SDL_VIDEO_DRIVER_WAYLAND

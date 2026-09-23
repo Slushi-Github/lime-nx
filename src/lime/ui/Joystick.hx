@@ -4,10 +4,6 @@ import lime._internal.backend.native.NativeCFFI;
 import lime.app.Event;
 import lime.system.CFFI;
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class Joystick
 {
@@ -33,6 +29,20 @@ class Joystick
 		connected = true;
 	}
 
+	public function rumble(lowFrequencyRumble:Float, highFrequencyRumble:Float, duration:Int):Void
+	{
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_joystick_rumble(this.id, lowFrequencyRumble, highFrequencyRumble, duration);
+		#end
+	}
+
+	public function setLED(red:Int, green:Int, blue:Int):Void
+	{
+		#if (lime_cffi && !macro)
+		NativeCFFI.lime_joystick_set_led(this.id, red, green, blue);
+		#end
+	}
+
 	@:noCompletion private static function __connect(id:Int):Void
 	{
 		if (!devices.exists(id))
@@ -46,17 +56,19 @@ class Joystick
 	@:noCompletion private static function __disconnect(id:Int):Void
 	{
 		var joystick = devices.get(id);
-		if (joystick != null) joystick.connected = false;
+		if (joystick != null)
+			joystick.connected = false;
 		devices.remove(id);
-		if (joystick != null) joystick.onDisconnect.dispatch();
+		if (joystick != null)
+			joystick.onDisconnect.dispatch();
 	}
 
 	#if (js && html5)
-	@:noCompletion private static function __getDeviceData():Array<Dynamic>
+	@:noCompletion private static function __getDeviceData():Array<js.html.Gamepad>
 	{
-		var res:Dynamic = null;
-		
-		try 
+		var res:Array<js.html.Gamepad> = null;
+
+		try
 		{
 			res = (untyped navigator.getGamepads) ? untyped navigator.getGamepads() : (untyped navigator.webkitGetGamepads) ? untyped navigator.webkitGetGamepads() : null;
 		}
@@ -65,7 +77,7 @@ class Joystick
 			// if something went wrong, treat it the same as when navigator.getGamepads doesn't exist
 			// we probably don't have permission to use this feature
 		}
-		
+
 		return res;
 	}
 	#end
@@ -74,7 +86,7 @@ class Joystick
 	@:noCompletion private inline function get_guid():String
 	{
 		#if (lime_cffi && !macro)
-		return CFFI.stringValue(NativeCFFI.lime_joystick_get_device_guid(this.id));
+		return NativeCFFI.lime_joystick_get_device_guid(this.id);
 		#elseif (js && html5)
 		var devices = __getDeviceData();
 		return devices[this.id].id;
@@ -86,7 +98,7 @@ class Joystick
 	@:noCompletion private inline function get_name():String
 	{
 		#if (lime_cffi && !macro)
-		return CFFI.stringValue(NativeCFFI.lime_joystick_get_device_name(this.id));
+		return NativeCFFI.lime_joystick_get_device_name(this.id);
 		#elseif (js && html5)
 		var devices = __getDeviceData();
 		return devices[this.id].id;

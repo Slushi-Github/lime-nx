@@ -80,30 +80,37 @@ macro(find_component _component _pkgconfig _library _header)
             ${PC_LIB${_component}_LIBRARY_DIRS}
     )
 
-    STRING(REGEX REPLACE "/.*" "/version.h" _ver_header ${_header})
-    if(EXISTS "${${_component}_INCLUDE_DIRS}/${_ver_header}")
-        file(STRINGS "${${_component}_INCLUDE_DIRS}/${_ver_header}" version_str REGEX "^#define[\t ]+LIB${_component}_VERSION_M.*")
+    if(DEFINED ${PC_${_component}_VERSION})
+        set(${_component}_VERSION ${PC_${_component}_VERSION} CACHE STRING
+            "The ${_component} version number." FORCE)
+    elseif(EXISTS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version.h")
+        if(EXISTS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version_major.h")
+            file(STRINGS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version_major.h" majorver
+                REGEX "^#define[ \t]+LIB${_component}_VERSION_MAJOR[ \t]+[0-9]+$")
+        else()
+            file(STRINGS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version.h" majorver
+                REGEX "^#define[ \t]+LIB${_component}_VERSION_MAJOR[ \t]+[0-9]+$")
+        endif()
+        file(STRINGS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version.h" minorver
+            REGEX "^#define[ \t]+LIB${_component}_VERSION_MINOR[ \t]+[0-9]+$")
+        file(STRINGS "${${_component}_INCLUDE_DIRS}/${_pkgconfig}/version.h" microver
+            REGEX "^#define[ \t]+LIB${_component}_VERSION_MICRO[ \t]+[0-9]+$")
 
-        foreach(_str "${version_str}")
-            if(NOT version_maj)
-                string(REGEX REPLACE "^.*LIB${_component}_VERSION_MAJOR[\t ]+([0-9]*).*$" "\\1" version_maj "${_str}")
-            endif()
-            if(NOT version_min)
-                string(REGEX REPLACE "^.*LIB${_component}_VERSION_MINOR[\t ]+([0-9]*).*$" "\\1" version_min "${_str}")
-            endif()
-            if(NOT version_mic)
-                string(REGEX REPLACE "^.*LIB${_component}_VERSION_MICRO[\t ]+([0-9]*).*$" "\\1" version_mic "${_str}")
-            endif()
-        endforeach()
-        unset(version_str)
+        string(REGEX REPLACE "^#define[ \t]+LIB${_component}_VERSION_MAJOR[ \t]+([0-9]+)$" "\\1"
+            majorver "${majorver}")
+        string(REGEX REPLACE "^#define[ \t]+LIB${_component}_VERSION_MINOR[ \t]+([0-9]+)$" "\\1"
+            minorver "${minorver}")
+        string(REGEX REPLACE "^#define[ \t]+LIB${_component}_VERSION_MICRO[ \t]+([0-9]+)$" "\\1"
+            microver "${microver}")
 
-        set(${_component}_VERSION "${version_maj}.${version_min}.${version_mic}" CACHE STRING "The ${_component} version number.")
-        unset(version_maj)
-        unset(version_min)
-        unset(version_mic)
-    endif(EXISTS "${${_component}_INCLUDE_DIRS}/${_ver_header}")
-    set(${_component}_VERSION     ${PC_${_component}_VERSION}      CACHE STRING "The ${_component} version number.")
-    set(${_component}_DEFINITIONS ${PC_${_component}_CFLAGS_OTHER} CACHE STRING "The ${_component} CFLAGS.")
+        set(${_component}_VERSION "${majorver}.${minorver}.${microver}" CACHE STRING
+            "The ${_component} version number." FORCE)
+        unset(microver)
+        unset(minorver)
+        unset(majorver)
+    endif()
+    set(${_component}_DEFINITIONS ${PC_${_component}_CFLAGS_OTHER} CACHE STRING
+        "The ${_component} CFLAGS." FORCE)
 
     set_component_found(${_component})
 

@@ -1,13 +1,9 @@
 package lime.utils;
 
 #if (js && !doc_gen)
-#if haxe4
 import js.lib.Uint8Array as JSUInt8Array;
 import js.lib.Uint8ClampedArray as JSUInt8ClampedArray;
-#else
-import js.html.Uint8Array as JSUInt8Array;
-import js.html.Uint8ClampedArray as JSUInt8ClampedArray;
-#end
+
 @:forward
 @:transitive
 abstract UInt8ClampedArray(JSUInt8ClampedArray) from JSUInt8ClampedArray to JSUInt8ClampedArray
@@ -61,17 +57,19 @@ abstract UInt8ClampedArray(JSUInt8ClampedArray) from JSUInt8ClampedArray to JSUI
 		}
 	}
 
-	@:arrayAccess #if (haxe_ver >= 4.0) extern #else @:extern #end inline function __set(idx:Int, val:UInt):UInt
+	@:arrayAccess extern inline function __set(idx:Int, val:UInt):UInt
 		return this[idx] = _clamp(val);
 
-	@:arrayAccess #if (haxe_ver >= 4.0) extern #else @:extern #end inline function __get(idx:Int):UInt
+	@:arrayAccess extern inline function __get(idx:Int):UInt
 		return this[idx];
 
 	// non spec haxe conversions
 	inline public static function fromBytes(bytes:haxe.io.Bytes, ?byteOffset:Int = 0, ?len:Int):UInt8ClampedArray
 	{
-		if (byteOffset == null) return new JSUInt8ClampedArray(cast bytes.getData());
-		if (len == null) return new JSUInt8ClampedArray(cast bytes.getData(), byteOffset);
+		if (byteOffset == null)
+			return new JSUInt8ClampedArray(cast bytes.getData());
+		if (len == null)
+			return new JSUInt8ClampedArray(cast bytes.getData(), byteOffset);
 		return new JSUInt8ClampedArray(cast bytes.getData(), byteOffset, len);
 	}
 
@@ -84,7 +82,7 @@ abstract UInt8ClampedArray(JSUInt8ClampedArray) from JSUInt8ClampedArray to JSUI
 		return this != null ? 'UInt8ClampedArray [byteLength:${this.byteLength}, length:${this.length}]' : null;
 
 	// internal
-	// clamp a Int to a 0-255 Uint8
+	// clamp an Int to a 0-255 Uint8
 	static function _clamp(_in:Float):Int
 	{
 		var _out = Std.int(_in);
@@ -104,9 +102,6 @@ abstract UInt8ClampedArray(ArrayBufferView) from ArrayBufferView to ArrayBufferV
 
 	public var length(get, never):Int;
 
-	#if (haxe_ver < 4.2)
-	@:generic
-	#end
 	public inline function new<T>(?elements:Int, ?buffer:ArrayBuffer, ?array:Array<T>, #if openfl ?vector:openfl.Vector<Int>, #end ?view:ArrayBufferView,
 			?byteoffset:Int = 0, ?len:Null<Int>)
 	{
@@ -158,15 +153,15 @@ abstract UInt8ClampedArray(ArrayBufferView) from ArrayBufferView to ArrayBufferV
 		return this.length;
 
 	@:noCompletion
-	@:arrayAccess #if (haxe_ver >= 4.0) extern #else @:extern #end
-	public inline function __get(idx:Int)
+	@:arrayAccess
+	extern public inline function __get(idx:Int)
 	{
 		return ArrayBufferIO.getUint8(this.buffer, this.byteOffset + idx);
 	}
 
 	@:noCompletion
-	@:arrayAccess #if (haxe_ver >= 4.0) extern #else @:extern #end
-	public inline function __set(idx:Int, val:UInt)
+	@:arrayAccess
+	extern public inline function __set(idx:Int, val:UInt)
 	{
 		ArrayBufferIO.setUint8Clamped(this.buffer, this.byteOffset + idx, val);
 		return val;

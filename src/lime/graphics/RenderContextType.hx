@@ -3,7 +3,7 @@ package lime.graphics;
 /**
 	An enum for possible render context types
 **/
-#if (haxe_ver >= 4.0) enum #else @:enum #end abstract RenderContextType(String) from String to String
+enum abstract RenderContextType(String) from String to String
 {
 	/**
 		Describes a Cairo render context
@@ -14,16 +14,6 @@ package lime.graphics;
 		Describes an HTML5 canvas render context
 	**/
 	var CANVAS = "canvas";
-
-	/**
-		Describes an HTML5 DOM render context
-	**/
-	var DOM = "dom";
-
-	/**
-		Describes a Flash render context
-	**/
-	var FLASH = "flash";
 
 	/**
 		Describes an OpenGL render context

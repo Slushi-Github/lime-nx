@@ -1,28 +1,17 @@
-#ifndef LIME_GRAPHICS_FORMAT_JPEG_H
-#define LIME_GRAPHICS_FORMAT_JPEG_H
-
+#pragma once
 
 #include <graphics/ImageBuffer.h>
 #include <utils/Bytes.h>
 #include <utils/Resource.h>
 
+namespace lime
+{
 
-namespace lime {
-
-
-	class JPEG {
-
-
-		public:
-
-			static bool Decode (Resource *resource, ImageBuffer *imageBuffer, bool decodeData = true);
-			static bool Encode (ImageBuffer *imageBuffer, Bytes *bytes, int quality);
-
-
+	class JPEG
+	{
+	  public:
+		static bool Decode(Resource *resource, ImageBuffer *imageBuffer);
+		static bool Encode(ImageBuffer *imageBuffer, Bytes *bytes, int quality);
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

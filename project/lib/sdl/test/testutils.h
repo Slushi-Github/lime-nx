@@ -1,17 +1,31 @@
 /*
-Copyright 1997-2022 Sam Lantinga
-Copyright 2022 Collabora Ltd.
-SPDX-License-Identifier: Zlib
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+  Copyright 2022 Collabora Ltd.
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely.
 */
 
 #ifndef TESTUTILS_H
 #define TESTUTILS_H
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
-SDL_Texture *LoadTexture(SDL_Renderer *renderer, const char *file, SDL_bool transparent,
-                         int *width_out, int *height_out);
-char *GetNearbyFilename(const char *file);
-char *GetResourceFilename(const char *user_specified, const char *def);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern SDL_Texture *LoadTexture(SDL_Renderer *renderer, const char *file, bool transparent);
+extern char *GetNearbyFilename(const char *file);
+extern char *GetResourceFilename(const char *user_specified, const char *def);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

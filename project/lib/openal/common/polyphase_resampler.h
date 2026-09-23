@@ -1,6 +1,7 @@
 #ifndef POLYPHASE_RESAMPLER_H
 #define POLYPHASE_RESAMPLER_H
 
+#include <span>
 #include <vector>
 
 
@@ -32,13 +33,13 @@
  */
 
 struct PPhaseResampler {
-    using uint = unsigned int;
+    void init(unsigned srcRate, unsigned dstRate);
+    void process(std::span<const double> in, std::span<double> out) const;
 
-    void init(const uint srcRate, const uint dstRate);
-    void process(const uint inN, const double *in, const uint outN, double *out);
+    explicit operator bool() const noexcept { return !mF.empty(); }
 
 private:
-    uint mP, mQ, mM, mL;
+    unsigned mP{}, mQ{}, mM{}, mL{};
     std::vector<double> mF;
 };
 

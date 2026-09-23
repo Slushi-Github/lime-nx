@@ -4,16 +4,14 @@ import haxe.io.Bytes;
 import haxe.io.BytesInput;
 import haxe.io.Input;
 import haxe.zip.Reader;
+
 import lime.app.Future;
 import lime.utils.Bytes as LimeBytes;
+
 #if sys
 import sys.io.File;
 #end
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class AssetBundle
 {
 	public var data:Map<String, Bytes>;
@@ -28,18 +26,19 @@ class AssetBundle
 
 	public static function fromBytes(bytes:Bytes):AssetBundle
 	{
-		var input = new BytesInput(bytes);
-		return __extractBundle(input);
+		return __extractBundle(new BytesInput(bytes));
 	}
 
 	public static function fromFile(path:String):AssetBundle
 	{
-		#if sys
-		var input = File.read(path);
-		return __extractBundle(input);
-		#else
-		return null;
-		#end
+		var bytes = LimeBytes.fromFile(path);
+
+		if (bytes == null)
+		{
+			return null;
+		}
+
+		return __extractBundle(new BytesInput(bytes));
 	}
 
 	public static function loadFromBytes(bytes:Bytes):Future<AssetBundle>

@@ -1,11 +1,14 @@
 package lime.tools;
 
-import hxp.*;
+import hxp.Log;
+import hxp.Path;
+import hxp.System;
+
 import lime.tools.HXProject;
-import lime.tools.Platform;
 import lime.tools.ProjectXMLParser;
-import sys.io.File;
+
 import sys.FileSystem;
+import sys.io.File;
 
 class ConfigHelper
 {
@@ -70,7 +73,7 @@ class ConfigHelper
 				{
 					System.mkdir(Path.directory(configPath));
 
-					var hxcppConfig = null;
+					var hxcppConfig:String = null;
 
 					if (environment.exists("HXCPP_CONFIG"))
 					{

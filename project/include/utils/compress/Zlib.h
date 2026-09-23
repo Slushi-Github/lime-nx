@@ -1,14 +1,12 @@
-#ifndef LIME_UTILS_COMPRESS_ZLIB_H
-#define LIME_UTILS_COMPRESS_ZLIB_H
-
+#pragma once
 
 #include <utils/Bytes.h>
 
+namespace lime
+{
 
-namespace lime {
-
-
-	enum ZlibType {
+	enum ZlibType
+	{
 
 		DEFLATE,
 		GZIP,
@@ -16,20 +14,11 @@ namespace lime {
 
 	};
 
-
-	class Zlib {
-
-
-		public:
-
-			static void Compress (ZlibType type, Bytes* data, Bytes* result);
-			static void Decompress (ZlibType type, Bytes* data, Bytes* result);
-
-
+	class Zlib
+	{
+	  public:
+		static void Compress(ZlibType type, Bytes *data, Bytes *result);
+		static void Decompress(ZlibType type, Bytes *data, Bytes *result);
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

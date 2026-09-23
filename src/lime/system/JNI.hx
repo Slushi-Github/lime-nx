@@ -8,16 +8,14 @@ import haxe.macro.Type;
 #else
 import lime._internal.backend.native.NativeCFFI;
 #end
+
 #if !lime_doc_gen
 #if target.threaded
 import sys.thread.Thread;
 #elseif cpp
 import cpp.vm.Thread;
-#elseif neko
-import neko.vm.Thread;
 #end
 #end
-
 using StringTools;
 
 /**
@@ -38,10 +36,6 @@ using StringTools;
 	use `Extension.callbackHandler.post()` to switch to the UI thread, while
 	Haxe code can avoid the problem using `lime.system.JNI.JNISafety`.
 **/
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class JNI
 {
@@ -215,7 +209,8 @@ class JNI
 
 		if (field != null)
 		{
-			if (args == null) args = [];
+			if (args == null)
+				args = [];
 
 			return Reflect.callMethod(object, field, args);
 		}
@@ -236,10 +231,6 @@ class JNI
 	}
 }
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class JNIMemberField
 {
@@ -268,10 +259,6 @@ class JNIMemberField
 	}
 }
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class JNIStaticField
 {
@@ -300,10 +287,6 @@ class JNIStaticField
 	}
 }
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class JNIMethod
 {
@@ -384,10 +367,10 @@ class JNIMethod
 	```
 **/
 // Haxe 3 can't parse "target.threaded" inside parentheses.
-#if !doc_gen
+#if !(doc_gen || macro)
 #if target.threaded
 @:autoBuild(lime.system.JNI.JNISafetyTools.build())
-#elseif (cpp || neko)
+#elseif cpp
 @:autoBuild(lime.system.JNI.JNISafetyTools.build())
 #end
 #end
@@ -398,7 +381,7 @@ class JNISafetyTools
 {
 	#if target.threaded
 	private static var mainThread:Thread = Thread.current();
-	#elseif (cpp || neko)
+	#elseif cpp
 	private static var mainThread:Thread = Thread.current();
 	#end
 
@@ -409,7 +392,7 @@ class JNISafetyTools
 	{
 		#if target.threaded
 		return Thread.current() == mainThread;
-		#elseif (cpp || neko)
+		#elseif cpp
 		return Thread.current() == mainThread;
 		#else
 		return true;
@@ -430,8 +413,7 @@ class JNISafetyTools
 			}
 
 			// Don't modify functions lacking `@:runOnMainThread`.
-			if (field.meta == null || !Lambda.exists(field.meta,
-				function(meta) return meta.name == ":runOnMainThread"))
+			if (field.meta == null || !Lambda.exists(field.meta, function(meta) return meta.name == ":runOnMainThread"))
 			{
 				continue;
 			}
@@ -445,13 +427,12 @@ class JNISafetyTools
 					// Make sure there's no return value.
 					switch (f.ret)
 					{
-						case macro:Void:
+						case macro :Void:
 							// Good to go.
 						case null:
-							f.ret = macro:Void;
+							f.ret = macro :Void;
 						default:
-							Context.error("Expected return type Void, got "
-								+ new haxe.macro.Printer().printComplexType(f.ret) + ".", field.pos);
+							Context.error("Expected return type Void, got " + new haxe.macro.Printer().printComplexType(f.ret) + ".", field.pos);
 					}
 
 					var args:Array<Expr> = [];
@@ -465,11 +446,15 @@ class JNISafetyTools
 					}
 
 					// Check the thread before running the function.
-					f.expr = macro
-						if (!lime.system.JNI.JNISafetyTools.onMainThread())
-							haxe.MainLoop.runInMainThread($i{field.name}.bind($a{args}))
-						else
-							${f.expr};
+					f.expr = macro if (!lime.system.JNI.JNISafetyTools.onMainThread())
+					{
+						#if haxe5
+						haxe.EventLoop.main.run($i{field.name}.bind($a{args}));
+						#else
+						haxe.MainLoop.runInMainThread($i{field.name}.bind($a{args}));
+						#end
+					}
+					else ${f.expr};
 				default:
 			}
 		}

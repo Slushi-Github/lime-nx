@@ -1,19 +1,18 @@
 #ifndef BACKENDS_OSS_H
 #define BACKENDS_OSS_H
 
-#include "backends/base.h"
+#include "base.h"
 
-struct OSSBackendFactory final : public BackendFactory {
-public:
-    bool init() override;
+struct OSSBackendFactory final : BackendFactory {
+    auto init() -> bool final;
 
-    bool querySupport(BackendType type) override;
+    auto querySupport(BackendType type) -> bool final;
 
-    void probe(DevProbe type, std::string *outnames) override;
+    auto enumerate(BackendType type) -> std::vector<std::string> final;
 
-    BackendPtr createBackend(ALCdevice *device, BackendType type) override;
+    auto createBackend(gsl::not_null<DeviceBase*> device, BackendType type) -> BackendPtr final;
 
-    static BackendFactory &getFactory();
+    static auto getFactory() -> BackendFactory&;
 };
 
 #endif /* BACKENDS_OSS_H */

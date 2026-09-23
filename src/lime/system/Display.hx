@@ -2,10 +2,6 @@ package lime.system;
 
 import lime.math.Rectangle;
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Display
 {
 	/**
@@ -26,6 +22,11 @@ class Display
 	public var dpi(default, null):Float;
 
 	/**
+	 * Orientation of the display
+	 */
+	public var orientation(default, null):Orientation;
+
+	/**
 	 * The name of the device, such as "Samsung SyncMaster P2350", "iPhone 6", "Oculus Rift DK2", etc.
 	**/
 	public var name(default, null):String;
@@ -34,6 +35,13 @@ class Display
 	 * All of the display modes supported by this device
 	**/
 	public var supportedModes(default, null):Array<DisplayMode>;
+
+	/**
+		The area within the display's `bounds` where it is safe to render
+		content without being obscured by notches, holes, or other display
+		cutouts.
+	**/
+	public var safeArea(default, null):Rectangle;
 
 	@:noCompletion private function new() {}
 }

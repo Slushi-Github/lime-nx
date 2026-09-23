@@ -2,14 +2,10 @@ package lime.system;
 
 import lime.app.Event;
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Sensor
 {
-	private static var sensorByID = new Map<Int, Sensor>();
-	private static var sensors = new Array<Sensor>();
+	private static var __sensorByID = new Map<Int, Sensor>();
+	private static var __sensor = new Array<Sensor>();
 
 	public var id:Int;
 	public var onUpdate = new Event<Float->Float->Float->Void>();
@@ -25,13 +21,13 @@ class Sensor
 	{
 		if (type == null)
 		{
-			return sensors.copy();
+			return __sensor.copy();
 		}
 		else
 		{
 			var result = [];
 
-			for (sensor in sensors)
+			for (sensor in __sensor)
 			{
 				if (sensor.type == type)
 				{
@@ -45,10 +41,13 @@ class Sensor
 
 	private static function registerSensor(type:SensorType, id:Int):Sensor
 	{
+		if (id < 0)
+			return null;
+
 		var sensor = new Sensor(type, id);
 
-		sensors.push(sensor);
-		sensorByID.set(id, sensor);
+		__sensor.push(sensor);
+		__sensorByID.set(id, sensor);
 
 		return sensor;
 	}

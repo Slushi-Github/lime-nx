@@ -1,168 +1,125 @@
 #include <utils/compress/Zlib.h>
 #include <zlib.h>
 
-
-#ifdef STATIC_LINK
-extern "C" int zlib_register_prims()
+namespace lime
 {
-   static bool init = false;
-   if (init) return 0;
-   init = true;
 
-   return 0;
-}
-#endif
-
-namespace lime {
-
-
-	void Zlib::Compress (ZlibType type, Bytes* data, Bytes* result) {
+	void Zlib::Compress(ZlibType type, Bytes *data, Bytes *result)
+	{
+		if (data == NULL || data->b == NULL || data->length <= 0)
+		{
+			result->Resize(0);
+			return;
+		}
 
 		int windowBits = 15;
 
-		switch (type) {
-
-			case DEFLATE: windowBits = -15; break;
-			case GZIP: windowBits = 31; break;
-			default: break;
-
+		switch (type)
+		{
+			case DEFLATE:
+				windowBits = -15;
+				break;
+			case GZIP:
+				windowBits = 31;
+				break;
+			default:
+				break;
 		}
 
-		z_stream* stream = (z_stream*)malloc (sizeof (z_stream));
-		stream->zalloc = Z_NULL;
-		stream->zfree = Z_NULL;
-		stream->opaque = Z_NULL;
+		z_stream stream = {0};
 
-		int ret = 0;
-
-		if ((ret = deflateInit2 (stream, Z_BEST_COMPRESSION, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY) != Z_OK)) {
-
-			//val_throw (stream->msg);
-			free (stream);
+		if (deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+		{
+			result->Resize(0);
 			return;
-
 		}
 
-		int bufferSize = deflateBound (stream, data->length);
-		char* buffer = (char*)malloc (bufferSize);
+		int maxBufferSize = deflateBound(&stream, data->length);
 
-		stream->next_in = (Bytef*)data->b;
-		stream->next_out = (Bytef*)buffer;
-		stream->avail_in = data->length;
-		stream->avail_out = bufferSize;
+		result->Resize(maxBufferSize);
 
-		if ((ret = deflate (stream, Z_FINISH)) < 0) {
+		stream.next_in = (Bytef *)data->b;
+		stream.avail_in = data->length;
+		stream.next_out = (Bytef *)result->b;
+		stream.avail_out = maxBufferSize;
 
-			//if (stream && stream->msg) printf ("%s\n", stream->msg);
-			//val_throw (stream->msg);
-			deflateEnd (stream);
-			free (stream);
-			free (buffer);
-			return;
+		int ret = deflate(&stream, Z_FINISH);
 
+		deflateEnd(&stream);
+
+		if (ret == Z_STREAM_END)
+		{
+			result->Resize((int)stream.total_out);
 		}
-
-		int size = bufferSize - stream->avail_out;
-		result->Resize (size);
-		memcpy (result->b, buffer, size);
-		deflateEnd (stream);
-		free (stream);
-		free (buffer);
-
-		return;
-
+		else
+		{
+			result->Resize(0);
+		}
 	}
 
-
-	void Zlib::Decompress (ZlibType type, Bytes* data, Bytes* result) {
+	void Zlib::Decompress(ZlibType type, Bytes *data, Bytes *result)
+	{
+		if (data == NULL || data->b == NULL || data->length <= 0)
+		{
+			result->Resize(0);
+			return;
+		}
 
 		int windowBits = 15;
 
-		switch (type) {
-
-			case DEFLATE: windowBits = -15; break;
-			case GZIP: windowBits = 31; break;
-			default: break;
-
+		switch (type)
+		{
+			case DEFLATE:
+				windowBits = -15;
+				break;
+			case GZIP:
+				windowBits = 31;
+				break;
+			default:
+				break;
 		}
 
-		z_stream* stream = (z_stream*)malloc (sizeof (z_stream));
-		stream->zalloc = Z_NULL;
-		stream->zfree = Z_NULL;
-		stream->opaque = Z_NULL;
+		z_stream stream = {0};
 
-		int ret = 0;
-
-		if ((ret = inflateInit2 (stream, windowBits) != Z_OK)) {
-
-			//val_throw (stream->msg);
-			inflateEnd (stream);
-			free (stream);
+		if (inflateInit2(&stream, windowBits) != Z_OK)
+		{
+			result->Resize(0);
 			return;
-
 		}
 
-		int chunkSize = 1 << 16;
-		int readSize = 0;
-		Bytef* sourcePosition = data->b;
-		int destSize = 0;
-		int readTotal = 0;
+		stream.next_in = (Bytef *)data->b;
+		stream.avail_in = data->length;
 
-		Bytef* buffer = (Bytef*)malloc (chunkSize);
+		int capacity = data->length > 16384 ? data->length * 4 : 65536;
 
-		stream->avail_in = data->length;
-		stream->next_in = data->b;
+		result->Resize(capacity);
 
-		if (stream->avail_in > 0) {
+		int status = Z_OK;
 
-			do {
+		while (status == Z_OK)
+		{
+			if (stream.total_out >= (uLong)capacity)
+			{
+				capacity *= 2;
+				result->Resize(capacity);
+			}
 
-				stream->avail_out = chunkSize;
-				stream->next_out = buffer;
+			stream.next_out = (Bytef *)(result->b + stream.total_out);
+			stream.avail_out = capacity - stream.total_out;
 
-				ret = inflate (stream, Z_NO_FLUSH);
-
-				if (ret == Z_STREAM_ERROR) {
-
-					inflateEnd (stream);
-					free (stream);
-					free (buffer);
-					return;
-
-				}
-
-				switch (ret) {
-
-					case Z_NEED_DICT:
-						ret = Z_DATA_ERROR;
-					case Z_DATA_ERROR:
-					case Z_MEM_ERROR:
-						inflateEnd (stream);
-						free (stream);
-						free (buffer);
-						return;
-
-				}
-
-				readSize = chunkSize - stream->avail_out;
-				readTotal += readSize;
-
-				result->Resize (readTotal);
-				memcpy (result->b + readTotal - readSize, buffer, readSize);
-
-				sourcePosition += readSize;
-
-			} while (stream->avail_out == 0);
-
+			status = inflate(&stream, Z_NO_FLUSH);
 		}
 
-		inflateEnd (stream);
-		free (stream);
-		free (buffer);
+		inflateEnd(&stream);
 
-		return;
-
+		if (status == Z_STREAM_END)
+		{
+			result->Resize((int)stream.total_out);
+		}
+		else
+		{
+			result->Resize(0);
+		}
 	}
 
-
-}
+} // namespace lime

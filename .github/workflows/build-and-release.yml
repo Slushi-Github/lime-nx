@@ -1,0 +1,85 @@
+name: Build and Release
+on: workflow_dispatch
+
+jobs:
+  android:
+    uses: ./.github/workflows/android.yml
+  ios:
+    uses: ./.github/workflows/ios.yml
+  linux:
+    uses: ./.github/workflows/linux.yml
+  mac:
+    uses: ./.github/workflows/mac.yml
+  windows:
+    uses: ./.github/workflows/windows.yml
+  # miscellaneous:
+    # uses: ./.github/workflows/miscellaneous.yml
+
+  releaser:
+    needs: [android, ios, linux, mac, windows]
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Delete old NDLL's
+        run: |
+          rm -rf ndll
+          mkdir ndll
+
+      - name: Download Android-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Android-NDLL
+          path: ndll/Android
+
+      - name: Download iPhone-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: iPhone-NDLL
+          path: ndll/iPhone
+
+      - name: Download Linux64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux64-NDLL
+          path: ndll/Linux64
+
+      - name: Download Mac64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Mac64-NDLL
+          path: ndll/Mac64
+
+      - name: Download MacArm64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: MacArm64-NDLL
+          path: ndll/MacArm64
+
+      - name: Download Windows64-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Windows64-NDLL
+          path: ndll/Windows64
+
+      - name: Download Windows-NDLL artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Windows-NDLL
+          path: ndll/Windows
+
+      - name: ZIP Repo
+        run: |
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          zip -rv ../release.zip . -x ".git/*" ".git/**"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }}/${{ env.SHORT_SHA }}"
+          tag_name: "${{ github.ref_name }}${{'-'}}${{ env.SHORT_SHA }}"
+          files: ../release.zip

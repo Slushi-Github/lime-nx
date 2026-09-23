@@ -4,12 +4,12 @@ package lime.graphics;
 #if (lime_doc_gen || (sys && lime_cffi && !doc_gen))
 import haxe.Int64;
 import haxe.io.Bytes;
+
 import lime._internal.backend.native.NativeOpenGLRenderContext;
 import lime.graphics.opengl.*;
 import lime.utils.DataPointer;
 import lime.utils.Float32Array;
 import lime.utils.Int32Array;
-
 /**
 	The `OpenGLES3RenderContext` allows access to OpenGL ES 3.0 features when OpenGL or
 	OpenGL ES is the render context type of the `Window`, and the current context supports
@@ -301,7 +301,6 @@ public var VERTEX_ATTRIB_ARRAY_NORMALIZED(get, never):Int;
 public var VERTEX_ATTRIB_ARRAY_POINTER(get, never):Int;
 public var VERTEX_ATTRIB_ARRAY_BUFFER_BINDING(get, never):Int;
 public var VERTEX_PROGRAM_POINT_SIZE(get, never):Int;
-public var POINT_SPRITE(get, never):Int;
 public var COMPILE_STATUS(get, never):Int;
 public var LOW_FLOAT(get, never):Int;
 public var MEDIUM_FLOAT(get, never):Int;
@@ -1858,10 +1857,6 @@ public var version(get, never):Float;
 
 @:noCompletion private inline function get_VERTEX_PROGRAM_POINT_SIZE():Int
 {#if (js && html5) return 0; #else return this.VERTEX_PROGRAM_POINT_SIZE; #end
-} // TODO
-
-@:noCompletion private inline function get_POINT_SPRITE():Int
-{#if (js && html5) return 0; #else return this.POINT_SPRITE; #end
 } // TODO
 
 @:noCompletion private inline function get_COMPILE_STATUS():Int
@@ -3524,6 +3519,11 @@ public inline function blendFuncSeparate(srcRGB:Int, dstRGB:Int, srcAlpha:Int, d
 	this.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
 }
 
+public inline function blendBarrier():Void
+{
+	this.blendBarrier();
+}
+
 public inline function blitFramebuffer(srcX0:Int, srcY0:Int, srcX1:Int, srcY1:Int, dstX0:Int, dstY0:Int, dstX1:Int, dstY1:Int, mask:Int, filter:Int):Void
 {
 	this.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
@@ -3869,7 +3869,8 @@ public inline function frontFace(mode:Int):Void
 
 public function genBuffers(n:Int, buffers:Array<GLBuffer> = null):Array<GLBuffer>
 {
-	if (buffers == null) buffers = [];
+	if (buffers == null)
+		buffers = [];
 
 	for (i in 0...n)
 	{
@@ -3886,7 +3887,8 @@ public inline function generateMipmap(target:Int):Void
 
 public function genFramebuffers(n:Int, framebuffers:Array<GLFramebuffer> = null):Array<GLFramebuffer>
 {
-	if (framebuffers == null) framebuffers = [];
+	if (framebuffers == null)
+		framebuffers = [];
 
 	for (i in 0...n)
 	{
@@ -3898,7 +3900,8 @@ public function genFramebuffers(n:Int, framebuffers:Array<GLFramebuffer> = null)
 
 public function genQueries(n:Int, queries:Array<GLQuery> = null):Array<GLQuery>
 {
-	if (queries == null) queries = [];
+	if (queries == null)
+		queries = [];
 
 	for (i in 0...n)
 	{
@@ -3910,7 +3913,8 @@ public function genQueries(n:Int, queries:Array<GLQuery> = null):Array<GLQuery>
 
 public function genRenderbuffers(n:Int, renderbuffers:Array<GLRenderbuffer> = null):Array<GLRenderbuffer>
 {
-	if (renderbuffers == null) renderbuffers = [];
+	if (renderbuffers == null)
+		renderbuffers = [];
 
 	for (i in 0...n)
 	{
@@ -3922,7 +3926,8 @@ public function genRenderbuffers(n:Int, renderbuffers:Array<GLRenderbuffer> = nu
 
 public function genSamplers(n:Int, samplers:Array<GLSampler> = null):Array<GLSampler>
 {
-	if (samplers == null) samplers = [];
+	if (samplers == null)
+		samplers = [];
 
 	for (i in 0...n)
 	{
@@ -3934,7 +3939,8 @@ public function genSamplers(n:Int, samplers:Array<GLSampler> = null):Array<GLSam
 
 public function genTextures(n:Int, textures:Array<GLTexture> = null):Array<GLTexture>
 {
-	if (textures == null) textures = [];
+	if (textures == null)
+		textures = [];
 
 	for (i in 0...n)
 	{
@@ -3946,7 +3952,8 @@ public function genTextures(n:Int, textures:Array<GLTexture> = null):Array<GLTex
 
 public function genTransformFeedbacks(n:Int, transformFeedbacks:Array<GLTransformFeedback> = null):Array<GLTransformFeedback>
 {
-	if (transformFeedbacks == null) transformFeedbacks = [];
+	if (transformFeedbacks == null)
+		transformFeedbacks = [];
 
 	for (i in 0...n)
 	{

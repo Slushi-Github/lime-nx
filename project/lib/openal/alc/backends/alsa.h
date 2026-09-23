@@ -1,19 +1,18 @@
 #ifndef BACKENDS_ALSA_H
 #define BACKENDS_ALSA_H
 
-#include "backends/base.h"
+#include "base.h"
 
-struct AlsaBackendFactory final : public BackendFactory {
-public:
-    bool init() override;
+struct AlsaBackendFactory final : BackendFactory {
+    auto init() -> bool final;
 
-    bool querySupport(BackendType type) override;
+    auto querySupport(BackendType type) -> bool final;
 
-    void probe(DevProbe type, std::string *outnames) override;
+    auto enumerate(BackendType type) -> std::vector<std::string> final;
 
-    BackendPtr createBackend(ALCdevice *device, BackendType type) override;
+    auto createBackend(gsl::not_null<DeviceBase*> device, BackendType type) -> BackendPtr final;
 
-    static BackendFactory &getFactory();
+    static auto getFactory() -> BackendFactory&;
 };
 
 #endif /* BACKENDS_ALSA_H */

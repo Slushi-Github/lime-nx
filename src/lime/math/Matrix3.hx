@@ -18,13 +18,6 @@ import lime.utils.Float32Array;
 
 	Values are stored in column-major order for GLSL compatibility.
 **/
-#if hl
-@:keep
-#end
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 abstract Matrix3(Float32Array) to Float32Array
 {
 	/**
@@ -70,9 +63,15 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		// Column-major order means adjacent values form a column, not a row.
 		this = new Float32Array([
-			a,  b,  0, // column 0
-			c,  d,  0, // column 1
-			tx, ty, 1  // column 2
+			a,
+			b,
+			0, // column 0
+			c,
+			d,
+			0, // column 1
+			tx,
+			ty,
+			1 // column 2
 		]);
 	}
 
@@ -326,7 +325,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	**/
 	public function deltaTransformVector(Vector2:Vector2, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.x = Vector2.x * a + Vector2.y * c;
 		result.y = Vector2.x * b + Vector2.y * d;
 		return result;
@@ -498,7 +498,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	**/
 	public function transformRect(rect:Rectangle, result:Rectangle = null):Rectangle
 	{
-		if (result == null) result = new Rectangle();
+		if (result == null)
+			result = new Rectangle();
 
 		var tx0 = a * rect.x + c * rect.y;
 		var tx1 = tx0;
@@ -508,26 +509,38 @@ abstract Matrix3(Float32Array) to Float32Array
 		var tx = a * (rect.x + rect.width) + c * rect.y;
 		var ty = b * (rect.x + rect.width) + d * rect.y;
 
-		if (tx < tx0) tx0 = tx;
-		if (ty < ty0) ty0 = ty;
-		if (tx > tx1) tx1 = tx;
-		if (ty > ty1) ty1 = ty;
+		if (tx < tx0)
+			tx0 = tx;
+		if (ty < ty0)
+			ty0 = ty;
+		if (tx > tx1)
+			tx1 = tx;
+		if (ty > ty1)
+			ty1 = ty;
 
 		tx = a * (rect.x + rect.width) + c * (rect.y + rect.height);
 		ty = b * (rect.x + rect.width) + d * (rect.y + rect.height);
 
-		if (tx < tx0) tx0 = tx;
-		if (ty < ty0) ty0 = ty;
-		if (tx > tx1) tx1 = tx;
-		if (ty > ty1) ty1 = ty;
+		if (tx < tx0)
+			tx0 = tx;
+		if (ty < ty0)
+			ty0 = ty;
+		if (tx > tx1)
+			tx1 = tx;
+		if (ty > ty1)
+			ty1 = ty;
 
 		tx = a * rect.x + c * (rect.y + rect.height);
 		ty = b * rect.x + d * (rect.y + rect.height);
 
-		if (tx < tx0) tx0 = tx;
-		if (ty < ty0) ty0 = ty;
-		if (tx > tx1) tx1 = tx;
-		if (ty > ty1) ty1 = ty;
+		if (tx < tx0)
+			tx0 = tx;
+		if (ty < ty0)
+			ty0 = ty;
+		if (tx > tx1)
+			tx1 = tx;
+		if (ty > ty1)
+			ty1 = ty;
 
 		result.setTo(tx0 + tx, ty0 + ty, tx1 - tx0, ty1 - ty0);
 		return result;
@@ -540,7 +553,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	**/
 	public function transformVector(pos:Vector2, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.x = pos.x * a + pos.y * c + tx;
 		result.y = pos.x * b + pos.y * d + ty;
 		return result;
@@ -561,7 +575,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[0];
 	}
-	inline function set_a(value: Float):Float
+
+	inline function set_a(value:Float):Float
 	{
 		return this[0] = value;
 	}
@@ -570,7 +585,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[1];
 	}
-	inline function set_b(value: Float):Float
+
+	inline function set_b(value:Float):Float
 	{
 		return this[1] = value;
 	}
@@ -579,7 +595,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[3];
 	}
-	inline function set_c(value: Float):Float
+
+	inline function set_c(value:Float):Float
 	{
 		return this[3] = value;
 	}
@@ -588,7 +605,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[4];
 	}
-	inline function set_d(value: Float):Float
+
+	inline function set_d(value:Float):Float
 	{
 		return this[4] = value;
 	}
@@ -597,7 +615,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[6];
 	}
-	inline function set_tx(value: Float):Float
+
+	inline function set_tx(value:Float):Float
 	{
 		return this[6] = value;
 	}
@@ -606,7 +625,8 @@ abstract Matrix3(Float32Array) to Float32Array
 	{
 		return this[7];
 	}
-	inline function set_ty(value: Float):Float
+
+	inline function set_ty(value:Float):Float
 	{
 		return this[7] = value;
 	}

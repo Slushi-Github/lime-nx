@@ -1,20 +1,9 @@
 package lime.math;
 
-#if flash
-import flash.geom.Rectangle as FlashRectangle;
-#end
-
 /**
 	The `Rectangle` class provides a simple object for storing
 	and manipulating a logical rectangle for calculations
 **/
-#if hl
-@:keep
-#end
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Rectangle
 {
 	/**
@@ -199,7 +188,8 @@ class Rectangle
 	**/
 	public function intersection(toIntersect:Rectangle, result:Rectangle = null):Rectangle
 	{
-		if (result == null) result = new Rectangle();
+		if (result == null)
+			result = new Rectangle();
 
 		var x0 = x < toIntersect.x ? toIntersect.x : x;
 		var x1 = right > toIntersect.right ? toIntersect.right : right;
@@ -309,7 +299,8 @@ class Rectangle
 	**/
 	public function union(toUnion:Rectangle, result:Rectangle = null):Rectangle
 	{
-		if (result == null) result = new Rectangle();
+		if (result == null)
+			result = new Rectangle();
 
 		if (width == 0 || height == 0)
 		{
@@ -330,15 +321,6 @@ class Rectangle
 		}
 
 		return result;
-	}
-
-	@:noCompletion private function __toFlashRectangle():#if flash FlashRectangle #else Dynamic #end
-	{
-		#if flash
-		return new FlashRectangle(x, y, width, height);
-		#else
-		return null;
-		#end
 	}
 
 	// Getters & Setters

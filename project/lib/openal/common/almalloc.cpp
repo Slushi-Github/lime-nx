@@ -1,67 +1,51 @@
 
-#include "config.h"
-
 #include "almalloc.h"
 
-#include <cassert>
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
-#endif
+#if defined(__APPLE__)
+#include <AvailabilityMacros.h>
 
+#if defined(MAC_OS_X_VERSION_MIN_REQUIRED) && MAC_OS_X_VERSION_MIN_REQUIRED < 101300
 
-#define ALIGNED_ALLOC_AVAILABLE (__STDC_VERSION__ >= 201112L || __cplusplus >= 201703L)
+#include <stdlib.h>
 
-void *al_malloc(size_t alignment, size_t size)
+auto operator new(std::size_t const len, std::align_val_t const align, std::nothrow_t const&)
+    noexcept -> gsl::owner<void*>
 {
-    assert((alignment & (alignment-1)) == 0);
-    alignment = std::max(alignment, alignof(std::max_align_t));
-
-#if ALIGNED_ALLOC_AVAILABLE
-    size = (size+(alignment-1))&~(alignment-1);
-    return aligned_alloc(alignment, size);
-#elif defined(HAVE_POSIX_MEMALIGN)
-    void *ret;
-    if(posix_memalign(&ret, alignment, size) == 0)
-        return ret;
-    return nullptr;
-#elif defined(HAVE__ALIGNED_MALLOC)
-    return _aligned_malloc(size, alignment);
-#else
-    auto *ret = static_cast<char*>(malloc(size+alignment));
-    if(ret != nullptr)
-    {
-        *(ret++) = 0x00;
-        while((reinterpret_cast<uintptr_t>(ret)&(alignment-1)) != 0)
-            *(ret++) = 0x55;
-    }
-    return ret;
-#endif
+    gsl::owner<void*> mem;
+    if(posix_memalign(&mem, static_cast<std::size_t>(align), len))
+        return nullptr;
+    return mem;
 }
+auto operator new[](std::size_t const len, std::align_val_t const align, std::nothrow_t const &tag)
+    noexcept -> gsl::owner<void*>
+{ return operator new(len, align, tag); }
 
-void *al_calloc(size_t alignment, size_t size)
+auto operator new(std::size_t const len, std::align_val_t const align) -> gsl::owner<void*>
 {
-    void *ret = al_malloc(alignment, size);
-    if(ret) memset(ret, 0, size);
-    return ret;
+    gsl::owner<void*> mem;
+    if(posix_memalign(&mem, static_cast<std::size_t>(align), len))
+        throw std::bad_alloc();
+    return mem;
 }
+auto operator new[](std::size_t const len, std::align_val_t const align) -> gsl::owner<void*>
+{ return operator new(len, align); }
 
-void al_free(void *ptr) noexcept
-{
-#if ALIGNED_ALLOC_AVAILABLE || defined(HAVE_POSIX_MEMALIGN)
-    free(ptr);
-#elif defined(HAVE__ALIGNED_MALLOC)
-    _aligned_free(ptr);
-#else
-    if(ptr != nullptr)
-    {
-        auto *finder = static_cast<char*>(ptr);
-        do {
-            --finder;
-        } while(*finder == 0x55);
-        free(finder);
-    }
+auto operator delete(gsl::owner<void*> const ptr, std::align_val_t) noexcept -> void
+{ free(ptr); }
+auto operator delete[](gsl::owner<void*> const ptr, std::align_val_t) noexcept -> void
+{ free(ptr); }
+
+auto operator delete(gsl::owner<void*> const ptr, std::size_t, std::align_val_t) noexcept -> void
+{ free(ptr); }
+auto operator delete[](gsl::owner<void*> const ptr, std::size_t, std::align_val_t) noexcept -> void
+{ free(ptr); }
+
+auto operator delete(gsl::owner<void*> const ptr, std::align_val_t, std::nothrow_t const&) noexcept
+    -> void
+{ free(ptr); }
+auto operator delete[](gsl::owner<void*> const ptr, std::align_val_t, std::nothrow_t const&)
+    noexcept -> void
+{ free(ptr); }
+
 #endif
-}
+#endif

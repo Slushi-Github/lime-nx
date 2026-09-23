@@ -2,48 +2,59 @@ package;
 
 import ::APP_MAIN::;
 
+@:dox(hide)
 @:access(lime.app.Application)
 @:access(lime.system.System)
-
-@:dox(hide) class ApplicationMain
+#if (static_link || ios)
+@:cppFileCode("\nextern \"C\" int lime_register_prims ();\n::foreach ndlls::::if (registerStatics)::extern \"C\" int ::nameSafe::_register_prims ();::end::::end::")
+#end
+class ApplicationMain
 {
-	public static function main()
+	public static function main():Void
 	{
+		#if (static_link || ios)
+		untyped __cpp__("lime_register_prims ()");
+		::foreach ndlls::::if (registerStatics)::untyped __cpp__("::nameSafe::_register_prims ()");::end::::end::
+		#end
+
 		lime.system.System.__registerEntryPoint("::APP_FILE::", create);
 
-		#if (!html5 || munit)
+		#if !html5
 		create(null);
 		#end
 	}
 
 	public static function create(config:Dynamic):Void
 	{
-		#if !disable_preloader_assets
-		ManifestResources.init(config);
-		#end
+		::if (WIN_ORIENTATION != "auto")::
+		lime.system.System.setHint("ORIENTATIONS", ::if (WIN_ORIENTATION == "portrait")::"Portrait PortraitUpsideDown"::else::"LandscapeLeft LandscapeRight"::end::);
+		::end::
 
-		#if !munit
-		var app = new ::APP_MAIN::();
-		app.meta.set("build", "::meta.buildNumber::");
-		app.meta.set("company", "::meta.company::");
-		app.meta.set("file", "::APP_FILE::");
-		app.meta.set("name", "::meta.title::");
-		app.meta.set("packageName", "::meta.packageName::");
-		app.meta.set("version", "::meta.version::");
+		final appMeta:Map<String, String> = [];
 
-		#if !flash
+		appMeta.set("build", "::meta.buildNumber::");
+		appMeta.set("company", "::meta.company::");
+		appMeta.set("file", "::APP_FILE::");
+		appMeta.set("name", "::meta.title::");
+		appMeta.set("packageName", "::meta.packageName::");
+		appMeta.set("version", "::meta.version::");
+
+		var app = new ::APP_MAIN::(appMeta);
+
 		::foreach windows::
 		var attributes:lime.ui.WindowAttributes =
 			{
 				allowHighDPI: ::allowHighDPI::,
 				alwaysOnTop: ::alwaysOnTop::,
+				transparent: ::transparent::,
 				borderless: ::borderless::,
-				// display: ::display::,
 				element: null,
 				frameRate: ::fps::,
-				#if !web fullscreen: ::fullscreen::, #end
+				#if !web
+				fullscreen: ::fullscreen::,
+				#end
 				height: ::height::,
-				hidden: #if munit true #else ::hidden:: #end,
+				hidden: ::hidden::,
 				maximized: ::maximized::,
 				minimized: ::minimized::,
 				parameters: ::parameters::,
@@ -82,25 +93,14 @@ import ::APP_MAIN::;
 					}
 				}
 			}
-
-			#if sys
-			lime.system.System.__parseArguments(attributes);
-			#end
 		}
 
 		app.createWindow(attributes);
 		::end::
-		#elseif air
-		app.window.title = "::meta.title::";
-		#else
-		app.window.context.attributes.background = ::WIN_BACKGROUND::;
-		app.window.frameRate = ::WIN_FPS::;
-		#end
-		#end
-
-		// preloader.create ();
 
 		#if !disable_preloader_assets
+		ManifestResources.init(config);
+
 		for (library in ManifestResources.preloadLibraries)
 		{
 			app.preloader.addLibrary(library);
@@ -114,67 +114,22 @@ import ::APP_MAIN::;
 
 		app.preloader.load();
 
-		#if !munit
 		start(app);
-		#end
 	}
 
 	public static function start(app:lime.app.Application = null):Void
 	{
-		#if !munit
-
 		var result = app.exec();
 
-		#if (sys && !ios && !nodejs && !webassembly)
+		#if (sys && !ios && !nodejs)
 		lime.system.System.exit(result);
-		#end
-
-		#else
-
-		new ::APP_MAIN::();
-
 		#end
 	}
 
+	#if !macro
 	@:noCompletion @:dox(hide) public static function __init__()
 	{
 		var init = lime.app.Application;
-
-		#if neko
-		// Copy from https://github.com/HaxeFoundation/haxe/blob/development/std/neko/_std/Sys.hx#L164
-		// since Sys.programPath () isn't available in __init__
-		var sys_program_path =
-			{
-				var m = neko.vm.Module.local().name;
-				try
-				{
-					sys.FileSystem.fullPath(m);
-				}
-				catch (e:Dynamic)
-				{
-					// maybe the neko module name was supplied without .n extension...
-					if (!StringTools.endsWith(m, ".n"))
-					{
-						try
-						{
-							sys.FileSystem.fullPath(m + ".n");
-						}
-						catch (e:Dynamic)
-						{
-							m;
-						}
-					}
-					else
-					{
-						m;
-					}
-				}
-			};
-
-		var loader = new neko.vm.Loader(untyped $loader);
-		loader.addPath(haxe.io.Path.directory(#if (haxe_ver >= 3.3) sys_program_path #else Sys.executablePath() #end));
-		loader.addPath("./");
-		loader.addPath("@executable_path/");
-		#end
 	}
+	#end
 }

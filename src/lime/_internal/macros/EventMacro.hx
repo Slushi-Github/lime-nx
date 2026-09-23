@@ -20,8 +20,17 @@ class EventMacro
 				typeArgs = args;
 				typeResult = result;
 
-			case TInst(localType, _):
-				Context.fatalError("Invalid number of type parameters for " + localType.toString(), Context.currentPos());
+			case TInst(_, []):
+				Context.fatalError("Expected type parameter. Did you mean Event<Void -> Void>?", Context.currentPos());
+				return null;
+
+			case TInst(_, [paramType]):
+				Context.fatalError("Expected function type. Did you mean Event<" + paramType.toString() + " -> Void>?", Context.currentPos());
+				return null;
+
+			case TInst(_, paramTypes):
+				Context.fatalError("Expected only one type parameter. Did you mean Event<" + paramTypes.map(haxe.macro.TypeTools.toString).join(" -> ") + ">?",
+					Context.currentPos());
 				return null;
 
 			default:
@@ -123,48 +132,38 @@ class EventMacro
 				}
 			}
 
-			fields.push(
-				{
-					name: "__listeners",
-					access: [APublic],
-					kind: FVar(TPath({pack: [], name: "Array", params: [TPType(typeParam.toComplexType())]})),
-					pos: pos
-				});
-			fields.push(
-				{
-					name: "dispatch",
-					access: [APublic],
-					kind: FFun(
-						{
-							args: args,
-							expr: dispatch,
-							params: [],
-							ret: macro:Void
-						}),
-					pos: pos
-				});
+			fields.push({
+				name: "__listeners",
+				access: [APublic],
+				kind: FVar(TPath({pack: [], name: "Array", params: [TPType(typeParam.toComplexType())]})),
+				pos: pos
+			});
+			fields.push({
+				name: "dispatch",
+				access: [APublic],
+				kind: FFun({
+					args: args,
+					expr: dispatch,
+					params: [],
+					ret: macro :Void
+				}),
+				pos: pos
+			});
 
 			var meta:Array<MetadataEntry> = [
 				{name: ":dox", params: [macro hide], pos: pos},
 				{name: ":noCompletion", pos: pos}
 			];
 
-			#if !lime_debug
-			meta.push({name: ":fileXml", params: [macro 'tags="haxe,release"'], pos: pos});
-			meta.push({name: ":noDebug", pos: pos});
-			#end
-
-			Context.defineType(
-				{
-					pos: pos,
-					pack: ["lime", "app"],
-					name: name,
-					kind: TDClass(),
-					fields: fields,
-					params: [
-						{name: "T"}],
-					meta: meta
-				});
+			Context.defineType({
+				pos: pos,
+				pack: ["lime", "app"],
+				name: name,
+				kind: TDClass(),
+				fields: fields,
+				params: [{name: "T"}],
+				meta: meta
+			});
 		}
 
 		return TPath({pack: ["lime", "app"], name: name, params: [TPType(typeParam.toComplexType())]}).toType();

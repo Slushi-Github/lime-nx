@@ -2,6 +2,8 @@
 
 	<include name="${HXCPP}/build-tool/BuildCommon.xml" />
 
+	<set name="no_shared_libs" value="1" if="mingw" />
+
 	<include name="${HXCPP}/project/thirdparty/mbedtls-files.xml" noerror="true" />
 	<set name="HAS_HXCPP_MBEDTLS_FILES" value="1" if="MBEDTLS_DIR" />
 	<include name="${HXCPP}/src/hx/libs/ssl/Build.xml" unless="HAS_HXCPP_MBEDTLS_FILES" />
@@ -15,6 +17,7 @@
 	<target id="main" output="Main${DBG}" tool="linker" toolid="exe">
 
 		<files id="main" />
+		<files id="rc" if="windows" />
 		<files id="mbedtls" if="HAS_HXCPP_MBEDTLS_FILES" />
 		<files id="hxcpp_ssl" unless="HAS_HXCPP_MBEDTLS_FILES" />
 		::foreach ndlls::
@@ -36,7 +39,8 @@
 			<lib name="wldap32.lib" />
 			<lib name="shell32.lib" />
 			<lib name="comdlg32.lib" />
-			<lib name="comsuppw.lib" />
+			<lib name="wbemuuid.lib" />
+			<lib name="comsuppw.lib" unless="mingw" />
 			<lib name="usp10.lib" />
 			<lib name="rpcrt4.lib" />
 			<lib name="dwrite.lib" />
@@ -88,52 +92,6 @@
 			<lib name="-lGLESv1_CM" />
 			<lib name="-lOpenSLES" />
 
-		</section>
-
-		<section if="switch">
-			<lib name="-lnx" />
-			<lib name="-lopenal" />
-
-			<!-- Aquí incluimos las bibliotecas de DevkitPro -->
-			<!-- Bibliotecas SDL -->
-			<lib name="-lSDL2_image" />
-			<lib name="-lSDL2_gfx" />
-			<lib name="-lSDL2_net" />
-			<lib name="-lSDL2_mixer" />
-			<lib name="-lopusfile" />
-			<lib name="-lopus" />
-			<lib name="-lmpg123" />
-			<lib name="-lvorbisidec" />
-			<lib name="-lmodplug" />
-			<lib name="-lvorbisfile" />
-			<lib name="-lvorbis" />
-			<lib name="-logg" />
-			<lib name="-lSDL2" />
-			<lib name="-lSDL2main" />
-			<lib name="-lglad" />
-			<lib name="-lEGL" />
-			<lib name="-lglapi" />
-			<lib name="-ldrm_nouveau" />
-			<lib name="-lpthread" />
-			<!-- Bibliotecas de gráficos, audio, compresión, etc. -->
-			<lib name="-lpng" />
-			<lib name="-ljpeg" />
-			<lib name="-lwebp" />
-			<lib name="-lstdc++" />
-			<lib name="-lm" />
-			<lib name="-lz" />
-			<lib name="-lbz2" />
-			<!-- Bibliotecas de texto (FreeType, HarfBuzz) -->
-			<lib name="-lfreetype" />
-			<lib name="-lharfbuzz" />
-			<!-- Bibliotecas de compresión (LZMA) -->
-			<lib name="-llzma" />
-			<!-- Bibliotecas de OpenSSL (MBEDTLS) -->
-			<lib name="-lmbedcrypto" />
-			<lib name="-lmbedtls" />
-			<lib name="-lmbedx509" />
-			<!-- Bibliotecas de OpenGL de escritorio -->
-			<lib name="-lGL" />
 		</section>
 
 		<lib name="libApplicationMain${DBG}${LIBEXT}" />

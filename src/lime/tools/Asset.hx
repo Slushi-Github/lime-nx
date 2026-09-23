@@ -1,7 +1,11 @@
 package lime.tools;
 
-import hxp.*;
+import hxp.Path;
+import hxp.StringTools;
+import hxp.System;
+
 import lime.tools.AssetType;
+
 import sys.FileSystem;
 
 @:access(lime.tools.AssetHelper)
@@ -20,11 +24,13 @@ class Asset
 	public var resourceName:String;
 	public var sourcePath:String;
 	public var targetPath:String;
+	public var deliveryPackName:String;
 	public var type:AssetType;
 
 	public function new(path:String = "", rename:String = "", type:AssetType = null, embed:Null<Bool> = null, setDefaults:Bool = true)
 	{
-		if (!setDefaults) return;
+		if (!setDefaults)
+			return;
 
 		this.embed = embed;
 		sourcePath = Path.standardize(path);
@@ -43,11 +49,13 @@ class Asset
 		flatName = StringTools.getFlatName(targetPath);
 		format = Path.extension(path).toLowerCase();
 		glyphs = "32-255";
+		deliveryPackName = '';
 
 		if (type == null)
 		{
 			var extension = Path.extension(path);
-			if (extension != null) extension = extension.toLowerCase();
+			if (extension != null)
+				extension = extension.toLowerCase();
 
 			if (AssetHelper.knownExtensions.exists(extension))
 			{
@@ -113,6 +121,7 @@ class Asset
 		asset.resourceName = resourceName;
 		asset.sourcePath = sourcePath;
 		asset.targetPath = targetPath;
+		asset.deliveryPackName = deliveryPackName;
 		asset.type = type;
 
 		// ObjectTools.copyFields (this, asset);

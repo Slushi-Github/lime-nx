@@ -2,6 +2,7 @@ package lime.utils;
 
 import haxe.io.Bytes as HaxeBytes;
 import haxe.io.BytesData;
+
 import lime._internal.backend.native.NativeCFFI;
 import lime._internal.format.Deflate;
 import lime._internal.format.GZip;
@@ -20,8 +21,8 @@ abstract Bytes(HaxeBytes) from HaxeBytes to HaxeBytes
 	{
 		#if js
 		this = new HaxeBytes(bytesData);
-		#elseif hl
-		this = new HaxeBytes(bytesData, length);
+		// bytesData may have extra bytes. See https://github.com/HaxeFoundation/haxe/issues/8974
+		this.length = length;
 		#else
 		this = new HaxeBytes(length, bytesData);
 		#end
@@ -29,9 +30,6 @@ abstract Bytes(HaxeBytes) from HaxeBytes to HaxeBytes
 
 	public static function alloc(length:Int):Bytes
 	{
-		#if hl
-		if (length == 0) return new Bytes(0, null);
-		#end
 		return HaxeBytes.alloc(length);
 	}
 
@@ -84,7 +82,8 @@ abstract Bytes(HaxeBytes) from HaxeBytes to HaxeBytes
 
 	public static function fromBytes(bytes:haxe.io.Bytes):Bytes
 	{
-		if (bytes == null) return null;
+		if (bytes == null)
+			return null;
 
 		return new Bytes(bytes.length, bytes.getData());
 	}
@@ -92,16 +91,19 @@ abstract Bytes(HaxeBytes) from HaxeBytes to HaxeBytes
 	public static function fromFile(path:String):Bytes
 	{
 		#if (sys && lime_cffi && !macro)
-		#if !cs
 		var bytes = Bytes.alloc(0);
 		NativeCFFI.lime_bytes_read_file(path, bytes);
-		if (bytes.length > 0) return bytes;
-		#else
-		var data:Dynamic = NativeCFFI.lime_bytes_read_file(path, null);
-		if (data != null) return new Bytes(data.length, data.b);
-		#end
+		if (bytes.length > 0)
+			return bytes;
 		#end
 		return null;
+	}
+
+	public static function toFile(path:String, bytes:Bytes):Void
+	{
+		#if (sys && lime_cffi && !macro)
+		NativeCFFI.lime_bytes_write_file(path, bytes);
+		#end
 	}
 
 	public static function loadFromBytes(bytes:haxe.io.Bytes):Future<Bytes>

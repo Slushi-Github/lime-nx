@@ -3,6 +3,7 @@ package lime.utils;
 import haxe.io.Path;
 import haxe.CallStack;
 import haxe.Unserializer;
+
 import lime.app.Application;
 import lime.app.Event;
 import lime.app.Promise;
@@ -12,6 +13,7 @@ import lime.graphics.Image;
 import lime.text.Font;
 import lime.utils.Bytes;
 import lime.utils.Log;
+
 #if !macro
 import haxe.Json;
 #end
@@ -29,10 +31,6 @@ import haxe.Json;
  * automatically. For web content, the assets are preloaded before
  * the start of the rest of the application.</p>
  */
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime.utils.AssetLibrary)
 class Assets
 {
@@ -275,7 +273,8 @@ class Assets
 		#if (tools && !display)
 		if (useCache && cache.enabled)
 		{
-			if (cache.exists(id, type)) return true;
+			if (cache.exists(id, type))
+				return true;
 		}
 
 		var symbol = new LibrarySymbol(id);
@@ -441,14 +440,13 @@ class Assets
 				}
 				else
 				{
-					Sys.println("Loaded library \"" + id + "\"");
 					libraries.set(id, library);
 					library.onChange.add(onChange.dispatch);
 					promise.completeWith(library.load());
 				}
 			}).onError(function(_)
 			{
-					promise.error("There is no asset library with an ID of \"" + id + "\" (on " + bundlePaths.get(id) + ")");
+					promise.error("There is no asset library with an ID of \"" + id + "\"");
 			});
 		}
 		else
@@ -488,14 +486,13 @@ class Assets
 				}
 				else
 				{
-					Sys.println("Loaded library \"" + id + "\"");
 					libraries.set(id, library);
 					library.onChange.add(onChange.dispatch);
 					promise.completeWith(library.load());
 				}
 			}).onError(function(_)
 			{
-					promise.error("There is no asset library with an ID of \"" + id + "\" (on " + path + ")");
+					promise.error("There is no asset library with an ID of \"" + id + "\"");
 			});
 		}
 		#end
@@ -596,7 +593,7 @@ class Assets
 		}
 		else
 		{
-			return "There is no asset library named \"" + name + "\" (on [" + bundlePaths.get(name) + "])";
+			return "There is no asset library named \"" + name + "\"";
 		}
 	}
 
@@ -608,10 +605,6 @@ class Assets
 	}
 }
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 private class LibrarySymbol
 {
 	public var library(default, null):AssetLibrary;

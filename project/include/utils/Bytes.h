@@ -1,35 +1,26 @@
-#ifndef LIME_UTILS_BYTES_H
-#define LIME_UTILS_BYTES_H
+#pragma once
 
+#include <hx/CFFIPrime.h>
 
-#include <system/CFFI.h>
-#include <utils/QuickVec.h>
+namespace lime
+{
 
-
-namespace lime {
-
-
-	struct Bytes {
-
-		hl_type* t;
+	struct Bytes
+	{
 		int length;
-		unsigned char* b;
+		unsigned char *b;
+		bool ownsMemory;
 
-		Bytes ();
-		Bytes (value bytes);
-		~Bytes ();
+		Bytes();
+		Bytes(value bytes);
+		~Bytes();
 
-		void ReadFile (const char* path);
-		void Resize (int size);
-		void Set (value bytes);
-		void Set (const QuickVec<unsigned char> data);
-		value Value (value bytes);
-		value Value ();
-
+		void ReadFile(const char *path);
+		void WriteFile(const char *path);
+		void Resize(int size);
+		void Set(value bytes);
+		value Value(value bytes);
+		value Value();
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

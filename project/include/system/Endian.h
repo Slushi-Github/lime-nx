@@ -1,19 +1,14 @@
-#ifndef LIME_SYSTEM_ENDIAN_H
-#define LIME_SYSTEM_ENDIAN_H
+#pragma once
 
+namespace lime
+{
 
-namespace lime {
-
-
-	enum Endian {
+	enum Endian
+	{
 
 		LIME_LITTLE_ENDIAN,
 		LIME_BIG_ENDIAN
 
 	};
 
-
 }
-
-
-#endif

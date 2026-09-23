@@ -1,22 +1,12 @@
-#ifndef LIME_SYSTEM_JNI_H
-#define LIME_SYSTEM_JNI_H
+#pragma once
 
+namespace lime
+{
 
-namespace lime {
-
-
-	class JNI {
-
-
-		public:
-
-			static void *GetEnv ();
-
-
+	class JNI
+	{
+	  public:
+		static void *GetEnv();
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

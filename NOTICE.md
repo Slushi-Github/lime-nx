@@ -7,9 +7,6 @@ Copyright (c) 2013-2025 Joshua Granick and other Lime contributors
 This product bundles cairo 1.15.2, which is available under an
 "MPL 1.1" license. For details, see [project/lib/cairo/](project/lib).
 
-This product bundles libcurl 7.56.1, which is available under an
-"MIT/X derivate" license. For details, see [project/lib/curl/](project/lib).
-
 This product bundles efsw, which is available under an
 "MIT" license. For details, see [project/lib/efsw/](project/lib).
 
@@ -19,20 +16,14 @@ This product bundles freetype 2.9.1, which is available under an
 This product bundles harfbuzz 1.8.8, which is available under an
 "MIT" license. For details, see [project/lib/harfbuzz/](project/lib).
 
-This product bundles HashLink 1.9, which is available under an
-"MIT" license. For details, see [HaxeFoundation/hashlink/](https://github.com/HaxeFoundation/hashlink/blob/1.9/LICENSE).
-
 This product bundles libjpeg 6b, which is available under a
 "libjpeg" (BSD-style) license. For details, see [project/lib/jpeg/](project/lib).
 
-This product bundles libogg 1.3.0, which is available under a
+This product bundles libogg 1.3.6, which is available under a
 "BSD" license. For details, see [project/lib/ogg/](project/lib).
 
 This product bundles LZMA SDK 4.65, which is available under
 public domain. For details, see [project/lib/lzma/](project/lzma).
-
-This product bundles mbedTLS 2.6.0, which is available under an
-"Apache 2.0" license. For details, see [project/lib/mbedtls/](project/lib).
 
 This product bundles OpenAL-Soft 1.19.0, which is available under an
 "LGPLv2" license. For details, see [project/lib/openal/](project/lib).
@@ -52,7 +43,7 @@ This product bundles SDL 2.0.12, which is available under a
 This product bundles tinyfiledialogs 2.9.3, which is available under a
 "zlib" (BSD-style) license. For details, see [project/lib/tinyfiledialogs/](project/lib).
 
-This product bundles libvorbis 1.3.3, which is available under a
+This product bundles libvorbis 1.3.7, which is available under a
 "BSD" license. For details, see [project/lib/vorbis/](project/lib).
 
 This product bundles zlib 1.2.8, which is available under a
@@ -75,7 +66,6 @@ https://github.com/haxenme/nme
     project/src/system/JNI.cpp
     project/src/text/Font.cpp
     project/src/utils/compress/LZMA.cpp
-    tools/utils/JavaExternGenerator.hx
 
 The typed array implementation was developed in collaboration with Sven Bergström
 and the hxtypedarray project, which is available under an "MIT" license.
@@ -95,7 +85,7 @@ _The following are not embedded in Lime applications directly, but are used
 as dependencies for web-based builds. Their licensing does not affect products
 created with Lime._
 
-This product bundles howler.js 2.1.1, which is available under an
+This product bundles howler.js 2.2.4 (Modified), which is available under an
 "MIT" license. For details, see [dependencies/howler.min.js](dependencies/howler.min.js).
 
 This product bundles FileSaver.js 1.3.3, which is available under an
@@ -136,6 +126,3 @@ This product bundles http-server 0.10.0 and its dependencies, which is available
 
 This product bundles webify 0.1.1.0, which is available under an
 "MIT" license. For details, see https://github.com/ananthakumaran/webify.
-
-This product bundles YUI Compressor 2.4.7, which is available under an
-"MIT" license. For details, see https://github.com/yui/yuicompressor.

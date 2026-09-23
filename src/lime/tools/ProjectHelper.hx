@@ -1,11 +1,15 @@
 package lime.tools;
 
-import hxp.*;
+import hxp.NDLL;
+import hxp.Haxelib;
+import hxp.Log;
+import hxp.Path;
+import hxp.System;
+
 import sys.io.File;
 import sys.FileSystem;
-#if neko
-import neko.Lib;
-#elseif cpp
+
+#if cpp
 import cpp.Lib;
 #end
 
@@ -80,18 +84,49 @@ class ProjectHelper
 	public static function recursiveSmartCopyTemplate(project:HXProject, source:String, destination:String, context:Dynamic = null, process:Bool = true,
 			warnIfNotFound:Bool = true)
 	{
-		var destinations = [];
+		var destinations:Array<String> = [];
 		var paths = System.findTemplateRecursive(project.templatePaths, source, warnIfNotFound, destinations);
 
 		if (paths != null)
 		{
 			System.mkdir(destination);
-			var itemDestination;
+			var itemDestination:String;
 
 			for (i in 0...paths.length)
 			{
 				itemDestination = Path.combine(destination, ProjectHelper.substitutePath(project, destinations[i]));
 				System.copyFile(paths[i], itemDestination, context, process);
+			}
+		}
+	}
+
+	public static function recursiveSmartCopyDirectory(project:HXProject, source:String, destination:String, context:Dynamic = null, process:Bool = true,
+			warnIfNotFound:Bool = true, itemPath:String = '')
+	{
+		if (!FileSystem.exists(source))
+		{
+			if (warnIfNotFound)
+			{
+				Log.warn("Could not find directory: " + source);
+			}
+
+			return;
+		}
+
+		for (item in FileSystem.readDirectory(source))
+		{
+			var nextItemPath = Path.combine(itemPath, item);
+			var itemSource = Path.combine(source, item);
+			var itemDestination = Path.combine(destination, item);
+
+			if (FileSystem.isDirectory(itemSource))
+			{
+				recursiveSmartCopyDirectory(project, itemSource, itemDestination, context, process, warnIfNotFound, nextItemPath);
+			}
+			else
+			{
+				FileSystem.createDirectory(Path.directory(itemDestination));
+				System.copyFile(itemSource, itemDestination, context, process);
 			}
 		}
 	}
@@ -120,7 +155,8 @@ class ProjectHelper
 		else
 		{
 			var substring = StringTools.replace(string, " ", "");
-			var index, value;
+			var index:Int;
+			var value:String;
 
 			if (substring.indexOf("==") > -1)
 			{
@@ -167,9 +203,11 @@ class ProjectHelper
 			else if (substring.indexOf(".") > -1)
 			{
 				var fields = substring.split(".");
-				if (fields[0] == "project") fields.shift();
+				if (fields[0] == "project")
+					fields.shift();
 
 				var object:Dynamic = project;
+
 				while (object != null && fields.length > 0)
 				{
 					object = Reflect.getProperty(object, fields.shift());

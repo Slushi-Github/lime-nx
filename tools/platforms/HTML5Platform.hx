@@ -4,10 +4,8 @@ import hxp.HXML;
 import hxp.Log;
 import hxp.Path;
 import hxp.System;
-import haxe.Template;
-#if lime
+
 import lime.text.Font;
-#end
 import lime.tools.AssetHelper;
 import lime.tools.AssetType;
 import lime.tools.DeploymentHelper;
@@ -17,11 +15,11 @@ import lime.tools.HXProject;
 import lime.tools.Icon;
 import lime.tools.IconHelper;
 import lime.tools.ModuleHelper;
-import lime.tools.Orientation;
-import lime.tools.ProjectHelper;
 import lime.tools.PlatformTarget;
-import sys.io.File;
+import lime.tools.ProjectHelper;
+
 import sys.FileSystem;
+import sys.io.File;
 
 class HTML5Platform extends PlatformTarget
 {
@@ -33,69 +31,13 @@ class HTML5Platform extends PlatformTarget
 	{
 		super(command, _project, targetFlags);
 
-		var defaults = new HXProject();
-
-		defaults.meta =
-			{
-				title: "MyApplication",
-				description: "",
-				packageName: "com.example.myapp",
-				version: "1.0.0",
-				company: "",
-				companyUrl: "",
-				buildNumber: null,
-				companyId: ""
-			};
-
-		defaults.app =
-			{
-				main: "Main",
-				file: "MyApplication",
-				path: "bin",
-				preloader: "",
-				swfVersion: 17,
-				url: "",
-				init: null
-			};
-
-		defaults.window =
-			{
-				width: 800,
-				height: 600,
-				parameters: "{}",
-				background: 0xFFFFFF,
-				fps: 30,
-				hardware: true,
-				display: 0,
-				resizable: true,
-				borderless: false,
-				orientation: Orientation.AUTO,
-				vsync: false,
-				fullscreen: false,
-				allowHighDPI: true,
-				alwaysOnTop: false,
-				antialiasing: 0,
-				allowShaders: true,
-				requireShaders: false,
-				depthBuffer: true,
-				stencilBuffer: true,
-				colorDepth: 32,
-				maximized: false,
-				minimized: false,
-				hidden: false,
-				title: ""
-			};
-
+		var defaults:HXProject = createDefaultProject();
 		defaults.window.width = 0;
 		defaults.window.height = 0;
-		defaults.window.fps = 60;
-
-		for (i in 1...project.windows.length)
-		{
-			defaults.windows.push(defaults.window);
-		}
-
+		defaults.window.allowHighDPI = true;
+		defaults.window.requireShaders = true;
 		defaults.merge(project);
+
 		project = defaults;
 
 		initialize(command, project);
@@ -134,7 +76,8 @@ class HTML5Platform extends PlatformTarget
 			var hxml = targetDirectory + "/haxe/" + type + ".hxml";
 			System.runCommand("", "haxe", [hxml]);
 
-			if (noOutput) return;
+			if (noOutput)
+				return;
 
 			HTML5Helper.encodeSourceMappingURL(targetDirectory + "/bin/" + project.app.file + ".js");
 
@@ -169,19 +112,6 @@ class HTML5Platform extends PlatformTarget
 
 				System.copyFileTemplate(project.templatePaths, "html5/output.js", outputFile, context);
 			}
-
-			if (project.targetFlags.exists("minify") || type == "final")
-			{
-				HTML5Helper.minify(project, targetDirectory + "/bin/" + project.app.file + ".js");
-			}
-		}
-	}
-
-	public override function clean():Void
-	{
-		if (FileSystem.exists(targetDirectory))
-		{
-			System.removeDirectory(targetDirectory);
 		}
 	}
 
@@ -209,7 +139,7 @@ class HTML5Platform extends PlatformTarget
 		}
 	}
 
-	private function getDisplayHXML():HXML
+	private override function getDisplayHXML():HXML
 	{
 		var path = targetDirectory + "/haxe/" + buildType + ".hxml";
 
@@ -217,7 +147,8 @@ class HTML5Platform extends PlatformTarget
 		// modified more recently than the .hxml, then the .hxml cannot be
 		// considered valid anymore. it may cause errors in editors like vscode.
 		if (FileSystem.exists(path)
-			&& (project.projectFilePath == null || !FileSystem.exists(project.projectFilePath)
+			&& (project.projectFilePath == null
+				|| !FileSystem.exists(project.projectFilePath)
 				|| (FileSystem.stat(path).mtime.getTime() > FileSystem.stat(project.projectFilePath).mtime.getTime())))
 		{
 			return File.getContent(path);
@@ -285,73 +216,22 @@ class HTML5Platform extends PlatformTarget
 	{
 		AssetHelper.processLibraries(project, targetDirectory);
 
-		// project = project.clone ();
-
-		var destination = targetDirectory + "/bin/";
-		if (npm) destination += "dist/";
-		System.mkdir(destination);
-
-		var webfontDirectory = targetDirectory + "/obj/webfont";
-		var useWebfonts = true;
-
-		for (haxelib in project.haxelibs)
-		{
-			if (haxelib.name == "openfl-html5-dom" || haxelib.name == "openfl-bitfive")
-			{
-				useWebfonts = false;
-			}
-		}
-
-		var fontPath;
-
-		for (asset in project.assets)
-		{
-			if (asset.type == AssetType.FONT && asset.targetPath != null)
-			{
-				if (useWebfonts)
-				{
-					fontPath = Path.combine(webfontDirectory, Path.withoutDirectory(asset.targetPath));
-
-					if (!FileSystem.exists(fontPath))
-					{
-						System.mkdir(webfontDirectory);
-						System.copyFile(asset.sourcePath, fontPath);
-
-						var originalPath = asset.sourcePath;
-						asset.sourcePath = fontPath;
-
-						HTML5Helper.generateWebfonts(project, asset);
-
-						var ext = "." + Path.extension(asset.sourcePath);
-						var source = Path.withoutExtension(asset.sourcePath);
-						var extensions = [ext, ".eot", ".woff", ".svg"];
-
-						for (extension in extensions)
-						{
-							if (!FileSystem.exists(source + extension))
-							{
-								if (extension != ".eot" && extension != ".svg")
-								{
-									Log.warn("Could not generate *" + extension + " web font for \"" + originalPath + "\"");
-								}
-							}
-						}
-					}
-
-					asset.sourcePath = fontPath;
-					asset.targetPath = Path.withoutExtension(asset.targetPath);
-				}
-				else
-				{
-					// project.haxeflags.push (HTML5Helper.generateFontData (project, asset));
-				}
-			}
-		}
-
 		if (project.targetFlags.exists("xml"))
 		{
-			project.haxeflags.push("-xml " + targetDirectory + "/types.xml");
+			project.haxeflags.push("--xml " + targetDirectory + "/types.xml");
 		}
+
+		if (project.targetFlags.exists("json"))
+		{
+			project.haxeflags.push("--json " + targetDirectory + "/types.json");
+		}
+
+		var destination = targetDirectory + "/bin/";
+		if (npm)
+			destination += "dist/";
+		System.mkdir(destination);
+
+		var fontPath:String;
 
 		if (Log.verbose)
 		{
@@ -372,7 +252,7 @@ class HTML5Platform extends PlatformTarget
 
 		if (npm)
 		{
-			var path;
+			var path:String;
 			for (i in 0...project.sources.length)
 			{
 				path = project.sources[i];
@@ -383,14 +263,6 @@ class HTML5Platform extends PlatformTarget
 				project.sources[i] = Path.tryFullPath(path);
 			}
 		}
-
-		// for (library in libraryNames.keys ()) {
-		//
-		// project.haxeflags.push ("-resource " + targetDirectory + "/obj/manifest/" + library + ".json@__ASSET_MANIFEST__" + library);
-		//
-		// }
-
-		// project.haxeflags.push ("-resource " + targetDirectory + "/obj/manifest/default.json@__ASSET_MANIFEST__default");
 
 		var context = project.templateContext;
 
@@ -411,12 +283,6 @@ class HTML5Platform extends PlatformTarget
 		{
 			icons = [new Icon(System.findTemplate(project.templatePaths, "default/icon.svg"))];
 		}
-
-		// if (IconHelper.createWindowsIcon (icons, Path.combine (destination, "favicon.ico"))) {
-		//
-		// context.favicons.push ({ rel: "icon", type: "image/x-icon", href: "./favicon.ico" });
-		//
-		// }
 
 		if (IconHelper.createIcon(icons, 192, 192, Path.combine(destination, "favicon.png")))
 		{
@@ -443,8 +309,9 @@ class HTML5Platform extends PlatformTarget
 			}
 		}
 
+		Font.init();
+
 		var createdDirectories = new Map<String, Bool>();
-		var dir = null;
 
 		for (asset in project.assets)
 		{
@@ -452,52 +319,32 @@ class HTML5Platform extends PlatformTarget
 
 			if (asset.type != AssetType.TEMPLATE)
 			{
-				if (/*asset.embed != true &&*/ asset.type != AssetType.FONT)
+				var dir:String = Path.directory(path);
+
+				if (!createdDirectories.exists(dir))
 				{
-					dir = Path.directory(path);
-					if (!createdDirectories.exists(dir))
-					{
-						System.mkdir(dir);
-						createdDirectories.set(dir, true);
-					}
+					System.mkdir(dir);
+
+					createdDirectories.set(dir, true);
+				}
+
+				if (asset.type != AssetType.FONT)
+				{
 					AssetHelper.copyAssetIfNewer(asset, path);
 				}
-				else if (asset.type == AssetType.FONT && useWebfonts)
+				else if (asset.type == AssetType.FONT)
 				{
-					System.mkdir(Path.directory(path));
-					var ext = "." + Path.extension(asset.sourcePath);
-					var source = Path.withoutExtension(asset.sourcePath);
-
-					var hasFormat = [false, false, false, false];
-					var extensions = [ext, ".eot", ".svg", ".woff"];
-					var extension;
-
-					for (i in 0...extensions.length)
-					{
-						extension = extensions[i];
-
-						if (FileSystem.exists(source + extension))
-						{
-							System.copyIfNewer(source + extension, path + extension);
-							hasFormat[i] = true;
-						}
-					}
-
-					var shouldEmbedFont = false;
-
-					for (embedded in hasFormat)
-					{
-						if (embedded) shouldEmbedFont = true;
-					}
+					System.copyIfNewer(asset.sourcePath, path);
 
 					var embeddedAssets:Array<Dynamic> = cast context.assets;
+
 					for (embeddedAsset in embeddedAssets)
 					{
 						if (embeddedAsset.type == "font" && embeddedAsset.sourcePath == asset.sourcePath)
 						{
-							#if lime
 							var font = Font.fromFile(asset.sourcePath);
 
+							embeddedAsset.fontName = font.name;
 							embeddedAsset.ascender = font.ascender;
 							embeddedAsset.descender = font.descender;
 							embeddedAsset.height = font.height;
@@ -506,32 +353,36 @@ class HTML5Platform extends PlatformTarget
 							embeddedAsset.underlineThickness = font.underlineThickness;
 							embeddedAsset.unitsPerEM = font.unitsPerEM;
 
-							if (shouldEmbedFont)
+							var extension = Path.extension(asset.sourcePath).toLowerCase();
+
+							var format = switch (extension)
 							{
-								var urls = [];
-								if (hasFormat[1]) urls.push("url('" + embeddedAsset.targetPath + ".eot?#iefix') format('embedded-opentype')");
-								if (hasFormat[3]) urls.push("url('" + embeddedAsset.targetPath + ".woff') format('woff')");
-								urls.push("url('" + embeddedAsset.targetPath + ext + "') format('truetype')");
-								if (hasFormat[2]) urls.push("url('" + embeddedAsset.targetPath + ".svg#" + StringTools.urlEncode(embeddedAsset.fontName)
-									+ "') format('svg')");
-
-								var fontFace = "\t\t@font-face {\n";
-								fontFace += "\t\t\tfont-family: '" + embeddedAsset.fontName + "';\n";
-								// if (hasFormat[1]) fontFace += "\t\t\tsrc: url('" + embeddedAsset.targetPath + ".eot');\n";
-								fontFace += "\t\t\tsrc: " + urls.join(",\n\t\t\t") + ";\n";
-								fontFace += "\t\t\tfont-weight: normal;\n";
-								fontFace += "\t\t\tfont-style: normal;\n";
-								fontFace += "\t\t}\n";
-
-								embeddedAsset.cssFontFace = fontFace;
+								case "woff2": "woff2";
+								case "woff": "woff";
+								case "otf": "opentype";
+								case "ttf": "truetype";
+								default: "";
 							}
+
+							var fontFace = "\t\t@font-face {\n";
+
+							fontFace += "\t\t\tfont-family: '" + embeddedAsset.fontName + "';\n";
+							fontFace += "\t\t\tsrc: url('" + embeddedAsset.targetPath + "') format('" + format + "');\n";
+							fontFace += "\t\t\tfont-weight: normal;\n";
+							fontFace += "\t\t\tfont-style: normal;\n";
+							fontFace += "\t\t}\n";
+
+							embeddedAsset.cssFontFace = fontFace;
+
 							break;
-							#end
 						}
 					}
 				}
 			}
 		}
+
+		// For some reason it seems to crash in here if the shutdown runs, should be figured out later but it shouldn't cause any issues for now ig
+		// Font.shutdown();
 
 		ProjectHelper.recursiveSmartCopyTemplate(project, "html5/template", destination, context);
 
@@ -574,28 +425,13 @@ class HTML5Platform extends PlatformTarget
 		}
 	}
 
-	public override function watch():Void
-	{
-		// TODO: Use a custom live reload HTTP server for test/run instead
+	public override function watch():Void {}
 
-		var hxml = getDisplayHXML();
-		var dirs = hxml.getClassPaths(true);
+	public override function install():Void {}
 
-		var outputPath = Path.combine(Sys.getCwd(), project.app.path);
-		dirs = dirs.filter(function(dir)
-		{
-			return (!Path.startsWith(dir, outputPath));
-		});
+	public override function rebuild():Void {}
 
-		var command = ProjectHelper.getCurrentCommand();
-		System.watch(command, dirs);
-	}
+	public override function trace():Void {}
 
-	@ignore public override function install():Void {}
-
-	@ignore public override function rebuild():Void {}
-
-	@ignore public override function trace():Void {}
-
-	@ignore public override function uninstall():Void {}
+	public override function uninstall():Void {}
 }

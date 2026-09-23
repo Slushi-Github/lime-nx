@@ -1,37 +1,27 @@
-#ifndef LIME_UTILS_ARRAY_BUFFER_VIEW_H
-#define LIME_UTILS_ARRAY_BUFFER_VIEW_H
+#pragma once
 
-
-#include <system/CFFI.h>
+#include <hx/CFFIPrime.h>
 #include <utils/Bytes.h>
 
+namespace lime
+{
 
-namespace lime {
-
-
-	struct ArrayBufferView {
-
-		hl_type* t;
-		/*TypedArrayType*/ int type;
-		Bytes* buffer;
+	struct ArrayBufferView
+	{
+		int type;
+		Bytes *buffer;
 		int byteOffset;
 		int byteLength;
 		int length;
 		int bytesPerElement;
 
-		ArrayBufferView (value arrayBufferView);
-		~ArrayBufferView ();
+		ArrayBufferView(value arrayBufferView);
+		~ArrayBufferView();
 
-		void Resize (int size);
-		void Set (value bytes);
-		void Set (const QuickVec<unsigned char> data);
-		value Value ();
-		value Value (value arrayBufferView);
-
+		void Resize(int size);
+		void Set(value bytes);
+		value Value();
+		value Value(value arrayBufferView);
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

@@ -1,6 +1,7 @@
 package lime._internal.backend.html5;
 
 import haxe.io.Bytes;
+
 import js.html.AnchorElement;
 import js.html.Blob;
 import js.html.ErrorEvent;
@@ -11,6 +12,7 @@ import js.html.URL;
 import js.html.XMLHttpRequest;
 import js.html.XMLHttpRequestResponseType;
 import js.Browser;
+
 import lime._internal.format.Base64;
 import lime.app.Future;
 import lime.app.Promise;
@@ -38,12 +40,8 @@ class HTML5HTTPRequest
 	private var binary:Bool;
 	private var parent:_IHTTPRequest;
 	private var request:XMLHttpRequest;
-	private var validStatus0:Bool;
 
-	public function new()
-	{
-		validStatus0 = #if allow_status_0 true #else ~/Tizen/gi.match(Browser.window.navigator.userAgent) #end;
-	}
+	public function new() {}
 
 	public function cancel():Void
 	{
@@ -64,7 +62,7 @@ class HTML5HTTPRequest
 
 		if (parent.method == POST)
 		{
-			if(request.upload != null)
+			if (request.upload != null)
 				request.upload.addEventListener("progress", progress, false);
 		}
 		else
@@ -80,7 +78,8 @@ class HTML5HTTPRequest
 		{
 			for (key in parent.formData.keys())
 			{
-				if (query.length > 0) query += "&";
+				if (query.length > 0)
+					query += "&";
 				var value:Dynamic = parent.formData.get(key);
 				if (key.indexOf("[]") > -1 && (value is Array))
 				{
@@ -185,14 +184,13 @@ class HTML5HTTPRequest
 		}
 		else
 		{
-			requestQueue.add(
-				{
-					instance: this,
-					uri: uri,
-					promise: promise,
-					type: AssetType.BINARY,
-					options: 0
-				});
+			requestQueue.add({
+				instance: this,
+				uri: uri,
+				promise: promise,
+				type: AssetType.BINARY,
+				options: 0
+			});
 		}
 
 		return promise.future;
@@ -209,14 +207,13 @@ class HTML5HTTPRequest
 		}
 		else
 		{
-			requestQueue.add(
-				{
-					instance: null,
-					uri: uri,
-					promise: promise,
-					type: AssetType.IMAGE,
-					options: 0
-				});
+			requestQueue.add({
+				instance: null,
+				uri: uri,
+				promise: promise,
+				type: AssetType.IMAGE,
+				options: 0
+			});
 		}
 
 		return promise.future;
@@ -236,14 +233,13 @@ class HTML5HTTPRequest
 			}
 			else
 			{
-				requestQueue.add(
-					{
-						instance: null,
-						uri: uri,
-						promise: promise,
-						type: AssetType.IMAGE,
-						options: OPTION_REVOKE_URL
-					});
+				requestQueue.add({
+					instance: null,
+					uri: uri,
+					promise: promise,
+					type: AssetType.IMAGE,
+					options: OPTION_REVOKE_URL
+				});
 			}
 
 			return promise.future;
@@ -265,14 +261,13 @@ class HTML5HTTPRequest
 		}
 		else
 		{
-			requestQueue.add(
-				{
-					instance: this,
-					uri: uri,
-					promise: promise,
-					type: AssetType.TEXT,
-					options: 0
-				});
+			requestQueue.add({
+				instance: this,
+				uri: uri,
+				promise: promise,
+				type: AssetType.TEXT,
+				options: 0
+			});
 		}
 
 		return promise.future;
@@ -308,7 +303,8 @@ class HTML5HTTPRequest
 		if (parent.enableResponseHeaders)
 		{
 			parent.responseHeaders = [];
-			var name, value;
+			var name:String;
+			var value:String;
 
 			for (line in request.getAllResponseHeaders().split("\n"))
 			{
@@ -366,8 +362,10 @@ class HTML5HTTPRequest
 
 	private static function __isSameOrigin(path:String):Bool
 	{
-		if (path == null || path == "") return true;
-		if (__isInMemoryURI(path)) return true;
+		if (path == null || path == "")
+			return true;
+		if (__isInMemoryURI(path))
+			return true;
 
 		if (originElement == null)
 		{
@@ -406,7 +404,8 @@ class HTML5HTTPRequest
 
 		var readyStateChange = function(event)
 		{
-			if (request.readyState != 4) return;
+			if (request.readyState != 4)
+				return;
 
 			var bytes = null;
 			if (request.responseType == NONE)
@@ -421,7 +420,7 @@ class HTML5HTTPRequest
 				bytes = Bytes.ofData(request.response);
 			}
 
-			if (request.status != null && ((request.status >= 200 && request.status < 400) || (validStatus0 && request.status == 0)))
+			if (request.status != null && ((request.status >= 200 && request.status < 400)))
 			{
 				processResponse();
 				promise.complete(bytes);
@@ -444,7 +443,7 @@ class HTML5HTTPRequest
 
 	private static function __loadImage(uri:String, promise:Promise<Image>, options:Int):Void
 	{
-		var image:JSImage = untyped #if haxe4 js.Syntax.code #else __js__ #end ('new window.Image ()');
+		var image:JSImage = untyped js.Syntax.code('new window.Image ()');
 
 		if (!__isSameOrigin(uri))
 		{
@@ -453,7 +452,7 @@ class HTML5HTTPRequest
 
 		if (supportsImageProgress == null)
 		{
-			supportsImageProgress = untyped #if haxe4 js.Syntax.code #else __js__ #end ("'onprogress' in image");
+			supportsImageProgress = untyped js.Syntax.code("'onprogress' in image");
 		}
 
 		if (supportsImageProgress || __isInMemoryURI(uri))
@@ -532,9 +531,10 @@ class HTML5HTTPRequest
 
 		var readyStateChange = function(event)
 		{
-			if (request.readyState != 4) return;
+			if (request.readyState != 4)
+				return;
 
-			if (request.status != null && ((request.status >= 200 && request.status < 400) || (validStatus0 && request.status == 0)))
+			if (request.status != null && ((request.status >= 200 && request.status < 400)))
 			{
 				processResponse();
 				promise.complete(request.responseText);

@@ -1,20 +1,9 @@
 package lime.math;
 
-#if flash
-import flash.geom.Point;
-#end
-
 /**
 	The `Vector2` class can be used for calculating math with
 	basic (x, y) coordinates
 **/
-#if hl
-@:keep
-#end
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 class Vector2
 {
 	/**
@@ -58,7 +47,8 @@ class Vector2
 	**/
 	public function add(v:Vector2, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.setTo(v.x + x, v.y + y);
 		return result;
 	}
@@ -105,7 +95,8 @@ class Vector2
 	**/
 	public static function interpolate(pt1:Vector2, pt2:Vector2, f:Float, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.setTo(pt2.x + f * (pt1.x - pt2.x), pt2.y + f * (pt1.y - pt2.y));
 		return result;
 	}
@@ -148,7 +139,8 @@ class Vector2
 	**/
 	public static function polar(len:Float, angle:Float, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.setTo(len * Math.cos(angle), len * Math.sin(angle));
 		return result;
 	}
@@ -172,18 +164,10 @@ class Vector2
 	**/
 	public function subtract(v:Vector2, result:Vector2 = null):Vector2
 	{
-		if (result == null) result = new Vector2();
+		if (result == null)
+			result = new Vector2();
 		result.setTo(x - v.x, y - v.y);
 		return result;
-	}
-
-	@:noCompletion private function __toFlashPoint():#if flash Point #else Dynamic #end
-	{
-		#if flash
-		return new Point(x, y);
-		#else
-		return null;
-		#end
 	}
 
 	// Getters & Setters

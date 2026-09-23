@@ -1,9 +1,9 @@
 package lime._internal.backend.html5;
 
 import haxe.Timer;
+
 import js.html.webgl.RenderingContext;
 import js.html.CanvasElement;
-import js.html.DivElement;
 import js.html.DragEvent;
 import js.html.Element;
 import js.html.FocusEvent;
@@ -14,8 +14,10 @@ import js.html.MouseEvent;
 import js.html.Node;
 import js.html.TextAreaElement;
 import js.html.TouchEvent;
+import js.html.URL;
 import js.html.ClipboardEvent;
 import js.Browser;
+
 import lime._internal.graphics.ImageCanvasUtil;
 import lime.app.Application;
 import lime.graphics.opengl.GL;
@@ -52,7 +54,7 @@ class HTML5Window
 	private static var windowID:Int = 0;
 
 	public var canvas:CanvasElement;
-	public var div:DivElement;
+
 	#if stats
 	public var stats:Dynamic;
 	#end
@@ -78,6 +80,8 @@ class HTML5Window
 
 	private var __focusPending:Bool;
 
+	private var __stopMousePropagation = false;
+
 	public function new(parent:Window)
 	{
 		this.parent = parent;
@@ -87,12 +91,8 @@ class HTML5Window
 		cacheMouseY = 0;
 
 		var attributes = parent.__attributes;
-		if (!Reflect.hasField(attributes, "context")) attributes.context = {};
-
-		#if dom
-		attributes.context.type = DOM;
-		attributes.context.version = "";
-		#end
+		if (!Reflect.hasField(attributes, "context"))
+			attributes.context = {};
 
 		renderType = attributes.context.type;
 
@@ -103,7 +103,7 @@ class HTML5Window
 
 		var element = parent.element;
 
-		if (Reflect.hasField(attributes, "allowHighDPI") && attributes.allowHighDPI && renderType != DOM)
+		if (Reflect.hasField(attributes, "allowHighDPI") && attributes.allowHighDPI)
 		{
 			scale = Browser.window.devicePixelRatio;
 		}
@@ -123,14 +123,7 @@ class HTML5Window
 		}
 		else
 		{
-			if (renderType == DOM)
-			{
-				div = cast Browser.document.createElement("div");
-			}
-			else
-			{
-				canvas = cast Browser.document.createElement("canvas");
-			}
+			canvas = cast Browser.document.createElement("canvas");
 		}
 
 		if (canvas != null)
@@ -138,20 +131,6 @@ class HTML5Window
 			var style = canvas.style;
 			style.setProperty("-webkit-transform", "translateZ(0)", null);
 			style.setProperty("transform", "translateZ(0)", null);
-		}
-		else if (div != null)
-		{
-			var style = div.style;
-			style.setProperty("-webkit-transform", "translate3D(0,0,0)", null);
-			style.setProperty("transform", "translate3D(0,0,0)", null);
-			// style.setProperty ("-webkit-transform-style", "preserve-3d", null);
-			// style.setProperty ("transform-style", "preserve-3d", null);
-			style.position = "relative";
-			style.overflow = "hidden";
-			style.setProperty("-webkit-user-select", "none", null);
-			style.setProperty("-moz-user-select", "none", null);
-			style.setProperty("-ms-user-select", "none", null);
-			style.setProperty("-o-user-select", "none", null);
 		}
 
 		if (parent.__width == 0 && parent.__height == 0)
@@ -181,11 +160,6 @@ class HTML5Window
 			canvas.style.width = parent.__width + "px";
 			canvas.style.height = parent.__height + "px";
 		}
-		else
-		{
-			div.style.width = parent.__width + "px";
-			div.style.height = parent.__height + "px";
-		}
 
 		if ((Reflect.hasField(attributes, "resizable") && attributes.resizable)
 			|| (!Reflect.hasField(attributes, "width") && setWidth == 0 && setHeight == 0))
@@ -204,10 +178,6 @@ class HTML5Window
 					element.appendChild(canvas);
 				}
 			}
-			else
-			{
-				element.appendChild(div);
-			}
 
 			var events = ["mousedown", "mouseenter", "mouseleave", "mousemove", "mouseup", "wheel"];
 
@@ -218,6 +188,8 @@ class HTML5Window
 
 			element.addEventListener("contextmenu", handleContextMenuEvent, true);
 
+			element.addEventListener("dragenter", handleDragEvent, true);
+			element.addEventListener("dragleave", handleDragEvent, true);
 			element.addEventListener("dragstart", handleDragEvent, true);
 			element.addEventListener("dragover", handleDragEvent, true);
 			element.addEventListener("drop", handleDragEvent, true);
@@ -240,12 +212,15 @@ class HTML5Window
 		}
 	}
 
-	public function alert(message:String, title:String):Void
+	public function alert(type:lime.ui.MessageBoxType, message:String, title:String, buttons:Array<String>):Int
 	{
 		if (message != null)
 		{
 			Browser.alert(message);
+			return 0;
 		}
+
+		return -1;
 	}
 
 	public function close():Void
@@ -260,11 +235,6 @@ class HTML5Window
 					element.removeChild(canvas);
 				}
 				canvas = null;
-			}
-			else if (div != null)
-			{
-				element.removeChild(div);
-				div = null;
 			}
 
 			var events = ["mousedown", "mouseenter", "mouseleave", "mousemove", "mouseup", "wheel"];
@@ -300,17 +270,11 @@ class HTML5Window
 		context.window = parent;
 		context.attributes = contextAttributes;
 
-		if (div != null)
-		{
-			context.dom = cast div;
-			context.type = DOM;
-			context.version = "";
-		}
-		else if (canvas != null)
+		if (canvas != null)
 		{
 			var webgl:#if !doc_gen HTML5WebGL2RenderContext #else Dynamic #end = null;
 
-			var forceCanvas = #if (canvas || munit) true #else (renderType == CANVAS) #end;
+			var forceCanvas = #if canvas true #else (renderType == CANVAS) #end;
 			var forceWebGL = #if webgl true #else (renderType == OPENGL || renderType == OPENGLES || renderType == WEBGL) #end;
 			var allowWebGL2 = #if webgl1 false #else (!Reflect.hasField(contextAttributes, "version")
 				|| contextAttributes.version != "1") #end;
@@ -321,16 +285,15 @@ class HTML5Window
 				var transparentBackground = Reflect.hasField(contextAttributes, "background") && contextAttributes.background == null;
 				var colorDepth = Reflect.hasField(contextAttributes, "colorDepth") ? contextAttributes.colorDepth : 16;
 
-				var options =
-					{
-						alpha: (transparentBackground || colorDepth > 16) ? true : false,
-						antialias: Reflect.hasField(contextAttributes, "antialiasing") ? contextAttributes.antialiasing > 0 : false,
-						depth: Reflect.hasField(contextAttributes, "depth") ? contextAttributes.depth : true,
-						premultipliedAlpha: true,
-						stencil: Reflect.hasField(contextAttributes, "stencil") ? contextAttributes.stencil : false,
-						preserveDrawingBuffer: Reflect.hasField(contextAttributes, "preserveDrawingBuffer") ? contextAttributes.preserveDrawingBuffer : false,
-						failIfMajorPerformanceCaveat: false
-					};
+				var options = {
+					alpha: (transparentBackground || colorDepth > 16) ? true : false,
+					antialias: Reflect.hasField(contextAttributes, "antialiasing") ? contextAttributes.antialiasing > 0 : false,
+					depth: Reflect.hasField(contextAttributes, "depth") ? contextAttributes.depth : true,
+					premultipliedAlpha: true,
+					stencil: Reflect.hasField(contextAttributes, "stencil") ? contextAttributes.stencil : false,
+					preserveDrawingBuffer: Reflect.hasField(contextAttributes, "preserveDrawingBuffer") ? contextAttributes.preserveDrawingBuffer : false,
+					failIfMajorPerformanceCaveat: false
+				};
 
 				var glContextType = ["webgl", "experimental-webgl"];
 
@@ -342,8 +305,10 @@ class HTML5Window
 				for (name in glContextType)
 				{
 					webgl = cast canvas.getContext(name, options);
-					if (webgl != null && name == "webgl2") isWebGL2 = true;
-					if (webgl != null) break;
+					if (webgl != null && name == "webgl2")
+						isWebGL2 = true;
+					if (webgl != null)
+						break;
 				}
 			}
 
@@ -352,6 +317,7 @@ class HTML5Window
 				context.canvas2D = cast canvas.getContext("2d");
 				context.type = CANVAS;
 				context.version = "";
+				context.attributes.hardware = false;
 			}
 			else
 			{
@@ -361,7 +327,8 @@ class HTML5Window
 
 				#if (js && html5)
 				context.webgl = webgl;
-				if (isWebGL2) context.webgl2 = webgl;
+				if (isWebGL2)
+					context.webgl2 = webgl;
 
 				if (GL.context == null)
 				{
@@ -373,6 +340,7 @@ class HTML5Window
 
 				context.type = WEBGL;
 				context.version = isWebGL2 ? "2" : "1";
+				context.attributes.hardware = true;
 			}
 		}
 
@@ -381,16 +349,23 @@ class HTML5Window
 
 	public function focus():Void {}
 
+	public function setVSyncMode(mode:lime.ui.WindowVSyncMode):Bool
+	{
+		return false;
+	}
+
 	private function focusTextInput():Void
 	{
 		// Avoid changing focus multiple times per frame.
-		if (__focusPending) return;
+		if (__focusPending)
+			return;
 		__focusPending = true;
 
 		Timer.delay(function()
 		{
 			__focusPending = false;
-			if (textInputEnabled) textInput.focus();
+			if (textInputEnabled)
+				textInput.focus();
 		}, 20);
 	}
 
@@ -404,6 +379,11 @@ class HTML5Window
 		return System.getDisplay(0);
 	}
 
+	public function getNativeHandle():Dynamic
+	{
+		return 0;
+	}
+
 	public function getDisplayMode():DisplayMode
 	{
 		return System.getDisplay(0).currentMode;
@@ -411,7 +391,8 @@ class HTML5Window
 
 	public function getFrameRate():Float
 	{
-		if (parent.application == null) return 0;
+		if (parent.application == null)
+			return 0;
 
 		if (parent.application.__backend.framePeriod < 0)
 		{
@@ -447,7 +428,8 @@ class HTML5Window
 		switch (event.type)
 		{
 			case "webglcontextlost":
-				if (event.cancelable) event.preventDefault();
+				if (event.cancelable)
+					event.preventDefault();
 
 				// #if !display
 				if (GL.context != null)
@@ -480,39 +462,59 @@ class HTML5Window
 	private function handleCutOrCopyEvent(event:ClipboardEvent):Void
 	{
 		var text = Clipboard.text;
-		if (text == null) {
+		if (text == null)
+		{
 			text = "";
 		}
 		event.clipboardData.setData("text/plain", text);
-		if (event.cancelable) event.preventDefault();
+		if (event.cancelable)
+			event.preventDefault();
 	}
 
-	private function handleDragEvent(event:DragEvent):Bool
+	private function handleDragEvent(event:DragEvent):Void
 	{
-		switch (event.type)
+		if (event.cancelable)
 		{
-			case "dragstart":
-				if (cast(event.target, Element).nodeName.toLowerCase() == "img" && event.cancelable)
-				{
-					event.preventDefault();
-					return false;
-				}
-
-			case "dragover":
-				event.preventDefault();
-				return false;
-
-			case "drop":
-				// TODO: Create a formal API that supports HTML5 file objects
-				if (event.dataTransfer != null && event.dataTransfer.files.length > 0)
-				{
-					parent.onDropFile.dispatch(cast event.dataTransfer.files);
-					event.preventDefault();
-					return false;
-				}
+			event.preventDefault();
 		}
 
-		return true;
+		switch (event.type)
+		{
+			case "dragenter":
+				parent.onDropBegin.dispatch();
+			case "dragleave":
+				parent.onDropComplete.dispatch(event.clientX, event.clientY);
+			case "dragover":
+				parent.onDropPosition.dispatch(event.clientX, event.clientY);
+			case "drop":
+				if (event.dataTransfer != null)
+				{
+					// TODO: Create a formal API that supports HTML5 file objects
+					if (event.dataTransfer.files != null && event.dataTransfer.files.length > 0)
+					{
+						for (file in event.dataTransfer.files)
+						{
+							parent.onDropFile.dispatch(cast file, "html5", event.clientX, event.clientY);
+						}
+					}
+					else
+					{
+						var text = event.dataTransfer.getData("text/plain");
+
+						if (text == null || text == "")
+						{
+							text = event.dataTransfer.getData("text/uri-list");
+						}
+
+						if (text != null && text != "")
+						{
+							parent.onDropText.dispatch(text, "html5", event.clientX, event.clientY);
+						}
+					}
+				}
+
+				parent.onDropComplete.dispatch(event.clientX, event.clientY);
+		}
 	}
 
 	private function handleFocusEvent(event:FocusEvent):Void
@@ -629,14 +631,6 @@ class HTML5Window
 					x = (event.clientX - rect.left) * (parent.__width / rect.width);
 					y = (event.clientY - rect.top) * (parent.__height / rect.height);
 				}
-				else if (div != null)
-				{
-					var rect = div.getBoundingClientRect();
-					// x = (event.clientX - rect.left) * (window.__backend.div.style.width / rect.width);
-					x = (event.clientX - rect.left);
-					// y = (event.clientY - rect.top) * (window.__backend.div.style.height / rect.height);
-					y = (event.clientY - rect.top);
-				}
 				else
 				{
 					var rect = parent.element.getBoundingClientRect();
@@ -655,9 +649,20 @@ class HTML5Window
 				case "mousedown":
 					if (event.currentTarget == parent.element)
 					{
-						// Release outside browser window
+						// while the mouse button is down, and the mouse has
+						// moved outside the bounds of the parent element, we
+						// want both onMouseMove and onMouseUp to continue to be
+						// dispatched. otherwise, dragging objects around with
+						// the mouse will appear broken.
+						// however, if the mouse button isn't down, and the
+						// mouse is outside the bounds of the parent element,
+						// then onMouseMove and onMouseUp don't need to be
+						// dispatched.
 						Browser.window.addEventListener("mouseup", handleMouseEvent);
+						Browser.window.addEventListener("mousemove", handleMouseEvent);
 					}
+					// just to be safe, clear the flag on every mouse down
+					__stopMousePropagation = false;
 
 					parent.clickCount = event.detail;
 					parent.onMouseDown.dispatch(x, y, event.button);
@@ -691,12 +696,18 @@ class HTML5Window
 					}
 
 				case "mouseup":
-					Browser.window.removeEventListener("mouseup", handleMouseEvent);
-
-					if (event.currentTarget == parent.element)
+					// see comment below for mousemove for an explanation of
+					// what the __stopMousePropagation flag is used for.
+					if (__stopMousePropagation && event.currentTarget != parent.element)
 					{
-						event.stopPropagation();
+						__stopMousePropagation = false;
+						return;
 					}
+
+					Browser.window.removeEventListener("mouseup", handleMouseEvent);
+					Browser.window.removeEventListener("mousemove", handleMouseEvent);
+
+					__stopMousePropagation = event.currentTarget == parent.element;
 
 					parent.clickCount = event.detail;
 					parent.onMouseUp.dispatch(x, y, event.button);
@@ -708,6 +719,45 @@ class HTML5Window
 					}
 
 				case "mousemove":
+					// this same listener is added to the parent element and to
+					// the browser window for both the mousemove and the mouseup
+					// event types, if mousedown happens first. this allows both
+					// onMouseMove and onMouseUp to be dispatched if the mouse
+					// moves outside the bounds of the parent element.
+
+					// since browser mouse events bubble, this listener will be
+					// called for the parent element first, as long as the mouse
+					// is still over the parent element. in that case, when the
+					// listener is called for the browser window, it should
+					// return early so that onMouseMove or onMouseUp isn't
+					// dispatched twice. this is done by checking the
+					// __stopMousePropagation flag when the current target isn't
+					// the parent element.
+
+					// however, if the mouse isn't over the parent element, the
+					// listener will be called only for the browser window, and
+					// not the parent element. in that case, it can proceed to
+					// dispatch either onMouseMove or onMouseUp, since this
+					// listener was called only once.
+
+					// again, this applies only if the mouse button is down. if
+					// the mouse button isn't down, then the listener won't be
+					// added to the browser window, and event won't be
+					// dispatched outside the bounds of the parent element.
+
+					if (__stopMousePropagation && event.currentTarget != parent.element)
+					{
+						// why not call event.stopPropagation() here? well,
+						// other JS code in the page may still be interested in
+						// the event. listening for the same events on both the
+						// parent element and on the browser window is just an
+						// implementation detail and shouldn't affect other
+						// listeners.
+						__stopMousePropagation = false;
+						return;
+					}
+					__stopMousePropagation = event.currentTarget == parent.element;
+
 					if (x != cacheMouseX || y != cacheMouseY)
 					{
 						parent.onMouseMove.dispatch(x, y);
@@ -756,7 +806,8 @@ class HTML5Window
 				parent.onTextInput.dispatch(text);
 			}
 
-			if (event.cancelable) event.preventDefault();
+			if (event.cancelable)
+				event.preventDefault();
 		}
 	}
 
@@ -768,7 +819,8 @@ class HTML5Window
 
 	private function handleTouchEvent(event:TouchEvent):Void
 	{
-		if (event.cancelable) event.preventDefault();
+		if (event.cancelable)
+			event.preventDefault();
 
 		var rect = null;
 
@@ -777,10 +829,6 @@ class HTML5Window
 			if (canvas != null)
 			{
 				rect = canvas.getBoundingClientRect();
-			}
-			else if (div != null)
-			{
-				rect = div.getBoundingClientRect();
 			}
 			else
 			{
@@ -805,7 +853,11 @@ class HTML5Window
 			}
 		}
 
-		var touch, x, y, cacheX, cacheY;
+		var touch:Touch;
+		var x:Float;
+		var y:Float;
+		var cacheX:Float;
+		var cacheY:Float;
 
 		for (data in event.changedTouches)
 		{
@@ -914,7 +966,8 @@ class HTML5Window
 
 	private function isDescendent(node:Node):Bool
 	{
-		if (node == parent.element) return true;
+		if (node == parent.element)
+			return true;
 
 		while (node != null)
 		{
@@ -933,8 +986,6 @@ class HTML5Window
 
 	public function readPixels(rect:Rectangle):Image
 	{
-		// TODO: Handle DIV, improve 3D canvas support
-
 		if (canvas != null)
 		{
 			var stageRect = new Rectangle(0, 0, canvas.width, canvas.height);
@@ -955,6 +1006,7 @@ class HTML5Window
 				canvas2.height = Std.int(rect.height);
 
 				var context = canvas2.getContext("2d");
+
 				context.drawImage(canvas, -rect.x, -rect.y);
 
 				return Image.fromCanvas(canvas2);
@@ -1046,15 +1098,18 @@ class HTML5Window
 		{
 			if (value >= 60)
 			{
-				if (parent == parent.application.window) parent.application.__backend.framePeriod = -1;
+				if (parent == parent.application.window)
+					parent.application.__backend.framePeriod = -1;
 			}
 			else if (value > 0)
 			{
-				if (parent == parent.application.window) parent.application.__backend.framePeriod = 1000 / value;
+				if (parent == parent.application.window)
+					parent.application.__backend.framePeriod = 1000 / value;
 			}
 			else
 			{
-				if (parent == parent.application.window) parent.application.__backend.framePeriod = 1000;
+				if (parent == parent.application.window)
+					parent.application.__backend.framePeriod = 1000;
 			}
 		}
 
@@ -1104,10 +1159,14 @@ class HTML5Window
 
 			untyped
 			{
-				if (document.exitFullscreen) document.exitFullscreen();
-				else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
-				else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-				else if (document.msExitFullscreen) document.msExitFullscreen();
+				if (document.exitFullscreen)
+					document.exitFullscreen();
+				else if (document.mozCancelFullScreen)
+					document.mozCancelFullScreen();
+				else if (document.webkitExitFullscreen)
+					document.webkitExitFullscreen();
+				else if (document.msExitFullscreen)
+					document.msExitFullscreen();
 			}
 		}
 
@@ -1239,7 +1298,6 @@ class HTML5Window
 				textInput.removeEventListener('paste', handlePasteEvent, true);
 				textInput.removeEventListener('compositionstart', handleCompositionstartEvent, true);
 				textInput.removeEventListener('compositionend', handleCompositionendEvent, true);
-
 			}
 		}
 
@@ -1279,11 +1337,18 @@ class HTML5Window
 		return value;
 	}
 
+	public function setAlwaysOnTop(value:Bool):Bool
+	{
+		return value;
+	}
+
 	private function updateSize():Void
 	{
-		if (!parent.__resizable) return;
+		if (!parent.__resizable)
+			return;
 
-		var elementWidth, elementHeight;
+		var elementWidth:Float;
+		var elementHeight:Float;
 
 		if (parent.element != null)
 		{
@@ -1303,14 +1368,14 @@ class HTML5Window
 
 			var stretch = resizeElement || (setWidth == 0 && setHeight == 0);
 
-			if (parent.element != null && (div == null || (div != null && stretch)))
+			if (parent.element != null)
 			{
 				if (stretch)
 				{
 					if (parent.__width != elementWidth || parent.__height != elementHeight)
 					{
-						parent.__width = elementWidth;
-						parent.__height = elementHeight;
+						parent.__width = Std.int(elementWidth);
+						parent.__height = Std.int(elementHeight);
 
 						if (canvas != null)
 						{
@@ -1323,13 +1388,8 @@ class HTML5Window
 								canvas.style.height = elementHeight + "px";
 							}
 						}
-						else
-						{
-							div.style.width = elementWidth + "px";
-							div.style.height = elementHeight + "px";
-						}
 
-						parent.onResize.dispatch(elementWidth, elementHeight);
+						parent.onResize.dispatch(Std.int(elementWidth), Std.int(elementHeight));
 					}
 				}
 				else
@@ -1362,13 +1422,6 @@ class HTML5Window
 							canvas.style.marginLeft = marginLeft + "px";
 							canvas.style.marginTop = marginTop + "px";
 						}
-					}
-					else
-					{
-						div.style.width = targetWidth + "px";
-						div.style.height = targetHeight + "px";
-						div.style.marginLeft = marginLeft + "px";
-						div.style.marginTop = marginTop + "px";
 					}
 				}
 			}

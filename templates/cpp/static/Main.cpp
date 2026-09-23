@@ -3,31 +3,34 @@
 #if defined(__SWITCH__)
 #include "switch.h"
 #include <unistd.h>
+#include <hx/Debug.h>
 #endif
 
 #if defined(HX_WINDOWS) && !defined(HXCPP_DEBUGGER)
 #include <windows.h>
 #endif
 
-extern "C" const char *hxRunLibrary ();
-extern "C" void hxcpp_set_top_of_stack ();
+extern "C" const char *hxRunLibrary();
+extern "C" void hxcpp_set_top_of_stack();
 
-extern "C" int zlib_register_prims ();
-extern "C" int lime_cairo_register_prims ();
-extern "C" int lime_openal_register_prims ();
-::foreach ndlls::::if (registerStatics)::
-extern "C" int ::nameSafe::_register_prims ();
+extern "C" int zlib_register_prims();
+extern "C" int lime_cairo_register_prims();
+extern "C" int lime_openal_register_prims();
+::foreach ndlls:: ::if (registerStatics)::
+	extern "C" int ::nameSafe::_register_prims();
 ::end:: ::end::
 
 #if defined(__SWITCH__)
-static int s_nxlinkSocket = -1;
+	static int s_nxlinkSocket = -1;
 static bool s_socketInitialized = true;
 
 /**
  * Initialize the nxlink socket, for remote printing and debugging
  */
-static void initNXLink() {
-	if (!s_socketInitialized) {
+static void initNXLink()
+{
+	if (!s_socketInitialized)
+	{
 		printf("[Main.cpp - initNXLink()] Socket not initialized\n");
 		return;
 	}
@@ -35,7 +38,8 @@ static void initNXLink() {
 	s_nxlinkSocket = nxlinkStdio();
 	if (s_nxlinkSocket >= 0)
 		printf("[Main.cpp - initNXLink()] Connected to nxlink!\n");
-	else {
+	else
+	{
 		printf("[Main.cpp - initNXLink()] Failed to connect to nxlink...\n");
 		s_nxlinkSocket = -1;
 	}
@@ -53,12 +57,31 @@ static void deInitNXLink()
 		s_nxlinkSocket = -1;
 	}
 }
+
+inline void printHaxeStackTrace()
+{
+	using hx::StackContext;
+	StackContext *ctx = StackContext::getCurrent();
+	if (ctx != NULL)
+	{
+		printf("Haxe stack trace:\n");
+		ctx->beginCatch(true);
+		ctx->dumpExceptionStack();
+		fflush(stdout);
+	}
+	else
+	{
+		printf("HXCPP_STACK_TRACE is defined but the current stack context is NULL, unable to get Haxe stack trace.\n");
+	}
+}
 #endif
 
 #if defined(HX_WINDOWS) && !defined(HXCPP_DEBUGGER)
-int __stdcall WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
 #else
-extern "C" int main(int argc, char *argv[]) {
+	extern "C" int main(int argc, char *argv[])
+{
 #endif
 #if defined(__SWITCH__)
 	// We need to initialize the socket even if we're not going to use it with nxlink
@@ -81,20 +104,23 @@ extern "C" int main(int argc, char *argv[]) {
 	}
 #endif
 
-	hxcpp_set_top_of_stack ();
-	
-	zlib_register_prims ();
-	lime_cairo_register_prims ();
-	lime_openal_register_prims ();
-	::foreach ndlls::::if (registerStatics)::
-	::nameSafe::_register_prims ();::end::::end::
-	
-	const char *err = NULL;
- 	err = hxRunLibrary ();
-	
-	if (err) {
+	hxcpp_set_top_of_stack();
+
+	// zlib_register_prims();
+	// lime_cairo_register_prims();
+	// lime_openal_register_prims();
+	::foreach ndlls:: ::if (registerStatics)::
+		::nameSafe::_register_prims();
+	::end:: ::end::
+
+		const char *err = NULL;
+	err = hxRunLibrary();
+
+	if (err)
+	{
 		printf("[Main.cpp - hxRunLibrary()] ERROR: %s\n", err);
 #if defined(__SWITCH__)
+		printHaxeStackTrace();
 		deInitNXLink();
 		romfsExit();
 		socketExit();

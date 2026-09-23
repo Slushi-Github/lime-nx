@@ -8,10 +8,6 @@ import lime.system.CFFI;
 import lime.system.CFFIPointer;
 import lime.text.Glyph;
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime._internal.backend.native.NativeCFFI)
 class Cairo
 {
@@ -32,9 +28,6 @@ class Cairo
 	public var lineWidth(get, set):Float;
 	public var matrix(get, set):Matrix3;
 	public var miterLimit(get, set):Float;
-	#if (haxe_ver < "4.0.0")
-	public var operator(get, set):CairoOperator;
-	#end
 	public var source(get, set):CairoPattern;
 	public var target(get, null):CairoSurface;
 	public var tolerance(get, set):Float;
@@ -361,12 +354,6 @@ class Cairo
 	public function showGlyphs(glyphs:Array<CairoGlyph>):Void
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		var _glyphs = new hl.NativeArray<CairoGlyph>(glyphs.length);
-		for (i in 0...glyphs.length)
-			_glyphs[i] = glyphs[i];
-		var glyphs = _glyphs;
-		#end
 		NativeCFFI.lime_cairo_show_glyphs(handle, glyphs);
 		#end
 	}
@@ -458,31 +445,16 @@ class Cairo
 	@:noCompletion private function get_currentPoint():Vector2
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		return NativeCFFI.lime_cairo_get_current_point(handle, new Vector2());
-		#else
 		var vec:Dynamic = NativeCFFI.lime_cairo_get_current_point(handle);
 		return new Vector2(vec.x, vec.y);
 		#end
-		#end
-
 		return null;
 	}
 
 	@:noCompletion private function get_dash():Array<Float>
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		var result:hl.NativeArray<Float> = NativeCFFI.lime_cairo_get_dash(handle);
-		if (result == null) return [];
-		var _result = [];
-		for (i in 0...result.length)
-			_result[i] = result[i];
-		return _result;
-		#else
-		var result:Dynamic = NativeCFFI.lime_cairo_get_dash(handle);
-		return result;
-		#end
+		return NativeCFFI.lime_cairo_get_dash(handle);
 		#end
 
 		return [];
@@ -491,14 +463,7 @@ class Cairo
 	@:noCompletion private function set_dash(value:Array<Float>):Array<Float>
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		var _value = new hl.NativeArray<Float>(value.length);
-		for (i in 0...value.length)
-			_value[i] = value[i];
-		NativeCFFI.lime_cairo_set_dash(handle, _value);
-		#else
 		NativeCFFI.lime_cairo_set_dash(handle, value);
-		#end
 		#end
 
 		return value;
@@ -642,12 +607,8 @@ class Cairo
 	@:noCompletion private function get_matrix():Matrix3
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		return NativeCFFI.lime_cairo_get_matrix(handle, new CairoMatrix3());
-		#else
 		var m:Dynamic = NativeCFFI.lime_cairo_get_matrix(handle);
 		return new Matrix3(m.a, m.b, m.c, m.d, m.tx, m.ty);
-		#end
 		#end
 
 		return null;
@@ -656,12 +617,7 @@ class Cairo
 	@:noCompletion private function set_matrix(value:Matrix3):Matrix3
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		#if hl
-		NativeCFFI.lime_cairo_set_matrix(handle, value.toCairoMatrix3());
-		#else
 		NativeCFFI.lime_cairo_set_matrix(handle, value.a, value.b, value.c, value.d, value.tx, value.ty);
-		// NativeCFFI.lime_cairo_set_matrix (handle, value);
-		#end
 		#end
 
 		return value;
@@ -684,26 +640,6 @@ class Cairo
 
 		return value;
 	}
-
-	#if (haxe_ver < "4.0.0")
-	@:noCompletion private function get_operator():CairoOperator
-	{
-		#if (lime_cffi && lime_cairo && !macro)
-		return NativeCFFI.lime_cairo_get_operator(handle);
-		#end
-
-		return cast 0;
-	}
-
-	@:noCompletion private function set_operator(value:CairoOperator):CairoOperator
-	{
-		#if (lime_cffi && lime_cairo && !macro)
-		NativeCFFI.lime_cairo_set_operator(handle, value);
-		#end
-
-		return value;
-	}
-	#end
 
 	@:noCompletion private function get_source():CairoPattern
 	{
@@ -762,7 +698,7 @@ class Cairo
 	private static function get_versionString():String
 	{
 		#if (lime_cffi && lime_cairo && !macro)
-		return CFFI.stringValue(NativeCFFI.lime_cairo_version_string());
+		return NativeCFFI.lime_cairo_version_string();
 		#else
 		return "";
 		#end

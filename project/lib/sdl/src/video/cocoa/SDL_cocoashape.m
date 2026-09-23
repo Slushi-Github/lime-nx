@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -18,95 +18,37 @@
      misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
-#include "../../SDL_internal.h"
+#include "SDL_internal.h"
 
-#if SDL_VIDEO_DRIVER_COCOA
+#ifdef SDL_VIDEO_DRIVER_COCOA
 
 #include "SDL_cocoavideo.h"
-#include "SDL_shape.h"
 #include "SDL_cocoashape.h"
-#include "../SDL_sysvideo.h"
 
-SDL_WindowShaper*
-Cocoa_CreateShaper(SDL_Window* window)
-{ @autoreleasepool
+
+bool Cocoa_UpdateWindowShape(SDL_VideoDevice *_this, SDL_Window *window, SDL_Surface *shape)
 {
-    SDL_WindowData* windata = (__bridge SDL_WindowData*)window->driverdata;
-    [windata.nswindow setOpaque:NO];
+    SDL_CocoaWindowData *data = (__bridge SDL_CocoaWindowData *)window->internal;
+    BOOL ignoresMouseEvents = NO;
 
-    [windata.nswindow setStyleMask:NSWindowStyleMaskBorderless];
+    if (shape) {
+        SDL_FPoint point;
+        SDL_GetGlobalMouseState(&point.x, &point.y);
+        point.x -= window->x;
+        point.y -= window->y;
+        if (point.x >= 0.0f && point.x < window->w &&
+            point.y >= 0.0f && point.y < window->h) {
+            int x = (int)SDL_roundf((point.x / (window->w - 1)) * (shape->w - 1));
+            int y = (int)SDL_roundf((point.y / (window->h - 1)) * (shape->h - 1));
+            Uint8 a;
 
-    SDL_WindowShaper* result = (SDL_WindowShaper *)SDL_malloc(sizeof(SDL_WindowShaper));
-    result->window = window;
-    result->mode.mode = ShapeModeDefault;
-    result->mode.parameters.binarizationCutoff = 1;
-    result->userx = result->usery = 0;
-    window->shaper = result;
-
-    SDL_ShapeData* data = (SDL_ShapeData *)SDL_malloc(sizeof(SDL_ShapeData));
-    result->driverdata = data;
-    data->context = [windata.nswindow graphicsContext];
-    data->saved = SDL_FALSE;
-    data->shape = NULL;
-
-    int resized_properly = Cocoa_ResizeWindowShape(window);
-    SDL_assert(resized_properly == 0);
-    return result;
-}}
-
-typedef struct {
-    NSView* view;
-    NSBezierPath* path;
-    SDL_Window* window;
-} SDL_CocoaClosure;
-
-void
-ConvertRects(SDL_ShapeTree* tree, void* closure)
-{
-    SDL_CocoaClosure* data = (SDL_CocoaClosure*)closure;
-    if(tree->kind == OpaqueShape) {
-        NSRect rect = NSMakeRect(tree->data.shape.x,data->window->h - tree->data.shape.y,tree->data.shape.w,tree->data.shape.h);
-        [data->path appendBezierPathWithRect:[data->view convertRect:rect toView:nil]];
+            if (!SDL_ReadSurfacePixel(shape, x, y, NULL, NULL, NULL, &a) || a == SDL_ALPHA_TRANSPARENT) {
+                ignoresMouseEvents = YES;
+            }
+        }
     }
+    data.nswindow.ignoresMouseEvents = ignoresMouseEvents;
+    return true;
 }
 
-int
-Cocoa_SetWindowShape(SDL_WindowShaper *shaper, SDL_Surface *shape, SDL_WindowShapeMode *shape_mode)
-{ @autoreleasepool
-{
-    SDL_ShapeData* data = (SDL_ShapeData*)shaper->driverdata;
-    SDL_WindowData* windata = (__bridge SDL_WindowData*)shaper->window->driverdata;
-    SDL_CocoaClosure closure;
-    if(data->saved == SDL_TRUE) {
-        [data->context restoreGraphicsState];
-        data->saved = SDL_FALSE;
-    }
-
-    /*[data->context saveGraphicsState];*/
-    /*data->saved = SDL_TRUE;*/
-    [NSGraphicsContext setCurrentContext:data->context];
-
-    [[NSColor clearColor] set];
-    NSRectFill([windata.sdlContentView frame]);
-    data->shape = SDL_CalculateShapeTree(*shape_mode,shape);
-
-    closure.view = windata.sdlContentView;
-    closure.path = [NSBezierPath bezierPath];
-    closure.window = shaper->window;
-    SDL_TraverseShapeTree(data->shape,&ConvertRects,&closure);
-    [closure.path addClip];
-
-    return 0;
-}}
-
-int
-Cocoa_ResizeWindowShape(SDL_Window *window)
-{
-    SDL_ShapeData* data = window->shaper->driverdata;
-    SDL_assert(data != NULL);
-    return 0;
-}
-
-#endif /* SDL_VIDEO_DRIVER_COCOA */
-
-/* vi: set ts=4 sw=4 expandtab: */
+#endif // SDL_VIDEO_DRIVER_COCOA

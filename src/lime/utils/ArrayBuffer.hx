@@ -1,7 +1,7 @@
 package lime.utils;
 
 #if (js && !doc_gen)
-typedef ArrayBuffer = #if haxe4 js.lib.ArrayBuffer #else js.html.ArrayBuffer #end;
+typedef ArrayBuffer = js.lib.ArrayBuffer;
 #else
 import haxe.io.Bytes;
 
@@ -30,9 +30,12 @@ abstract ArrayBuffer(Bytes) from Bytes to Bytes
 
 	public inline function slice(begin:Int, end:Null<Int> = null)
 	{
-		if (end == null) end = this.length;
-		if (begin < 0) begin = 0;
-		if (end > this.length) end = this.length;
+		if (end == null)
+			end = this.length;
+		if (begin < 0)
+			begin = 0;
+		if (end > this.length)
+			end = this.length;
 		var length = end - begin;
 		if (begin < 0 || length <= 0)
 		{

@@ -12,11 +12,15 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.view.DisplayCutout;
+import android.os.VibratorManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.MimeTypeMap;
 import android.Manifest;
 import org.haxe.extension.Extension;
@@ -33,21 +37,10 @@ public class GameActivity extends SDLActivity {
 	private static AssetManager assetManager;
 	private static List<Extension> extensions;
 	private static DisplayMetrics metrics;
+	private static DisplayCutout displayCutout;
 	private static Vibrator vibrator;
 
 	public Handler handler;
-
-	public static double getDisplayXDPI () {
-
-		if (metrics == null) {
-
-			metrics = Extension.mainContext.getResources ().getDisplayMetrics ();
-
-		}
-
-		return metrics.xdpi;
-
-	}
 
 
 	protected String[] getLibraries () {
@@ -108,6 +101,7 @@ public class GameActivity extends SDLActivity {
 	}
 
 
+	@SuppressWarnings("deprecation")
 	protected void onCreate (Bundle state) {
 
 		super.onCreate (state);
@@ -116,7 +110,18 @@ public class GameActivity extends SDLActivity {
 
 		if (checkSelfPermission(Manifest.permission.VIBRATE) == PackageManager.PERMISSION_GRANTED) {
 
-			vibrator = (Vibrator)mSingleton.getSystemService (Context.VIBRATOR_SERVICE);
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+
+				VibratorManager vibratorManager = (VibratorManager)mSingleton.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+
+				if (vibratorManager != null)
+					vibrator = vibratorManager.getDefaultVibrator();
+
+			} else {
+
+				vibrator = (Vibrator)mSingleton.getSystemService(Context.VIBRATOR_SERVICE);
+
+			}
 
 		}
 
@@ -128,6 +133,34 @@ public class GameActivity extends SDLActivity {
 		Extension.mainContext = this;
 		Extension.mainView = mLayout;
 		Extension.packageName = getApplicationContext ().getPackageName ();
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+
+			switch ("::ANDROID_DISPLAY_CUTOUT::") {
+
+				case "always":
+					getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+					break;
+
+				case "never":
+					getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
+					break;
+
+				case "shortEdges":
+					getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+					break;
+
+				case "default":
+					getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+					break;
+
+				default:
+					getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+					break;
+
+			}
+
+		}
 
 		if (extensions == null) {
 
@@ -320,56 +353,6 @@ public class GameActivity extends SDLActivity {
 	::end::
 
 
-	public static void openFile (String path) {
-
-		try {
-
-			String extension = path;
-			int index = path.lastIndexOf ('.');
-
-			if (index > 0) {
-
-				extension = path.substring (index + 1);
-
-			}
-
-			String mimeType = MimeTypeMap.getSingleton ().getMimeTypeFromExtension (extension);
-			File file = new File (path);
-
-			Intent intent = new Intent ();
-			intent.setAction (Intent.ACTION_VIEW);
-			intent.setDataAndType (Uri.fromFile (file), mimeType);
-
-			Extension.mainActivity.startActivity (intent);
-
-		} catch (Exception e) {
-
-			Log.e ("GameActivity", e.toString ());
-			return;
-
-		}
-
-	}
-
-
-	public static void openURL (String url, String target) {
-
-		Intent browserIntent = new Intent (Intent.ACTION_VIEW).setData (Uri.parse (url));
-
-		try {
-
-			Extension.mainActivity.startActivity (browserIntent);
-
-		} catch (Exception e) {
-
-			Log.e ("GameActivity", e.toString ());
-			return;
-
-		}
-
-	}
-
-
 	public static void postUICallback (final long handle) {
 
 		Extension.callbackHandler.post (new Runnable () {
@@ -381,55 +364,6 @@ public class GameActivity extends SDLActivity {
 			}
 
 		});
-
-	}
-
-
-	public static void vibrate (int period, int duration) {
-
-		if (vibrator == null || !vibrator.hasVibrator () || period < 0 || duration <= 0) {
-
-			return;
-
-		}
-
-		if (period == 0) {
-
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-				vibrator.vibrate (VibrationEffect.createOneShot (duration, VibrationEffect.DEFAULT_AMPLITUDE));
-
-			} else {
-
-				vibrator.vibrate (duration);
-
-			}
-
-		} else {
-
-			// each period has two halves (vibrator off/vibrator on), and each half requires a separate entry in the array
-			int periodMS = (int)Math.ceil (period / 2.0);
-			int count = (int)Math.ceil (duration / (double) periodMS);
-			long[] pattern = new long[count];
-
-			// the first entry is the delay before vibration starts, so leave it as 0
-			for (int i = 1; i < count; i++) {
-
-				pattern[i] = periodMS;
-
-			}
-
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-				vibrator.vibrate (VibrationEffect.createWaveform (pattern, -1));
-
-			} else {
-
-				vibrator.vibrate (pattern, -1);
-
-			}
-
-		}
 
 	}
 

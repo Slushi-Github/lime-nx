@@ -2,6 +2,7 @@ package lime.utils;
 
 import haxe.io.Bytes;
 import haxe.io.Path;
+
 import lime.app.Event;
 import lime.app.Future;
 import lime.app.Promise;
@@ -11,15 +12,7 @@ import lime.net.HTTPRequest;
 import lime.text.Font;
 import lime.utils.AssetType;
 import lime.utils.Bytes;
-#if flash
-import flash.display.BitmapData;
-import flash.media.Sound;
-#end
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:keep class PackedAssetLibrary extends AssetLibrary
 {
 	@:noCompletion private var id:String;
@@ -66,8 +59,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return AudioBuffer.fromBytes(bytes);
 		}
 		#end
@@ -89,8 +84,10 @@ import flash.media.Sound;
 		{
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return bytes;
 		}
 	}
@@ -109,8 +106,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Font.fromBytes(bytes);
 		}
 		#end
@@ -127,8 +126,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Image.fromBytes(bytes);
 		}
 	}
@@ -143,8 +144,10 @@ import flash.media.Sound;
 		{
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return bytes.getString(0, bytes.length);
 		}
 		else
@@ -168,61 +171,74 @@ import flash.media.Sound;
 		if (promise == null)
 		{
 			promise = new Promise<AssetLibrary>();
+			bytesLoadedCache = new Map();
 
 			// TODO: Handle `preload` for individual assets
 			// TODO: Do not preload bytes on native, if we can read from it instead (all non-Android targets?)
+
+			assetsLoaded = 0;
+			assetsTotal = 2; // for our initial __assetLoaded(null) call and __assetLoaded(this.id)
+
+			for (id in preload.keys())
+			{
+				if (!preload.get(id))
+					continue;
+
+				switch (types.get(id))
+				{
+					case BINARY, FONT, IMAGE, TEXT:
+						assetsTotal++;
+
+					case MUSIC, SOUND:
+						Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
+						assetsTotal++;
+
+						var future = loadAudioBuffer(id);
+						future.onProgress(load_onProgress.bind(id));
+						future.onError(loadAudioBuffer_onError.bind(id));
+						future.onComplete(loadAudioBuffer_onComplete.bind(id));
+
+					default:
+				}
+			}
 
 			var packedData_onComplete = function(data:Bytes)
 			{
 				cachedBytes.set(id, data);
 				packedData = data;
 
-				assetsLoaded = 0;
-				assetsTotal = 1;
+				__assetLoaded(this.id);
 
 				for (id in preload.keys())
 				{
-					if (!preload.get(id)) continue;
-
-					Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
+					if (!preload.get(id))
+						continue;
 
 					switch (types.get(id))
 					{
 						case BINARY:
-							assetsTotal++;
-
+							Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
 							var future = loadBytes(id);
 							// future.onProgress (load_onProgress.bind (id));
 							future.onError(load_onError.bind(id));
 							future.onComplete(loadBytes_onComplete.bind(id));
 
 						case FONT:
-							assetsTotal++;
-
+							Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
 							var future = loadFont(id);
 							// future.onProgress (load_onProgress.bind (id));
 							future.onError(load_onError.bind(id));
 							future.onComplete(loadFont_onComplete.bind(id));
 
 						case IMAGE:
-							assetsTotal++;
-
+							Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
 							var future = loadImage(id);
 							// future.onProgress (load_onProgress.bind (id));
 							future.onError(load_onError.bind(id));
 							future.onComplete(loadImage_onComplete.bind(id));
 
-						case MUSIC, SOUND:
-							assetsTotal++;
-
-							var future = loadAudioBuffer(id);
-							// future.onProgress (load_onProgress.bind (id));
-							future.onError(load_onError.bind(id));
-							future.onComplete(loadAudioBuffer_onComplete.bind(id));
-
 						case TEXT:
-							assetsTotal++;
-
+							Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
 							var future = loadText(id);
 							// future.onProgress (load_onProgress.bind (id));
 							future.onError(load_onError.bind(id));
@@ -231,9 +247,9 @@ import flash.media.Sound;
 						default:
 					}
 				}
-
-				__assetLoaded(null);
 			};
+
+			__assetLoaded(null);
 
 			if (cachedBytes.exists(id))
 			{
@@ -241,14 +257,20 @@ import flash.media.Sound;
 			}
 			else
 			{
-				var basePath = rootPath == null || rootPath == "" ?  "" : Path.addTrailingSlash(rootPath);
+				var basePath = rootPath == null || rootPath == "" ? "" : Path.addTrailingSlash(rootPath);
 				var libPath = getPath(id);
-				if (libPath == null) libPath = id;
+				if (libPath == null)
+					libPath = id;
 
 				var path = Path.join([basePath, libPath]);
 				path = __cacheBreak(path);
 
-				Bytes.loadFromFile(path).onError(promise.error).onComplete(packedData_onComplete);
+				var packedData_onProgress = load_onProgress.bind(this.id);
+
+				Bytes.loadFromFile(path)
+					.onProgress(packedData_onProgress)
+					.onError(promise.error)
+					.onComplete(packedData_onComplete);
 			}
 		}
 
@@ -269,8 +291,10 @@ import flash.media.Sound;
 			// TODO: More efficient method, use `loadFromBytes` method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Future.withValue(AudioBuffer.fromBytes(bytes));
 		}
 		#end
@@ -287,8 +311,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Future.withValue(bytes);
 		}
 	}
@@ -307,8 +333,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Font.loadFromBytes(bytes);
 		}
 		#end
@@ -352,8 +380,10 @@ import flash.media.Sound;
 			// TODO: More efficient method
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Image.loadFromBytes(bytes);
 		}
 	}
@@ -383,8 +413,10 @@ import flash.media.Sound;
 		{
 			var bytes = Bytes.alloc(lengths[id]);
 			bytes.blit(0, packedData, positions[id], lengths[id]);
-			if (type == "gzip") bytes = bytes.decompress(GZIP);
-			else if (type == "zip" || type == "deflate") bytes = bytes.decompress(DEFLATE);
+			if (type == "gzip")
+				bytes = bytes.decompress(GZIP);
+			else if (type == "zip" || type == "deflate")
+				bytes = bytes.decompress(DEFLATE);
 			return Future.withValue(bytes.getString(0, bytes.length));
 		}
 		else
@@ -401,18 +433,39 @@ import flash.media.Sound;
 
 		super.__fromManifest(manifest);
 
+		var packedBytesTotal = 0;
+		bytesTotal = 0;
+
 		for (asset in manifest.assets)
 		{
+			var id = asset.id;
+
 			if (Reflect.hasField(asset, "position"))
 			{
-				positions.set(asset.id, Reflect.field(asset, "position"));
+				positions.set(id, Reflect.field(asset, "position"));
 			}
 
 			if (Reflect.hasField(asset, "length"))
 			{
-				lengths.set(asset.id, Reflect.field(asset, "length"));
+				var length = Reflect.field(asset, "length");
+				lengths.set(id, length);
+
+				// for individual packed assets, the size represents the work done unpacking them
+				// since this is likely to be much faster than downloading, set it to something
+				// small like the packed length / 10.
+				sizes.set(id, Math.floor(length / 10));
+
+				packedBytesTotal += length;
+			}
+
+			if (preload.exists(id) && preload.get(id) && sizes.exists(id))
+			{
+				bytesTotal += sizes.get(id);
 			}
 		}
+
+		sizes.set(this.id, packedBytesTotal);
+		bytesTotal += packedBytesTotal;
 	}
 
 	@:noCompletion private override function __assetLoaded(id:String):Void
@@ -424,38 +477,35 @@ import flash.media.Sound;
 			Log.verbose("Loaded asset: " + id + " [" + types.get(id) + "] (" + (assetsLoaded - 1) + "/" + (assetsTotal - 1) + ")");
 		}
 
-		// if (id != null) {
+		if (id != null)
+		{
+			var size = sizes.exists(id) ? sizes.get(id) : 0;
 
-		// 	var size = sizes.get (id);
+			if (!bytesLoadedCache.exists(id))
+			{
+				bytesLoaded += size;
+			}
+			else
+			{
+				var cache = bytesLoadedCache.get(id);
 
-		// 	if (!bytesLoadedCache.exists (id)) {
+				if (cache < size)
+				{
+					bytesLoaded += (size - cache);
+				}
+			}
 
-		// 		bytesLoaded += size;
-
-		// 	} else {
-
-		// 		var cache = bytesLoadedCache.get (id);
-
-		// 		if (cache < size) {
-
-		// 			bytesLoaded += (size - cache);
-
-		// 		}
-
-		// 	}
-
-		// 	bytesLoadedCache.set (id, size);
-
-		// }
+			bytesLoadedCache.set(id, size);
+		}
 
 		if (assetsLoaded < assetsTotal)
 		{
-			// promise.progress (bytesLoaded, bytesTotal);
+			promise.progress(bytesLoaded, bytesTotal);
 		}
 		else
 		{
 			loaded = true;
-			// promise.progress (bytesTotal, bytesTotal);
+			promise.progress(bytesTotal, bytesTotal);
 			promise.complete(this);
 		}
 	}

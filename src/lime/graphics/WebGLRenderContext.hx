@@ -157,6 +157,14 @@ abstract WebGLRenderContext(WebGL2RenderContext)
 		this.uniformMatrix4fv(location, transpose, v);
 	}
 
+	public inline function blendBarrier():Void
+	{
+		// Not supported on Web
+		#if !lime_webgl
+		this.blendBarrier();
+		#end
+	}
+
 	@:from private static function fromWebGL2RenderContext(gl:WebGL2RenderContext):WebGLRenderContext
 	{
 		return cast gl;

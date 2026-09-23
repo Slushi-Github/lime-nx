@@ -1,10 +1,14 @@
 package lime.tools;
 
-import hxp.*;
-import lime.tools.Platform;
+import hxp.Haxelib;
+import hxp.Log;
+import hxp.Path;
+import hxp.System;
+
 import lime.tools.HXProject;
-import sys.io.Process;
+
 import sys.FileSystem;
+import sys.io.Process;
 
 class IOSHelper
 {
@@ -66,8 +70,8 @@ class IOSHelper
 
 		System.runCommand(workingDirectory, "xcodebuild", archiveCommands);
 
-		var supportedExportMethods = ["adhoc", "development", "enterprise", "appstore"];
-		var exportMethods = [];
+		var supportedExportMethods = ["adhoc", "development", "enterprise", "appstore", "testflight-internal"];
+		var exportMethods:Array<String> = [];
 		for (m in supportedExportMethods)
 		{
 			if (project.targetFlags.exists(m))
@@ -133,21 +137,21 @@ class IOSHelper
 				commands.push("-arch");
 				commands.push("i386");
 			}
-			else
+			else if (project.targetFlags.exists("x64") || project.targetFlags.exists("64") || project.targetFlags.exists("x86_64"))
 			{
 				commands.push("-arch");
 				commands.push("x86_64");
+			}
+			else
+			{
+				commands.push("-arch");
+				commands.push("arm64");
 			}
 		}
 		else if (project.targetFlags.exists("armv7"))
 		{
 			commands.push("-arch");
 			commands.push("armv7");
-		}
-		else if (project.targetFlags.exists("armv7s"))
-		{
-			commands.push("-arch");
-			commands.push("armv7s");
 		}
 		else if (project.targetFlags.exists("arm64"))
 		{
@@ -364,7 +368,8 @@ class IOSHelper
 			var requireIPhone = project.config.getString("ios.device", "universal") == "iphone";
 
 			var xcodeVersion = Std.parseFloat(getXcodeVersion());
-			if (!Math.isNaN(xcodeVersion) && xcodeVersion >= 16) {
+			if (!Math.isNaN(xcodeVersion) && xcodeVersion >= 16)
+			{
 				// ios-deploy doesn't work with newer iOS SDKs where it can't
 				// find DeveloperDiskImage.dmg. however, Xcode 16 adds new
 				// commands for installing and launching apps on connected
@@ -389,10 +394,7 @@ class IOSHelper
 				// 1. the platform must always be iOS (which includes iPadOS).
 				// 2. the device must be in developer mode.
 				// 3. if required by the project config, limit to iPhone or iPad only
-				var baseFilters = [
-					filterPlatformIOS,
-					filterDeveloperModeEnabled,
-				];
+				var baseFilters = [filterPlatformIOS, filterDeveloperModeEnabled,];
 				if (requireIPad)
 				{
 					baseFilters.push(filterDeviceTypeIPad);
@@ -411,10 +413,7 @@ class IOSHelper
 				{
 					for (transportTypeFilter in transportTypeFilters)
 					{
-						deviceUUID = findDeviceUUIDWithFilters(baseFilters.concat([
-							stateFilter,
-							transportTypeFilter
-						]));
+						deviceUUID = findDeviceUUIDWithFilters(baseFilters.concat([stateFilter, transportTypeFilter]));
 						if (deviceUUID != null && deviceUUID.length > 0)
 						{
 							break;
@@ -426,7 +425,8 @@ class IOSHelper
 					}
 				}
 
-				if (deviceUUID == null || deviceUUID.length == 0) {
+				if (deviceUUID == null || deviceUUID.length == 0)
+				{
 					// devices running iOS 16 and older don't support
 					// xcrun devicectl, so if no device was found, try falling
 					// back to ios-deploy
@@ -440,9 +440,28 @@ class IOSHelper
 					Log.info("Detected iOS device UUID: " + deviceUUID);
 				}
 
-				System.runCommand("", "xcrun", ["devicectl", "device", "install", "app", "--device", deviceUUID, FileSystem.fullPath(applicationPath)]);
-				System.runCommand("", "xcrun", ["devicectl", "device", "process", "launch", "--console", "--device", deviceUUID, project.meta.packageName]);
-			} else {
+				System.runCommand("", "xcrun", [
+					"devicectl",
+					"device",
+					"install",
+					"app",
+					"--device",
+					deviceUUID,
+					FileSystem.fullPath(applicationPath)
+				]);
+				System.runCommand("", "xcrun", [
+					"devicectl",
+					"device",
+					"process",
+					"launch",
+					"--console",
+					"--device",
+					deviceUUID,
+					project.meta.packageName
+				]);
+			}
+			else
+			{
 				// continue using ios-deploy if Xcode version is 15 or older
 				fallbackLaunch(project, applicationPath);
 			}
@@ -451,12 +470,16 @@ class IOSHelper
 
 	private static function findDeviceUUIDWithFilters(filters:Array<String>):String
 	{
-		var listDevicesOutput = System.runProcess("", "xcrun",
-			[
-				"devicectl", "list", "devices",
-				"--hide-default-columns", "--columns", "Identifier",
-				"--filter", filters.join(" AND ")
-			]);
+		var listDevicesOutput = System.runProcess("", "xcrun", [
+			"devicectl",
+			"list",
+			"devices",
+			"--hide-default-columns",
+			"--columns",
+			"Identifier",
+			"--filter",
+			filters.join(" AND ")
+		]);
 		var ready = false;
 		for (line in listDevicesOutput.split("\n"))
 		{
@@ -472,10 +495,8 @@ class IOSHelper
 
 	private static function fallbackLaunch(project:HXProject, applicationPath:String):Void
 	{
-		var templatePaths = [
-			Path.combine(Haxelib.getPath(new Haxelib(#if lime "lime" #else "hxp" #end)), #if lime "templates" #else "" #end)
-		].concat(project.templatePaths);
-		var launcher = System.findTemplate(templatePaths, "bin/ios-deploy");
+		var launcher = System.findTemplate([Path.combine(Haxelib.getPath(new Haxelib("lime")), "templates")].concat(project.templatePaths), "bin/ios-deploy");
+
 		Sys.command("chmod", ["+x", launcher]);
 
 		System.runCommand("", launcher, [
@@ -515,7 +536,7 @@ class IOSHelper
 
 	private static function waitForDeviceState(command:String, args:Array<String>):Void
 	{
-		var output;
+		var output:String;
 
 		while (true)
 		{

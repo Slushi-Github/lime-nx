@@ -1,9 +1,13 @@
 package lime.tools;
 
-import hxp.*;
+import hxp.Haxelib;
+import hxp.Log;
+import hxp.MapTools;
+import hxp.Path;
+import hxp.System;
+
 import lime.tools.HXProject;
-import lime.tools.Platform;
-import sys.io.File;
+
 import sys.FileSystem;
 
 class CPPHelper
@@ -208,7 +212,10 @@ class CPPHelper
 
 		if (!FileSystem.exists(path))
 		{
-			Log.warn("Skipping rebuild. Path not found: " + path + "\nIf you are using a release from Haxelib, source code for native binaries may not be bundled. To rebuild, you may need to check out the full repository.");
+			Log.warn("Skipping rebuild. Path not found: "
+				+ path
+				+
+				"\nIf you are using a release from Haxelib, source code for native binaries may not be bundled. To rebuild, you may need to check out the full repository.");
 			return;
 		}
 
@@ -217,11 +224,15 @@ class CPPHelper
 			buildFile = project.config.get("project.rebuild.file");
 		}
 
-		if (buildFile == null) buildFile = "Build.xml";
+		if (buildFile == null)
+			buildFile = "Build.xml";
 
 		if (!FileSystem.exists(Path.combine(path, buildFile)))
 		{
-			Log.warn("Skipping rebuild. Path not found: " + path + "\nIf you are using a release from Haxelib, source code for native binaries may not be bundled. To rebuild, you may need to check out the full repository.");
+			Log.warn("Skipping rebuild. Path not found: "
+				+ path
+				+
+				"\nIf you are using a release from Haxelib, source code for native binaries may not be bundled. To rebuild, you may need to check out the full repository.");
 			return;
 		}
 
@@ -251,11 +262,6 @@ class CPPHelper
 			args.push ("-Ddebug");
 
 		}*/
-
-		if (project.targetFlags.exists("static"))
-		{
-			args.push("-Dstatic_link");
-		}
 
 		if (Log.verbose)
 		{

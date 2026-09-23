@@ -1,39 +1,91 @@
 #ifndef OPTHELPERS_H
 #define OPTHELPERS_H
 
+#include <memory>
+#include <type_traits>
+
+#include "gsl/gsl"
+
 #ifdef __has_builtin
 #define HAS_BUILTIN __has_builtin
 #else
 #define HAS_BUILTIN(x) (0)
 #endif
 
+#ifdef __has_cpp_attribute
+#define HAS_ATTRIBUTE __has_cpp_attribute
+#else
+#define HAS_ATTRIBUTE(x) (0)
+#endif
+
 #ifdef __GNUC__
-/* LIKELY optimizes the case where the condition is true. The condition is not
- * required to be true, but it can result in more optimal code for the true
- * path at the expense of a less optimal false path.
- */
-#define LIKELY(x) (__builtin_expect(!!(x), !false))
-/* The opposite of LIKELY, optimizing the case where the condition is false. */
-#define UNLIKELY(x) (__builtin_expect(!!(x), false))
-/* Unlike LIKELY, ASSUME requires the condition to be true or else it invokes
- * undefined behavior. It's essentially an assert without actually checking the
- * condition at run-time, allowing for stronger optimizations than LIKELY.
+#define force_inline [[gnu::always_inline]] inline
+#define NOINLINE [[gnu::noinline]]
+#elif defined(_MSC_VER)
+#define force_inline __forceinline
+#define NOINLINE __declspec(noinline)
+#else
+#define force_inline inline
+#define NOINLINE
+#endif
+
+/* Unlike the likely attribute, ASSUME requires the condition to be true or
+ * else it invokes undefined behavior. It's essentially an assert without
+ * actually checking the condition at run-time, allowing for stronger
+ * optimizations than the likely attribute.
  */
 #if HAS_BUILTIN(__builtin_assume)
 #define ASSUME __builtin_assume
+#elif defined(_MSC_VER)
+#define ASSUME __assume
+#elif __has_attribute(assume)
+#define ASSUME(x) [[assume(x)]]
+#elif HAS_BUILTIN(__builtin_unreachable)
+#define ASSUME(x) do { if(x) break; __builtin_unreachable(); } while(false)
 #else
-#define ASSUME(x) do { if(!(x)) __builtin_unreachable(); } while(0)
+#define ASSUME(x) (static_cast<void>(0))
 #endif
 
-#else /* __GNUC__ */
-
-#define LIKELY(x) (!!(x))
-#define UNLIKELY(x) (!!(x))
-#ifdef _MSC_VER
-#define ASSUME __assume
+#if !defined(_WIN32) && HAS_ATTRIBUTE(gnu::visibility)
+#define DECL_HIDDEN [[gnu::visibility("hidden")]]
 #else
-#define ASSUME(x) ((void)0)
-#endif /* _MSC_VER */
-#endif /* __GNUC__ */
+#define DECL_HIDDEN
+#endif
+
+#if HAS_ATTRIBUTE(clang::lifetimebound)
+#define LIFETIMEBOUND [[clang::lifetimebound]]
+#elif HAS_ATTRIBUTE(msvc::lifetimebound)
+#define LIFETIMEBOUND [[msvc::lifetimebound]]
+#elif HAS_ATTRIBUTE(lifetimebound)
+#define LIFETIMEBOUND [[lifetimebound]]
+#else
+#define LIFETIMEBOUND
+#endif
+
+#if HAS_ATTRIBUTE(clang::nonblocking)
+#define NONBLOCKING [[clang::nonblocking]]
+#else
+#define NONBLOCKING
+#endif
+
+namespace al {
+
+template<typename T>
+constexpr std::underlying_type_t<T> to_underlying(T e) noexcept
+{ return static_cast<std::underlying_type_t<T>>(e); }
+
+/**
+ * Gets a not_null<T*> from a not_null<SmartPtr<T>>, hopefully avoiding ths
+ * extraneous null check from not_null's constructor.
+ */
+template<typename T>
+constexpr auto get_not_null(const gsl::not_null<T> &val) noexcept
+{
+    auto *tmp = std::to_address(val);
+    ASSUME(tmp != nullptr);
+    return gsl::make_not_null(tmp);
+}
+
+} // namespace al
 
 #endif /* OPTHELPERS_H */

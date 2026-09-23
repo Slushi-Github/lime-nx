@@ -1,24 +1,14 @@
-#ifndef LIME_SYSTEM_CLIPBOARD_H
-#define LIME_SYSTEM_CLIPBOARD_H
+#pragma once
 
+namespace lime
+{
 
-namespace lime {
-
-
-	class Clipboard {
-
-
-		public:
-
-			static const char* GetText ();
-			static bool HasText ();
-			static bool SetText (const char* text);
-
-
+	class Clipboard
+	{
+	  public:
+		static char *GetText();
+		static bool HasText();
+		static bool SetText(const char *text);
 	};
 
-
-}
-
-
-#endif
+} // namespace lime

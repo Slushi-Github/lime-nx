@@ -1,22 +1,22 @@
 package lime.tools;
 
-// import openfl.display.Bitmap;
-// import openfl.display.BitmapData;
-// import openfl.display.Shape;
-// import openfl.geom.Rectangle;
-// import openfl.utils.ByteArray;
-// import format.SVG;
 import haxe.io.Bytes;
 import haxe.io.BytesOutput;
-import hxp.*;
+
+import hxp.Log;
+import hxp.Path;
+import hxp.System;
+
+import lime.tools.Icon;
 import lime.tools.ImageHelper;
+
+import sys.FileSystem;
+import sys.io.File;
+
 #if (lime && lime_cffi && !macro)
 import lime.graphics.Image;
 import lime.math.Rectangle;
 #end
-import lime.tools.Icon;
-import sys.io.File;
-import sys.FileSystem;
 
 class IconHelper
 {
@@ -190,16 +190,7 @@ class IconHelper
 
 			if (image != null)
 			{
-				var data = null;
-
-				if (size < 256)
-				{
-					data = lime._internal.format.BMP.encode(image, ICO);
-				}
-				else
-				{
-					data = image.encode(PNG);
-				}
+				var data:Bytes = image.encode(PNG);
 
 				if (data != null)
 				{
@@ -311,7 +302,8 @@ class IconHelper
 			}
 
 			if (Math.abs(iconDifference) < Math.abs(matchDifference)
-				|| iconDifference == matchDifference && icon.priority >= match.priority)
+				|| iconDifference == matchDifference
+				&& icon.priority >= match.priority)
 			{
 				match = icon;
 				matchDifference = iconDifference;
@@ -329,8 +321,7 @@ class IconHelper
 		}
 	}
 
-	private static function getIconImage(icons:Array<Icon>, width:Int, height:Int,
-			backgroundColor:Int = null):#if (lime && lime_cffi && !macro) Image #else Dynamic #end
+	private static function getIconImage(icons:Array<Icon>, width:Int, height:Int):#if (lime && lime_cffi && !macro) Image #else Dynamic #end
 	{
 		var icon = findMatch(icons, width, height);
 
@@ -351,21 +342,21 @@ class IconHelper
 		}
 
 		var extension = Path.extension(icon.path);
-		var image = null;
 
 		#if (lime && lime_cffi && !macro)
+		var image:Image = null;
 		switch (extension)
 		{
 			case "png", "jpg", "jpeg":
 				image = ImageHelper.resizeImage(Image.fromFile(icon.path), width, height);
 
 			case "svg":
-				// image = ImageHelper.rasterizeSVG (null /*new SVG (File.getContent (icon.path))*/, width, height, backgroundColor);
-				image = ImageHelper.rasterizeSVG(icon.path, width, height, backgroundColor);
+				image = ImageHelper.rasterizeSVG(icon.path, width, height);
 		}
-		#end
-
 		return image;
+		#else
+		return null;
+		#end
 	}
 
 	private static function packBits(data:Bytes, offset:Int, len:Int):Bytes

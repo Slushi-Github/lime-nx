@@ -1,6 +1,7 @@
 package lime.utils;
 
 import haxe.io.Path;
+
 import lime.app.Event;
 import lime.app.Future;
 import lime.app.Promise;
@@ -9,15 +10,7 @@ import lime.graphics.Image;
 import lime.net.HTTPRequest;
 import lime.text.Font;
 import lime.utils.AssetType;
-#if flash
-import flash.display.BitmapData;
-import flash.media.Sound;
-#end
 
-#if !lime_debug
-@:fileXml('tags="haxe,release"')
-@:noDebug
-#end
 @:access(lime.text.Font)
 @:access(lime.utils.Assets)
 class AssetLibrary
@@ -62,25 +55,10 @@ class AssetLibrary
 				return true;
 			}
 
-			#if flash
-			if (requestedType == BINARY && (assetType == BINARY || assetType == TEXT || assetType == IMAGE))
-			{
-				return true;
-			}
-			else if (requestedType == TEXT && assetType == BINARY)
-			{
-				return true;
-			}
-			else if (requestedType == null || paths.exists(id))
-			{
-				return true;
-			}
-			#else
 			if (requestedType == BINARY || requestedType == null || (assetType == BINARY && requestedType == TEXT))
 			{
 				return true;
 			}
-			#end
 		}
 
 		return false;
@@ -139,7 +117,8 @@ class AssetLibrary
 
 	public static function fromManifest(manifest:AssetManifest):AssetLibrary
 	{
-		if (manifest == null) return null;
+		if (manifest == null)
+			return null;
 
 		var library:AssetLibrary = null;
 
@@ -190,13 +169,7 @@ class AssetLibrary
 		}
 		else if (classTypes.exists(id))
 		{
-			#if flash
-			var buffer = new AudioBuffer();
-			buffer.src = cast(Type.createInstance(classTypes.get(id), []), Sound);
-			return buffer;
-			#else
 			return AudioBuffer.fromBytes(cast(Type.createInstance(classTypes.get(id), []), Bytes));
-			#end
 		}
 		else
 		{
@@ -218,24 +191,7 @@ class AssetLibrary
 		}
 		else if (classTypes.exists(id))
 		{
-			#if flash
-			var data = Type.createInstance(classTypes.get(id), []);
-
-			switch (types.get(id))
-			{
-				case TEXT, BINARY:
-					return Bytes.ofData(cast(Type.createInstance(classTypes.get(id), []), flash.utils.ByteArray));
-
-				case IMAGE:
-					var bitmapData = cast(Type.createInstance(classTypes.get(id), []), BitmapData);
-					return Bytes.ofData(bitmapData.getPixels(bitmapData.rect));
-
-				default:
-					return null;
-			}
-			#else
 			return cast(Type.createInstance(classTypes.get(id), []), Bytes);
-			#end
 		}
 		else
 		{
@@ -251,15 +207,7 @@ class AssetLibrary
 		}
 		else if (classTypes.exists(id))
 		{
-			#if flash
-			var src = Type.createInstance(classTypes.get(id), []);
-
-			var font = new Font(src.fontName);
-			font.src = src;
-			return font;
-			#else
 			return cast(Type.createInstance(classTypes.get(id), []), Font);
-			#end
 		}
 		else
 		{
@@ -275,11 +223,7 @@ class AssetLibrary
 		}
 		else if (classTypes.exists(id))
 		{
-			#if flash
-			return Image.fromBitmapData(cast(Type.createInstance(classTypes.get(id), []), BitmapData));
-			#else
 			return cast(Type.createInstance(classTypes.get(id), []), Image);
-			#end
 		}
 		else
 		{
@@ -337,8 +281,11 @@ class AssetLibrary
 		return switch (cast(type, AssetType))
 		{
 			case null:
-				cachedBytes.exists(id) || cachedText.exists(id) || cachedImages.exists(id)
-					|| cachedAudioBuffers.exists(id) || cachedFonts.exists(id);
+				cachedBytes.exists(id)
+				|| cachedText.exists(id)
+				|| cachedImages.exists(id)
+				|| cachedAudioBuffers.exists(id)
+				|| cachedFonts.exists(id);
 
 			case IMAGE:
 				cachedImages.exists(id);
@@ -349,8 +296,7 @@ class AssetLibrary
 			case FONT:
 				cachedFonts.exists(id);
 
-			default:
-				cachedBytes.exists(id) || cachedText.exists(id);
+			default: cachedBytes.exists(id) || cachedText.exists(id);
 		}
 		#end
 	}
@@ -403,7 +349,8 @@ class AssetLibrary
 
 			for (id in preload.keys())
 			{
-				if (!preload.get(id)) continue;
+				if (!preload.get(id))
+					continue;
 
 				Log.verbose("Preloading asset: " + id + " [" + types.get(id) + "]");
 
@@ -490,11 +437,7 @@ class AssetLibrary
 		}
 		else if (classTypes.exists(id))
 		{
-			#if flash
-			return Future.withValue(Bytes.ofData(Type.createInstance(classTypes.get(id), [])));
-			#else
 			return Future.withValue(Type.createInstance(classTypes.get(id), []));
-			#end
 		}
 		else
 		{
@@ -613,19 +556,11 @@ class AssetLibrary
 
 	public function unload():Void
 	{
-		#if haxe4
 		cachedBytes.clear();
 		cachedFonts.clear();
 		cachedImages.clear();
 		cachedAudioBuffers.clear();
 		cachedText.clear();
-		#else
-		cachedBytes = new Map<String, Bytes>();
-		cachedFonts = new Map<String, Font>();
-		cachedImages = new Map<String, Image>();
-		cachedText = new Map<String, String>();
-		classTypes = new Map<String, Class<Dynamic>>();
-		#end
 	}
 
 	@:noCompletion private function __assetLoaded(id:String):Void
@@ -728,8 +663,10 @@ class AssetLibrary
 		var size, id, pathGroup:Array<String>, classRef;
 
 		var basePath = manifest.rootPath;
-		if (basePath == null) basePath = "";
-		if (basePath != "") basePath += "/";
+		if (basePath == null)
+			basePath = "";
+		if (basePath != "")
+			basePath += "/";
 
 		for (asset in manifest.assets)
 		{
@@ -764,14 +701,6 @@ class AssetLibrary
 			if (Reflect.hasField(asset, "className"))
 			{
 				classRef = Type.resolveClass(Reflect.field(asset, "className"));
-
-				#if (js && html5 && modular)
-				if (classRef == null)
-				{
-					classRef = untyped $hx_exports[asset.className];
-				}
-				#end
-
 				classTypes.set(id, classRef);
 			}
 		}
@@ -859,7 +788,8 @@ class AssetLibrary
 
 			for (otherID in pathGroups.keys())
 			{
-				if (otherID == id) continue;
+				if (otherID == id)
+					continue;
 
 				for (path in pathGroup)
 				{
@@ -941,7 +871,8 @@ class AssetLibrary
 				// Use a ratio in case the real bytesTotal is different than our precomputed total
 
 				percent = (bytesLoaded / bytesTotal);
-				if (percent > 1) percent = 1;
+				if (percent > 1)
+					percent = 1;
 				bytesLoaded = Math.floor(percent * size);
 			}
 			else if (bytesLoaded > size)

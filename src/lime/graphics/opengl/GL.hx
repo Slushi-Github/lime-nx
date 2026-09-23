@@ -3,6 +3,7 @@ package lime.graphics.opengl;
 #if (!lime_doc_gen || lime_opengl || lime_opengles || lime_webgl)
 import haxe.io.Bytes;
 import haxe.Int64;
+
 import lime.utils.ArrayBufferView;
 import lime.utils.ArrayBuffer;
 import lime.utils.BytePointer;
@@ -695,6 +696,11 @@ class GL
 	}
 
 	#if (lime_opengl || lime_opengles)
+	public static inline function blendBarrier():Void
+	{
+		context.blendBarrier();
+	}
+
 	public static inline function bufferData(target:Int, size:Int, srcData:DataPointer, usage:Int):Void
 	{
 		context.bufferData(target, size, srcData, usage);
@@ -2600,9 +2606,6 @@ class GL
 
 #if (!js || !html5 || doc_gen)
 @:access(lime._internal.backend.native.NativeCFFI)
-#if hl
-@:keep
-#end
 @:dox(hide) @:noCompletion class GLObject
 {
 	@:noCompletion private var id:Int;
@@ -2616,7 +2619,8 @@ class GL
 
 	public static function fromInt(type:GLObjectType, id:Int):GLObject
 	{
-		if (id == 0) return null;
+		if (id == 0)
+			return null;
 
 		#if (lime_cffi && (lime_opengl || lime_opengles) && !macro)
 		var object = NativeCFFI.lime_gl_object_from_id(id, type);
@@ -2635,7 +2639,7 @@ class GL
 	}
 }
 
-@:dox(hide) @:noCompletion #if (haxe_ver >= 4.0) enum #else @:enum #end abstract GLObjectType(Int) to Int
+@:dox(hide) @:noCompletion enum abstract GLObjectType(Int) to Int
 {
 	var UNKNOWN = 0;
 	var PROGRAM = 1;

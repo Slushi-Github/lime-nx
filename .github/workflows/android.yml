@@ -1,0 +1,65 @@
+name: Android CI
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  android:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          submodules: true
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@master
+        with:
+          haxe-version: 4.3.7
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "zulu"
+          java-version: 17
+
+      - name: Set HAXEPATH
+        run: echo "HAXEPATH=$HAXE_STD_PATH/.." >> $GITHUB_ENV
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r29
+
+      - name: Install Haxe dependencies
+        run: |
+          haxelib git hxcpp https://github.com/FunkinCrew/hxcpp --quiet
+          haxelib install format --quiet
+          haxelib install hxp --quiet
+
+      - name: Configure Lime & Android support
+        run: |
+          haxelib dev lime ${{ github.workspace }}
+          export ANDROID_SDK=$ANDROID_HOME
+          export ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}
+          export JAVA_HOME=$JAVA_HOME_17_arm64
+          export ANDROID_SETUP=true
+          haxelib run lime setup android -alias -y -nocffi
+
+      - name: Remove Previous NDLLs
+        run: |
+          rm -rf ./ndll
+          mkdir ./ndll
+
+      - name: Rebuild Lime
+        run: |
+          haxelib run lime rebuild hxcpp
+          haxelib run lime rebuild android -release
+
+      - name: Upload Artifact (ndll/Android)
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: Android-NDLL
+          path: ndll/Android
+          if-no-files-found: error

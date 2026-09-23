@@ -2229,6 +2229,10 @@ PREFIX (_translate) (region_type_t *region, int x, int y)
     box_type_t * pbox;
 
     GOOD (region);
+
+    if (x == 0 && y == 0)
+        return;
+
     region->extents.x1 = x1 = region->extents.x1 + x;
     region->extents.y1 = y1 = region->extents.y1 + y;
     region->extents.x2 = x2 = region->extents.x2 + x;
@@ -2384,6 +2388,14 @@ PREFIX (_contains_point) (const region_type_t * region,
     }
 
     return(FALSE);
+}
+
+PIXMAN_EXPORT int
+PREFIX (_empty) (const region_type_t * region)
+{
+    GOOD (region);
+
+    return(PIXREGION_NIL (region));
 }
 
 PIXMAN_EXPORT int

@@ -3,43 +3,35 @@
 
 #include "alstring.h"
 
+#include <algorithm>
 #include <cctype>
-#include <string>
+#include <compare>
+#include <cstring>
+#include <cwctype>
 
-
-namespace {
-
-int to_upper(const char ch)
-{
-    using char8_traits = std::char_traits<char>;
-    return std::toupper(char8_traits::to_int_type(ch));
-}
-
-} // namespace
 
 namespace al {
 
-int strcasecmp(const char *str0, const char *str1) noexcept
+auto case_compare(const std::string_view str0, const std::string_view str1) noexcept
+    -> std::weak_ordering
 {
-    do {
-        const int diff{to_upper(*str0) - to_upper(*str1)};
-        if(diff < 0) return -1;
-        if(diff > 0) return 1;
-    } while(*(str0++) && *(str1++));
-    return 0;
+    return std::lexicographical_compare_three_way(str0.cbegin(), str0.cend(),
+        str1.cbegin(), str1.cend(), [](const char ch0, const char ch1) -> std::weak_ordering
+    {
+        using Traits = std::string_view::traits_type;
+        return std::toupper(Traits::to_int_type(ch0)) <=> std::toupper(Traits::to_int_type(ch1));
+    });
 }
 
-int strncasecmp(const char *str0, const char *str1, std::size_t len) noexcept
+auto case_compare(const std::wstring_view str0, const std::wstring_view str1) noexcept
+    -> std::weak_ordering
 {
-    if(len > 0)
+    return std::lexicographical_compare_three_way(str0.cbegin(), str0.cend(),
+        str1.cbegin(), str1.cend(), [](const wchar_t ch0, const wchar_t ch1) -> std::weak_ordering
     {
-        do {
-            const int diff{to_upper(*str0) - to_upper(*str1)};
-            if(diff < 0) return -1;
-            if(diff > 0) return 1;
-        } while(--len && *(str0++) && *(str1++));
-    }
-    return 0;
+        using Traits = std::wstring_view::traits_type;
+        return std::towupper(Traits::to_int_type(ch0)) <=> std::towupper(Traits::to_int_type(ch1));
+    });
 }
 
 } // namespace al

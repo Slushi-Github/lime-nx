@@ -1,0 +1,37 @@
+# Copyright (c) the JPEG XL Project Authors. All rights reserved.
+#
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+# Workflow to run pull-requests specific checks.
+
+name: PR
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  # Checks that the AUTHORS files is updated with new contributors.
+  authors:
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Checkout the source
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - name: Check AUTHORS file
+      run:
+        ./ci.sh authors
+
+  format:
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Install build deps
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          clang-format \
+        #
+    - name: Checkout the source
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - name: clang-format
+      run:
+        ./ci.sh lint >&2

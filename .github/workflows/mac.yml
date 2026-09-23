@@ -1,0 +1,58 @@
+name: Mac CI
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  mac:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          submodules: true
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@master
+        with:
+          haxe-version: 4.3.7
+
+      - name: Set HAXEPATH
+        run: echo "HAXEPATH=$HAXE_STD_PATH/.." >> $GITHUB_ENV
+
+      - name: Install Haxe dependencies
+        run: |
+          haxelib git hxcpp https://github.com/FunkinCrew/hxcpp --quiet
+          haxelib install format --quiet
+          haxelib install hxp --quiet
+
+      - name: Configure Lime
+        run: |
+          haxelib dev lime ${{ github.workspace }}
+          haxelib run lime setup -alias -y -nocffi
+          haxelib run lime rebuild hxcpp
+
+      - name: Remove Previous NDLLs
+        run: |
+          rm -rf ./ndll
+          mkdir ./ndll
+
+      - name: Rebuild Lime (x86_64)
+        run: haxelib run lime rebuild mac -64
+
+      - name: Rebuild Lime (ARM64)
+        run: haxelib run lime rebuild mac -arm64 -D HXCPP_ARM64
+
+      - name: Upload Artifact (ndll/Mac64)
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: Mac64-NDLL
+          path: ndll/Mac64
+          if-no-files-found: error
+
+      - name: Upload Artifact (ndll/MacArm64)
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: MacArm64-NDLL
+          path: ndll/MacArm64
+          if-no-files-found: error

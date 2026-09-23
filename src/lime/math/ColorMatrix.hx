@@ -2,9 +2,6 @@ package lime.math;
 
 import lime.utils.Float32Array;
 import lime.utils.UInt8Array;
-#if flash
-import flash.geom.ColorTransform;
-#end
 
 /**
 	`ColorMatrix` is a 4x5 matrix containing color multiplication
@@ -177,8 +174,10 @@ abstract ColorMatrix(Float32Array) from Float32Array to Float32Array
 		for (i in 1...256)
 		{
 			value = Math.floor(i * alphaMultiplier + alphaOffset);
-			if (value > 0xFF) value = 0xFF;
-			if (value < 0) value = 0;
+			if (value > 0xFF)
+				value = 0xFF;
+			if (value < 0)
+				value = 0;
 			__alphaTable[i] = value;
 		}
 
@@ -217,8 +216,10 @@ abstract ColorMatrix(Float32Array) from Float32Array to Float32Array
 		for (i in 0...256)
 		{
 			value = Math.floor(i * blueMultiplier + blueOffset);
-			if (value > 0xFF) value = 0xFF;
-			if (value < 0) value = 0;
+			if (value > 0xFF)
+				value = 0xFF;
+			if (value < 0)
+				value = 0;
 			__blueTable[i] = value;
 		}
 
@@ -257,8 +258,10 @@ abstract ColorMatrix(Float32Array) from Float32Array to Float32Array
 		for (i in 0...256)
 		{
 			value = Math.floor(i * greenMultiplier + greenOffset);
-			if (value > 0xFF) value = 0xFF;
-			if (value < 0) value = 0;
+			if (value > 0xFF)
+				value = 0xFF;
+			if (value < 0)
+				value = 0;
 			__greenTable[i] = value;
 		}
 
@@ -297,21 +300,14 @@ abstract ColorMatrix(Float32Array) from Float32Array to Float32Array
 		for (i in 0...256)
 		{
 			value = Math.floor(i * redMultiplier + redOffset);
-			if (value > 0xFF) value = 0xFF;
-			if (value < 0) value = 0;
+			if (value > 0xFF)
+				value = 0xFF;
+			if (value < 0)
+				value = 0;
 			__redTable[i] = value;
 		}
 
 		return __redTable;
-	}
-
-	@:noCompletion private function __toFlashColorTransform():#if flash ColorTransform #else Dynamic #end
-	{
-		#if flash
-		return new ColorTransform(redMultiplier, greenMultiplier, blueMultiplier, alphaMultiplier, redOffset, greenOffset, blueOffset, alphaOffset);
-		#else
-		return null;
-		#end
 	}
 
 	// Get & Set Methods

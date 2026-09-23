@@ -1,84 +1,92 @@
-#ifndef LIME_SDL_APPLICATION_H
-#define LIME_SDL_APPLICATION_H
+#pragma once
 
-
-#include <SDL.h>
-#include <app/Application.h>
-#include <app/ApplicationEvent.h>
-#include <graphics/RenderEvent.h>
-#include <system/ClipboardEvent.h>
-#include <system/SensorEvent.h>
-#include <ui/DropEvent.h>
-#include <ui/GamepadEvent.h>
-#include <ui/JoystickEvent.h>
-#include <ui/KeyEvent.h>
-#include <ui/MouseEvent.h>
-#include <ui/TextEvent.h>
-#include <ui/TouchEvent.h>
-#include <ui/WindowEvent.h>
 #include "SDLWindow.h"
 
+#include <app/Application.h>
+#include <events/ApplicationEvent.h>
+#include <events/ClipboardEvent.h>
+#include <events/DropEvent.h>
+#include <events/GamepadEvent.h>
+#include <events/JoystickEvent.h>
+#include <events/KeyEvent.h>
+#include <events/MouseEvent.h>
+#include <events/OrientationEvent.h>
+#include <events/RenderEvent.h>
+#include <events/SensorEvent.h>
+#include <events/TextEvent.h>
+#include <events/TouchEvent.h>
+#include <events/WindowEvent.h>
+#include <SDL3/SDL.h>
+#include <ui/Gesture.h>
 
-namespace lime {
+namespace lime
+{
 
-
-	class SDLApplication : public Application {
-
-		public:
-
-			SDLApplication ();
-			~SDLApplication ();
-
-			virtual int Exec ();
-			virtual void Init ();
-			virtual int Quit ();
-			virtual void SetFrameRate (double frameRate);
-			virtual bool Update ();
-
-			void RegisterWindow (SDLWindow *window);
-
-		private:
-
-			void HandleEvent (SDL_Event* event);
-			void ProcessClipboardEvent (SDL_Event* event);
-			void ProcessDropEvent (SDL_Event* event);
-			void ProcessGamepadEvent (SDL_Event* event);
-			void ProcessJoystickEvent (SDL_Event* event);
-			void ProcessKeyEvent (SDL_Event* event);
-			void ProcessMouseEvent (SDL_Event* event);
-			void ProcessSensorEvent (SDL_Event* event);
-			void ProcessTextEvent (SDL_Event* event);
-			void ProcessTouchEvent (SDL_Event* event);
-			void ProcessWindowEvent (SDL_Event* event);
-			int WaitEvent (SDL_Event* event);
-
-			static void UpdateFrame ();
-			static void UpdateFrame (void*);
-
-			static SDLApplication* currentApplication;
-
-			bool active;
-			ApplicationEvent applicationEvent;
-			ClipboardEvent clipboardEvent;
-			Uint32 currentUpdate;
-			double framePeriod;
-			DropEvent dropEvent;
-			GamepadEvent gamepadEvent;
-			JoystickEvent joystickEvent;
-			KeyEvent keyEvent;
-			Uint32 lastUpdate;
-			MouseEvent mouseEvent;
-			Uint32 nextUpdate;
-			RenderEvent renderEvent;
-			SensorEvent sensorEvent;
-			TextEvent textEvent;
-			TouchEvent touchEvent;
-			WindowEvent windowEvent;
-
+	struct FrameTime
+	{
+		Uint64 current;
+		Uint64 previous;
+		Uint64 frame;
+		Uint64 target;
 	};
 
+	class SDLApplication : public Application
+	{
+	  public:
+		SDLApplication();
+		~SDLApplication();
 
-}
+		virtual int Exec();
+		virtual void Init();
+		virtual int Quit();
+		virtual void SetFrameRate(double frameRate);
+		virtual bool Update();
 
+		void RegisterWindow(SDLWindow *window);
 
+	  private:
+		void InitializeSensors();
+
+		void HandleEvent(SDL_Event *event);
+		void ProcessClipboardEvent(SDL_Event *event);
+		void ProcessDropEvent(SDL_Event *event);
+		void ProcessGamepadEvent(SDL_Event *event);
+		void ProcessJoystickEvent(SDL_Event *event);
+		void ProcessKeyEvent(SDL_Event *event);
+		void ProcessMouseEvent(SDL_Event *event);
+		void ProcessSensorEvent(SDL_Event *event);
+		void ProcessTextEvent(SDL_Event *event);
+		void ProcessTouchEvent(SDL_Event *event);
+		void ProcessWindowEvent(SDL_Event *event);
+
+		void RenderFrame();
+		void FramePacer();
+
+		static bool HandleAppLifecycleEvent(void *userdata, SDL_Event *event);
+#if defined(HX_WINDOWS) || defined(HX_MACOS) || defined(HX_LINUX)
+		static bool HandleEventWatcher(void *userdata, SDL_Event *event);
 #endif
+#ifdef IPHONE
+		static void UpdateFrame(void *userdata);
+#endif
+
+		static SDLApplication *currentApplication;
+		FrameTime frameTime;
+		bool active;
+
+		ApplicationEvent applicationEvent;
+		ClipboardEvent clipboardEvent;
+		DropEvent dropEvent;
+		GamepadEvent gamepadEvent;
+		JoystickEvent joystickEvent;
+		KeyEvent keyEvent;
+		MouseEvent mouseEvent;
+		OrientationEvent orientationEvent;
+		RenderEvent renderEvent;
+		SensorEvent sensorEvent;
+		TextEvent textEvent;
+		TouchEvent touchEvent;
+		WindowEvent windowEvent;
+	};
+
+} // namespace lime

@@ -20,250 +20,205 @@
 
 #include "config.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
+#include <numbers>
+#include <ranges>
+#include <span>
+#include <variant>
 
-#include <cmath>
-#include <algorithm>
+#include "alc/effects/base.h"
+#include "core/ambidefs.h"
+#include "core/bufferline.h"
+#include "core/context.h"
+#include "core/device.h"
+#include "core/effects/base.h"
+#include "core/effectslot.h"
+#include "core/filters/biquad.h"
+#include "core/mixer.h"
+#include "gsl/gsl"
+#include "intrusive_ptr.h"
+#include "opthelpers.h"
 
-#include "al/auxeffectslot.h"
-#include "alcmain.h"
-#include "alcontext.h"
-#include "alu.h"
-#include "filters/biquad.h"
-#include "vecmat.h"
-
+struct BufferStorage;
 
 namespace {
 
-#define MAX_UPDATE_SAMPLES 128
+struct SinFunc {
+    static
+    auto Get(unsigned const index, float const scale) noexcept(noexcept(std::sin(0.0f))) -> float
+    { return std::sin(gsl::narrow_cast<float>(index) * scale); }
+};
 
-#define WAVEFORM_FRACBITS  24
-#define WAVEFORM_FRACONE   (1<<WAVEFORM_FRACBITS)
-#define WAVEFORM_FRACMASK  (WAVEFORM_FRACONE-1)
+struct SawFunc {
+    static constexpr auto Get(unsigned const index, const float scale) noexcept -> float
+    { return gsl::narrow_cast<float>(index)*scale - 1.0f; }
+};
 
-inline float Sin(ALuint index)
-{
-    constexpr float scale{al::MathDefs<float>::Tau() / WAVEFORM_FRACONE};
-    return std::sin(static_cast<float>(index) * scale);
-}
+struct SquareFunc {
+    static constexpr auto Get(unsigned const index, const float scale) noexcept -> float
+    { return gsl::narrow_cast<float>(gsl::narrow_cast<float>(index)*scale < 0.5f)*2.0f - 1.0f; }
+};
 
-inline float Saw(ALuint index)
-{ return static_cast<float>(index)*(2.0f/WAVEFORM_FRACONE) - 1.0f; }
-
-inline float Square(ALuint index)
-{ return static_cast<float>(static_cast<int>((index>>(WAVEFORM_FRACBITS-2))&2) - 1); }
-
-inline float One(ALuint) { return 1.0f; }
-
-template<float (&func)(ALuint)>
-void Modulate(float *RESTRICT dst, ALuint index, const ALuint step, size_t todo)
-{
-    for(size_t i{0u};i < todo;i++)
-    {
-        index += step;
-        index &= WAVEFORM_FRACMASK;
-        dst[i] = func(index);
-    }
-}
+struct OneFunc {
+    static constexpr auto Get(unsigned const, const float) noexcept -> float
+    { return 1.0f; }
+};
 
 
 struct ModulatorState final : public EffectState {
-    void (*mGetSamples)(float*RESTRICT, ALuint, const ALuint, size_t){};
+    std::variant<OneFunc,SinFunc,SawFunc,SquareFunc> mSampleGen;
 
-    ALuint mIndex{0};
-    ALuint mStep{1};
+    unsigned mIndex{0};
+    unsigned mRange{1};
+    float mIndexScale{0.0f};
 
-    struct {
-        BiquadFilter Filter;
+    alignas(16) FloatBufferLine mModSamples{};
+    alignas(16) FloatBufferLine mBuffer{};
 
-        ALfloat CurrentGains[MAX_OUTPUT_CHANNELS]{};
-        ALfloat TargetGains[MAX_OUTPUT_CHANNELS]{};
-    } mChans[MAX_AMBI_CHANNELS];
+    struct OutParams {
+        unsigned mTargetChannel{InvalidChannelIndex.c_val};
+
+        BiquadFilter mFilter;
+
+        float mCurrentGain{};
+        float mTargetGain{};
+    };
+    std::array<OutParams,MaxAmbiChannels> mChans;
 
 
-    ALboolean deviceUpdate(const ALCdevice *device) override;
-    void update(const ALCcontext *context, const ALeffectslot *slot, const EffectProps *props, const EffectTarget target) override;
-    void process(const size_t samplesToDo, const al::span<const FloatBufferLine> samplesIn, const al::span<FloatBufferLine> samplesOut) override;
-
-    DEF_NEWDEL(ModulatorState)
+    void deviceUpdate(const DeviceBase *device, const BufferStorage *buffer) override;
+    void update(const ContextBase *context, const EffectSlotBase *slot, const EffectProps *props,
+        const EffectTarget target) override;
+    void process(const size_t samplesToDo, const std::span<const FloatBufferLine> samplesIn,
+        const std::span<FloatBufferLine> samplesOut) override;
 };
 
-ALboolean ModulatorState::deviceUpdate(const ALCdevice*)
+void ModulatorState::deviceUpdate(const DeviceBase*, const BufferStorage*)
 {
-    for(auto &e : mChans)
-    {
-        e.Filter.clear();
-        std::fill(std::begin(e.CurrentGains), std::end(e.CurrentGains), 0.0f);
-    }
-    return AL_TRUE;
+    mChans.fill(OutParams{});
 }
 
-void ModulatorState::update(const ALCcontext *context, const ALeffectslot *slot, const EffectProps *props, const EffectTarget target)
+void ModulatorState::update(const ContextBase *context, const EffectSlotBase *slot,
+    const EffectProps *props_, const EffectTarget target)
 {
-    const ALCdevice *device{context->mDevice.get()};
+    auto &props = std::get<ModulatorProps>(*props_);
+    auto const device = al::get_not_null(context->mDevice);
+    auto const samplerate = static_cast<float>(device->mSampleRate);
 
-    const float step{props->Modulator.Frequency / static_cast<ALfloat>(device->Frequency)};
-    mStep = fastf2u(clampf(step*WAVEFORM_FRACONE, 0.0f, ALfloat{WAVEFORM_FRACONE-1}));
+    /* The effective frequency will be adjusted to have a whole number of
+     * samples per cycle (at 48khz, that allows 8000, 6857.14, 6000, 5333.33,
+     * 4800, etc). We could do better by using fixed-point stepping over a sin
+     * function, with additive synthesis for the square and sawtooth waveforms,
+     * but that may need a more efficient sin function since it needs to do
+     * many iterations per sample.
+     */
+    const auto samplesPerCycle = props.Frequency > 0.0f
+        ? samplerate/props.Frequency + 0.5f : 1.0f;
+    const auto range = static_cast<unsigned>(std::clamp(samplesPerCycle, 1.0f, samplerate));
+    mIndex = static_cast<unsigned>((u64{mIndex} * u64{range} / u64{mRange}).c_val);
+    mRange = range;
 
-    if(mStep == 0)
-        mGetSamples = Modulate<One>;
-    else if(props->Modulator.Waveform == AL_RING_MODULATOR_SINUSOID)
-        mGetSamples = Modulate<Sin>;
-    else if(props->Modulator.Waveform == AL_RING_MODULATOR_SAWTOOTH)
-        mGetSamples = Modulate<Saw>;
-    else /*if(props->Modulator.Waveform == AL_RING_MODULATOR_SQUARE)*/
-        mGetSamples = Modulate<Square>;
+    if(mRange == 1)
+    {
+        mIndexScale = 0.0f;
+        mSampleGen.emplace<OneFunc>();
+    }
+    else if(props.Waveform == ModulatorWaveform::Sinusoid)
+    {
+        mIndexScale = std::numbers::pi_v<float>*2.0f / static_cast<float>(mRange);
+        mSampleGen.emplace<SinFunc>();
+    }
+    else if(props.Waveform == ModulatorWaveform::Sawtooth)
+    {
+        mIndexScale = 2.0f / static_cast<float>(mRange-1);
+        mSampleGen.emplace<SawFunc>();
+    }
+    else if(props.Waveform == ModulatorWaveform::Square)
+    {
+        /* For square wave, the range should be even (there should be an equal
+         * number of high and low samples). An odd number of samples per cycle
+         * would need a more complex value generator.
+         */
+        mRange = (mRange+1) & ~1u;
+        mIndexScale = 1.0f / static_cast<float>(mRange-1);
+        mSampleGen.emplace<SquareFunc>();
+    }
 
-    float f0norm{props->Modulator.HighPassCutoff / static_cast<ALfloat>(device->Frequency)};
-    f0norm = clampf(f0norm, 1.0f/512.0f, 0.49f);
+    const auto f0norm = std::clamp(props.HighPassCutoff / samplerate, 1.0f/512.0f, 0.49f);
     /* Bandwidth value is constant in octaves. */
-    mChans[0].Filter.setParamsFromBandwidth(BiquadType::HighPass, f0norm, 1.0f, 0.75f);
-    for(size_t i{1u};i < slot->Wet.Buffer.size();++i)
-        mChans[i].Filter.copyParamsFrom(mChans[0].Filter);
+    mChans[0].mFilter.setParamsFromBandwidth(BiquadType::HighPass, f0norm, 1.0f, 0.75f);
+    std::ranges::for_each(mChans | std::views::take(slot->Wet.Buffer.size()) | std::views::drop(1),
+        [&other=mChans[0].mFilter](BiquadFilter &filter)
+    { filter.copyParamsFrom(other); }, &OutParams::mFilter);
 
     mOutTarget = target.Main->Buffer;
-    for(size_t i{0u};i < slot->Wet.Buffer.size();++i)
+    target.Main->setAmbiMixParams(slot->Wet, slot->Gain,
+        [this](std::size_t const idx, u8 const outchan, float const outgain)
     {
-        auto coeffs = GetAmbiIdentityRow(i);
-        ComputePanGains(target.Main, coeffs.data(), slot->Params.Gain, mChans[i].TargetGains);
-    }
+        mChans[idx].mTargetChannel = outchan.c_val;
+        mChans[idx].mTargetGain = outgain;
+    });
 }
 
-void ModulatorState::process(const size_t samplesToDo, const al::span<const FloatBufferLine> samplesIn, const al::span<FloatBufferLine> samplesOut)
+void ModulatorState::process(const size_t samplesToDo,
+    const std::span<const FloatBufferLine> samplesIn, const std::span<FloatBufferLine> samplesOut)
 {
-    for(size_t base{0u};base < samplesToDo;)
+    ASSUME(samplesToDo > 0);
+
+    std::visit([this,samplesToDo]<typename T>(T&& type [[maybe_unused]])
     {
-        alignas(16) ALfloat modsamples[MAX_UPDATE_SAMPLES];
-        size_t td{minz(MAX_UPDATE_SAMPLES, samplesToDo-base)};
+        using Modulator = std::remove_cvref_t<T>;
+        const auto range = mRange;
+        const auto scale = mIndexScale;
+        auto index = mIndex;
 
-        mGetSamples(modsamples, mIndex, mStep, td);
-        mIndex += static_cast<ALuint>(mStep * td);
-        mIndex &= WAVEFORM_FRACMASK;
+        ASSUME(range > 1);
 
-        auto chandata = std::addressof(mChans[0]);
-        for(const auto &input : samplesIn)
+        auto moditer = mModSamples.begin();
+        for(auto i = 0_uz;i < samplesToDo;)
         {
-            alignas(16) ALfloat temps[MAX_UPDATE_SAMPLES];
+            const auto rem = std::min(static_cast<unsigned>(samplesToDo-i), range-index);
+            moditer = std::ranges::transform(std::views::iota(index, index+rem), moditer,
+                [scale](unsigned const idx) { return Modulator::Get(idx, scale); }).out;
 
-            chandata->Filter.process({&input[base], td}, temps);
-            for(size_t i{0u};i < td;i++)
-                temps[i] *= modsamples[i];
-
-            MixSamples({temps, td}, samplesOut, chandata->CurrentGains, chandata->TargetGains,
-                samplesToDo-base, base);
-            ++chandata;
+            i += rem;
+            index += rem;
+            if(index == range)
+                index = 0;
         }
+        mIndex = index;
+    }, mSampleGen);
 
-        base += td;
-    }
-}
-
-
-void Modulator_setParamf(EffectProps *props, ALCcontext *context, ALenum param, ALfloat val)
-{
-    switch(param)
+    auto chandata = mChans.begin();
+    std::ranges::for_each(samplesIn, [&,this](const FloatConstBufferSpan input)
     {
-        case AL_RING_MODULATOR_FREQUENCY:
-            if(!(val >= AL_RING_MODULATOR_MIN_FREQUENCY && val <= AL_RING_MODULATOR_MAX_FREQUENCY))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Modulator frequency out of range");
-            props->Modulator.Frequency = val;
-            break;
+        if(const size_t outidx{chandata->mTargetChannel}; outidx != InvalidChannelIndex)
+        {
+            chandata->mFilter.process(std::span{input}.first(samplesToDo), mBuffer);
+            std::ranges::transform(mBuffer | std::views::take(samplesToDo), mModSamples,
+                mBuffer.begin(), std::multiplies{});
 
-        case AL_RING_MODULATOR_HIGHPASS_CUTOFF:
-            if(!(val >= AL_RING_MODULATOR_MIN_HIGHPASS_CUTOFF && val <= AL_RING_MODULATOR_MAX_HIGHPASS_CUTOFF))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Modulator high-pass cutoff out of range");
-            props->Modulator.HighPassCutoff = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid modulator float property 0x%04x", param);
-    }
+            MixSamples(std::span{mBuffer}.first(samplesToDo), samplesOut[outidx],
+                chandata->mCurrentGain, chandata->mTargetGain, std::min(samplesToDo, 64_uz));
+        }
+        ++chandata;
+    });
 }
-void Modulator_setParamfv(EffectProps *props, ALCcontext *context, ALenum param, const ALfloat *vals)
-{ Modulator_setParamf(props, context, param, vals[0]); }
-void Modulator_setParami(EffectProps *props, ALCcontext *context, ALenum param, ALint val)
-{
-    switch(param)
-    {
-        case AL_RING_MODULATOR_FREQUENCY:
-        case AL_RING_MODULATOR_HIGHPASS_CUTOFF:
-            Modulator_setParamf(props, context, param, static_cast<ALfloat>(val));
-            break;
-
-        case AL_RING_MODULATOR_WAVEFORM:
-            if(!(val >= AL_RING_MODULATOR_MIN_WAVEFORM && val <= AL_RING_MODULATOR_MAX_WAVEFORM))
-                SETERR_RETURN(context, AL_INVALID_VALUE,, "Invalid modulator waveform");
-            props->Modulator.Waveform = val;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid modulator integer property 0x%04x", param);
-    }
-}
-void Modulator_setParamiv(EffectProps *props, ALCcontext *context, ALenum param, const ALint *vals)
-{ Modulator_setParami(props, context, param, vals[0]); }
-
-void Modulator_getParami(const EffectProps *props, ALCcontext *context, ALenum param, ALint *val)
-{
-    switch(param)
-    {
-        case AL_RING_MODULATOR_FREQUENCY:
-            *val = static_cast<ALint>(props->Modulator.Frequency);
-            break;
-        case AL_RING_MODULATOR_HIGHPASS_CUTOFF:
-            *val = static_cast<ALint>(props->Modulator.HighPassCutoff);
-            break;
-        case AL_RING_MODULATOR_WAVEFORM:
-            *val = props->Modulator.Waveform;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid modulator integer property 0x%04x", param);
-    }
-}
-void Modulator_getParamiv(const EffectProps *props, ALCcontext *context, ALenum param, ALint *vals)
-{ Modulator_getParami(props, context, param, vals); }
-void Modulator_getParamf(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *val)
-{
-    switch(param)
-    {
-        case AL_RING_MODULATOR_FREQUENCY:
-            *val = props->Modulator.Frequency;
-            break;
-        case AL_RING_MODULATOR_HIGHPASS_CUTOFF:
-            *val = props->Modulator.HighPassCutoff;
-            break;
-
-        default:
-            context->setError(AL_INVALID_ENUM, "Invalid modulator float property 0x%04x", param);
-    }
-}
-void Modulator_getParamfv(const EffectProps *props, ALCcontext *context, ALenum param, ALfloat *vals)
-{ Modulator_getParamf(props, context, param, vals); }
-
-DEFINE_ALEFFECT_VTABLE(Modulator);
 
 
 struct ModulatorStateFactory final : public EffectStateFactory {
-    EffectState *create() override { return new ModulatorState{}; }
-    EffectProps getDefaultProps() const noexcept override;
-    const EffectVtable *getEffectVtable() const noexcept override { return &Modulator_vtable; }
+    al::intrusive_ptr<EffectState> create() override
+    { return al::intrusive_ptr<EffectState>{new ModulatorState{}}; }
 };
-
-EffectProps ModulatorStateFactory::getDefaultProps() const noexcept
-{
-    EffectProps props{};
-    props.Modulator.Frequency      = AL_RING_MODULATOR_DEFAULT_FREQUENCY;
-    props.Modulator.HighPassCutoff = AL_RING_MODULATOR_DEFAULT_HIGHPASS_CUTOFF;
-    props.Modulator.Waveform       = AL_RING_MODULATOR_DEFAULT_WAVEFORM;
-    return props;
-}
 
 } // namespace
 
-EffectStateFactory *ModulatorStateFactory_getFactory()
+auto ModulatorStateFactory_getFactory() -> gsl::not_null<EffectStateFactory*>
 {
     static ModulatorStateFactory ModulatorFactory{};
-    return &ModulatorFactory;
+    return gsl::make_not_null(&ModulatorFactory);
 }
